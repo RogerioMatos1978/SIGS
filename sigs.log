@@ -1,2 +1,23 @@
 2026-07-16 17:03:31 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
 2026-07-16 17:03:31 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-16 17:56:58 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-16 17:56:58 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-16 17:57:23 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-07-16 17:57:23 | INFO     | SIGS | Senha emitida: número 001 (id=1)
+2026-07-16 17:57:56 | INFO     | SIGS | Senha 001 chamada no guichê 'Guichê 01' por 'Atendente'.
+2026-07-16 17:58:19 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-16 17:58:27 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-16 17:58:30 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-16 17:58:31 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-16 17:58:33 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-16 17:58:35 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-16 17:58:37 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-16 17:58:41 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-07-16 17:58:41 | INFO     | SIGS | Senha emitida: número 002 (id=2)
+2026-07-16 17:59:07 | INFO     | SIGS | Senha 002 chamada no guichê 'Guichê 02' por 'Rogerio Matos'.
+2026-07-16 17:59:55 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-07-16 17:59:55 | WARNING  | SIGS | Contador de senhas reiniciado manualmente.
+2026-07-16 18:00:11 | INFO     | SIGS | Repetição de chamada da senha 002.
+2026-07-16 18:00:18 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-07-16 18:00:20 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-07-16 18:00:20 | ERROR    | SIGS | Não há senhas aguardando chamada.
