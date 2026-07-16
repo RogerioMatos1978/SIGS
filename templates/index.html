@@ -1,0 +1,106 @@
+<!--
+    index.html
+    ==========
+    Tela principal do SIGS, utilizada pelo atendente/totem para emitir
+    novas senhas e chamar a próxima senha da fila. Contém todos os botões
+    exigidos pela especificação: Emitir Senha, Chamar Próxima, Repetir
+    Chamada, Abrir Painel, Testar Bip, Configurações, Relatórios e
+    Reiniciar Contador.
+-->
+{% extends "layout.html" %}
+
+{% block titulo %}SIGS - Tela Principal{% endblock %}
+
+{% block conteudo %}
+<div class="pagina">
+
+    <header class="cabecalho">
+        <img class="logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo SENAI">
+        <div class="titulo-evento">
+            <h1>SIGS</h1>
+            <p>{{ config.nome_evento }}</p>
+        </div>
+    </header>
+
+    <main class="conteudo-principal">
+
+        <section class="card card-identificacao">
+            <h2>Identificação do Atendente</h2>
+            <div class="campos-identificacao">
+                <label>
+                    Guichê
+                    <input type="text" id="campo-guiche" placeholder="Ex.: Guichê 01" value="Guichê 01">
+                </label>
+                <label>
+                    Atendente
+                    <input type="text" id="campo-usuario" placeholder="Nome do atendente">
+                </label>
+            </div>
+        </section>
+
+        <section class="card card-senha-atual">
+            <h2>Última Senha Chamada</h2>
+            <div id="senha-atual-destaque" class="senha-destaque">--</div>
+            <div id="senha-atual-info" class="senha-info">Nenhuma chamada realizada.</div>
+        </section>
+
+        <section class="grade-botoes">
+            <button id="btn-emitir" class="botao botao-primario botao-grande">
+                🎫 Emitir Senha
+            </button>
+            <button id="btn-chamar" class="botao botao-primario botao-grande">
+                📢 Chamar Próxima
+            </button>
+            <button id="btn-repetir" class="botao botao-secundario botao-grande">
+                🔁 Repetir Chamada
+            </button>
+            <button id="btn-abrir-painel" class="botao botao-secundario botao-grande">
+                🖥️ Abrir Painel
+            </button>
+            <button id="btn-testar-bip" class="botao botao-secundario botao-grande">
+                🔔 Testar Bip
+            </button>
+            <button id="btn-configuracoes" class="botao botao-terciario botao-grande">
+                ⚙️ Configurações
+            </button>
+            <button id="btn-relatorios" class="botao botao-terciario botao-grande">
+                📊 Relatórios
+            </button>
+            <button id="btn-reiniciar" class="botao botao-alerta botao-grande">
+                ♻️ Reiniciar Contador
+            </button>
+        </section>
+
+        <section class="card card-fila">
+            <h2>Fila de Espera (<span id="fila-total">0</span>)</h2>
+            <table class="tabela-fila">
+                <thead>
+                    <tr>
+                        <th>Senha</th>
+                        <th>Emitida em</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="fila-corpo">
+                    <tr><td colspan="3">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+    </main>
+
+    <div id="area-notificacoes" class="area-notificacoes"></div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Variáveis globais lidas pelo index.js (nunca JavaScript inline). -->
+<script>
+    window.SIGS_CONFIG = {
+        tempoAtualizacaoMs: {{ config.tempo_atualizacao_ms | default(2000) }}
+    };
+</script>
+<script src="{{ url_for('static', filename='js/bip.js') }}"></script>
+<script src="{{ url_for('static', filename='js/index.js') }}"></script>
+{% endblock %}

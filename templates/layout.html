@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<!--
+    layout.html
+    ===========
+    Template base do SIGS. Todas as demais paginas (index, painel,
+    configuracoes, relatorios) estendem este layout via Jinja2
+    (diretiva "extends" apontando para layout.html), garantindo
+    cabecalho, rodape, folha de estilos e variaveis de cor consistentes
+    em todo o sistema.
+-->
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}SIGS - Sistema Integrado de Gerenciamento de Senhas{% endblock %}</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <!-- Define a cor principal do sistema como variavel CSS, permitindo que
+         o usuario personalize a identidade visual pela tela de Configuracoes
+         sem necessidade de editar arquivos CSS manualmente. -->
+    <style>
+        :root {
+            --cor-principal: {{ config.cor_principal if config else '#003C71' }};
+        }
+    </style>
+
+    {% block estilos_extra %}{% endblock %}
+</head>
+<body>
+
+    {% block conteudo %}{% endblock %}
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
