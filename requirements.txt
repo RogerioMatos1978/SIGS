@@ -17,7 +17,7 @@ Flask==3.0.3
 Werkzeug==3.0.3
 
 # Impressão nativa do Windows (obrigatório em produção no Windows).
-pywin32==306; sys_platform == "win32"
+pywin32>=306; sys_platform == "win32"
 
 # Usado por printer.py para desenhar o logotipo no ticket impresso.
 Pillow==10.4.0
