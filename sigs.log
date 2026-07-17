@@ -73,3 +73,22 @@
 2026-07-17 12:53:52 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
 2026-07-17 12:54:00 | ERROR    | SIGS | Erro ao atualizar perfil: CHECK constraint failed: perfil IN ('admin', 'atendente')
 2026-07-17 12:54:26 | ERROR    | SIGS | Já existe um usuário com o login 'alicya'.
+2026-07-17 13:09:10 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 13:09:11 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 13:09:34 | INFO     | SIGS | Usuário 'alicya' cadastrado com perfil 'atendente'.
+2026-07-17 13:10:02 | ERROR    | SIGS | Já existe um usuário com o login 'teste01'.
+2026-07-17 13:10:15 | INFO     | SIGS | Usuário 'teste01' cadastrado com perfil 'atendente'.
+2026-07-17 13:10:33 | ERROR    | SIGS | Já existe um usuário com o login 'teste02'.
+2026-07-17 13:21:36 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 13:21:36 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 13:22:11 | ERROR    | SIGS | Já existe um usuário com o login 'teste02'.
+2026-07-17 13:22:49 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-07-17 13:23:15 | ERROR    | SIGS | Já existe um usuário com o login 'teste02'.
+2026-07-17 13:23:37 | ERROR    | SIGS | Erro ao atualizar perfil: CHECK constraint failed: perfil IN ('admin', 'atendente')
+2026-07-17 13:34:41 | WARNING  | SIGS | Esquema antigo da tabela 'usuarios' detectado (restrição CHECK de perfil). Migrando automaticamente para permitir o perfil 'emissor'...
+2026-07-17 13:34:41 | WARNING  | SIGS | Migração concluída: a tabela 'usuarios' agora aceita o perfil 'emissor' sem necessidade de recriar o banco de dados.
+2026-07-17 13:34:41 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 13:34:42 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 13:35:40 | WARNING  | SIGS | Perfil do usuário id=5 alterado para 'emissor'.
+2026-07-17 13:36:20 | INFO     | SIGS | Usuário 'teste02' cadastrado com perfil 'atendente'.
+2026-07-17 13:36:27 | WARNING  | SIGS | Perfil do usuário id=6 alterado para 'emissor'.

@@ -103,7 +103,13 @@ Configurações). O arquivo entregue é apenas um placeholder de exemplo.
 2. Acesse a tela **Configurações** do SIGS pelo navegador
    (`http://localhost:5000/configuracoes`) e selecione a impressora na
    lista (ela é detectada automaticamente via `win32print`). Deixe em
-   branco para usar a impressora padrão do Windows.
+   branco para usar a impressora padrão do Windows. Esta é a impressora
+   usada por padrão em toda emissão.
+3. Além disso, todo usuário **emissor** vê uma janela de escolha de
+   impressora toda vez que clica em "Emitir Senha" (útil quando há mais
+   de uma impressora na máquina, por exemplo, uma térmica e uma comum).
+   Escolher uma impressora ali vale apenas para aquele ticket; deixar em
+   "Impressora padrão do sistema" usa a impressora configurada no item 2.
 
 ### 4.3 Demais parâmetros
 
@@ -277,6 +283,20 @@ projeto), basta substituir os demais arquivos do projeto (`app.py`,
 `templates/`, `static/`) por uma versão mais nova, mantendo `database/` e
 `secret.key` intactos, para atualizar o sistema sem perda de dados e sem
 deslogar os usuários.
+
+> **Depois de atualizar os arquivos, dois passos são obrigatórios para as
+> mudanças valerem:**
+> 1. Pare o servidor (`Ctrl+C` no terminal onde `python app.py` está
+>    rodando) e inicie de novo. Alterações em arquivos `.py` só têm
+>    efeito depois que o processo Python é reiniciado.
+> 2. Dê um "hard refresh" no navegador (`Ctrl+F5` ou `Ctrl+Shift+R`) em
+>    cada tela aberta do SIGS. Alterações em arquivos `static/*.js` e
+>    `*.css` podem ficar em cache no navegador mesmo após o servidor ser
+>    atualizado.
+>
+> Esquecer esses dois passos é a causa mais comum de "a mudança não
+> funcionou" — o sistema continua executando a versão antiga em memória
+> (servidor) ou em cache (navegador) até que ambos sejam renovados.
 
 ---
 

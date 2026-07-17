@@ -172,7 +172,162 @@ def inicializar_banco() -> None:
 
         conexao.commit()
 
+        # Corrige bancos de dados criados por uma versão anterior do SIGS,
+        # cuja tabela "usuarios" possuía uma restrição CHECK travando o
+        # perfil em apenas admin/atendente. "CREATE TABLE IF NOT EXISTS"
+        # não altera tabelas já existentes, então esse passo é necessário
+        # para quem já usava o sistema antes do perfil "emissor" existir.
+        _migrar_tabela_usuarios_sem_check(conexao)
+
+        # Corrige um possível efeito colateral da migração acima: o SQLite
+        # atualiza automaticamente a cláusula FOREIGN KEY de outras tabelas
+        # quando a tabela referenciada é renomeada, o que podia deixar
+        # "guiches_ocupados" apontando para o nome temporário usado durante
+        # a migração (já removido) em vez de "usuarios". Ver docstring de
+        # ``_reparar_guiches_ocupados`` para detalhes.
+        _reparar_guiches_ocupados(conexao)
+
     logger.info("Banco de dados inicializado em: %s", DATABASE_PATH)
+
+
+def _migrar_tabela_usuarios_sem_check(conexao: sqlite3.Connection) -> None:
+    """
+    Detecta se a tabela ``usuarios`` foi criada com a antiga cláusula
+    ``CHECK (perfil IN ('admin', 'atendente'))`` (presente em versões do
+    SIGS anteriores à introdução do perfil "emissor") e, se for o caso,
+    recria a tabela sem essa restrição, preservando todos os usuários já
+    cadastrados.
+
+    Sem esta migração, tentar criar ou promover um usuário para o perfil
+    "emissor" em um banco de dados antigo falha com o erro:
+    ``CHECK constraint failed: perfil IN ('admin', 'atendente')``.
+
+    Esta função é chamada toda vez que o sistema inicia
+    (``inicializar_banco``) e não faz nada se o banco já estiver no
+    formato atual (sem a restrição), portanto é seguro executá-la
+    repetidamente.
+
+    IMPORTANTE: a tabela ``guiches_ocupados`` possui uma cláusula
+    ``FOREIGN KEY (usuario_id) REFERENCES usuarios (id)``. Por padrão, o
+    SQLite atualiza automaticamente essa referência quando a tabela
+    "usuarios" é renomeada (comportamento ``legacy_alter_table = OFF``),
+    o que deixaria ``guiches_ocupados`` apontando para o nome temporário
+    usado durante a migração. Para evitar isso, desativamos
+    temporariamente esse comportamento (``PRAGMA legacy_alter_table = ON``)
+    e a checagem de chaves estrangeiras (``PRAGMA foreign_keys = OFF``)
+    apenas durante a operação de renomear/recriar/copiar/remover, restau-
+    rando ambas ao final.
+    """
+    linha = conexao.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'usuarios'"
+    ).fetchone()
+
+    if linha is None or not linha["sql"] or "CHECK" not in linha["sql"].upper():
+        return  # Tabela não existe ainda, ou já está no formato novo.
+
+    logger.warning(
+        "Esquema antigo da tabela 'usuarios' detectado (restrição CHECK de "
+        "perfil). Migrando automaticamente para permitir o perfil 'emissor'..."
+    )
+
+    conexao.execute("PRAGMA foreign_keys = OFF")
+    conexao.execute("PRAGMA legacy_alter_table = ON")
+
+    try:
+        conexao.execute("ALTER TABLE usuarios RENAME TO usuarios_migracao_temp")
+
+        conexao.execute(
+            f"""
+            CREATE TABLE usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome_completo TEXT NOT NULL,
+                login TEXT NOT NULL UNIQUE,
+                senha_hash TEXT NOT NULL,
+                perfil TEXT NOT NULL DEFAULT '{PerfilUsuario.ATENDENTE}',
+                ativo INTEGER NOT NULL DEFAULT 1,
+                data_criacao TEXT NOT NULL,
+                ultimo_login TEXT
+            )
+            """
+        )
+
+        conexao.execute(
+            """
+            INSERT INTO usuarios (id, nome_completo, login, senha_hash, perfil, ativo, data_criacao, ultimo_login)
+            SELECT id, nome_completo, login, senha_hash, perfil, ativo, data_criacao, ultimo_login
+            FROM usuarios_migracao_temp
+            """
+        )
+
+        conexao.execute("DROP TABLE usuarios_migracao_temp")
+        conexao.commit()
+    finally:
+        conexao.execute("PRAGMA legacy_alter_table = OFF")
+        conexao.execute("PRAGMA foreign_keys = ON")
+
+    logger.warning(
+        "Migração concluída: a tabela 'usuarios' agora aceita o perfil "
+        "'emissor' sem necessidade de recriar o banco de dados."
+    )
+
+
+def _reparar_guiches_ocupados(conexao: sqlite3.Connection) -> None:
+    """
+    Corrige a tabela ``guiches_ocupados`` caso sua definição tenha ficado
+    com uma referência de chave estrangeira quebrada, apontando para a
+    tabela temporária "usuarios_migracao_temp" (que já foi removida) em
+    vez de "usuarios".
+
+    Isso podia ocorrer como efeito colateral de uma versão anterior desta
+    migração, que renomeava a tabela "usuarios" sem desativar
+    ``legacy_alter_table`` — o SQLite, por padrão, atualiza automaticamente
+    as referências FOREIGN KEY de outras tabelas ao renomear a tabela
+    referenciada. O sintoma é o erro
+    ``OperationalError: no such table: main.usuarios_migracao_temp`` ao
+    tentar inserir ou remover linhas de ``guiches_ocupados`` (por exemplo,
+    ao fazer login ou logout).
+
+    Como ``guiches_ocupados`` armazena apenas o estado transitório de
+    "quem está em qual guichê agora" (é recriado a cada login e liberado a
+    cada logout), é seguro recriá-la do zero sem qualquer perda de dados
+    relevante — na pior hipótese, um usuário que estava com um guichê
+    ocupado precisará relogar para assumir um guichê novamente.
+    """
+    linha = conexao.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'guiches_ocupados'"
+    ).fetchone()
+
+    if linha is None or not linha["sql"]:
+        return  # Tabela ainda não existe; será criada normalmente.
+
+    if "usuarios_migracao_temp" not in linha["sql"]:
+        return  # Referência já está saudável (aponta para "usuarios").
+
+    logger.warning(
+        "Referência quebrada detectada na tabela 'guiches_ocupados' "
+        "(apontava para uma tabela temporária de migração já removida). "
+        "Recriando a tabela do zero..."
+    )
+
+    conexao.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conexao.execute("DROP TABLE guiches_ocupados")
+        conexao.execute(
+            """
+            CREATE TABLE guiches_ocupados (
+                guiche INTEGER PRIMARY KEY,
+                usuario_id INTEGER NOT NULL,
+                usuario_nome TEXT NOT NULL,
+                ocupado_desde TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
+            )
+            """
+        )
+        conexao.commit()
+    finally:
+        conexao.execute("PRAGMA foreign_keys = ON")
+
+    logger.warning("Tabela 'guiches_ocupados' recriada com sucesso.")
 
 
 # ---------------------------------------------------------------------------
@@ -704,7 +859,14 @@ def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optio
             )
             conexao.commit()
         except sqlite3.IntegrityError as erro:
-            raise ValueError(f"Já existe um usuário com o login '{login_normalizado}'.") from erro
+            # Importante: nem todo IntegrityError é login duplicado — pode
+            # ser, por exemplo, uma restrição CHECK antiga de uma versão
+            # anterior do banco (ver ``_migrar_tabela_usuarios_sem_check``).
+            # Diferenciar evita mostrar "login já existe" para um erro que
+            # na verdade é outra coisa completamente diferente.
+            if "UNIQUE" in str(erro).upper():
+                raise ValueError(f"Já existe um usuário com o login '{login_normalizado}'.") from erro
+            raise ValueError(f"Não foi possível criar o usuário: {erro}") from erro
 
         usuario_id = cursor.lastrowid
 
@@ -765,16 +927,25 @@ def atualizar_ultimo_login(usuario_id: int) -> None:
 
 
 def definir_perfil_usuario(usuario_id: int, perfil: str) -> bool:
-    """Altera o perfil (admin/atendente) de um usuário. Apenas
+    """Altera o perfil (admin/atendente/emissor) de um usuário. Apenas
     administradores podem chamar esta operação (validado em app.py)."""
     if perfil not in PerfilUsuario.TODOS:
         raise ValueError(f"Perfil inválido: {perfil}")
 
     with get_connection() as conexao:
-        cursor = conexao.execute(
-            "UPDATE usuarios SET perfil = ? WHERE id = ?", (perfil, usuario_id)
-        )
-        conexao.commit()
+        try:
+            cursor = conexao.execute(
+                "UPDATE usuarios SET perfil = ? WHERE id = ?", (perfil, usuario_id)
+            )
+            conexao.commit()
+        except sqlite3.IntegrityError as erro:
+            # Em tese não deveria mais ocorrer (ver
+            # ``_migrar_tabela_usuarios_sem_check``), mas se acontecer,
+            # relata de forma clara em vez de deixar a exceção crua subir.
+            raise ValueError(
+                f"Não foi possível definir o perfil '{perfil}': {erro}. "
+                "Reinicie o servidor para aplicar a migração automática do banco de dados."
+            ) from erro
         alterou = cursor.rowcount > 0
 
     if alterou:

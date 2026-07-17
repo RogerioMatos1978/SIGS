@@ -27,6 +27,12 @@
 
         <section class="card card-formulario">
             <h2>Novo Usuário</h2>
+            <p>
+                Todo novo usuário é criado como Atendente ou Administrador.
+                Para tornar alguém <strong>Emissor de Senhas</strong>, crie o
+                usuário abaixo e depois mude o perfil dele para "Emissor" no
+                seletor da tabela "Usuários Cadastrados".
+            </p>
             <form id="form-novo-usuario">
                 <div class="campos-identificacao">
                     <label>
@@ -43,9 +49,14 @@
                     </label>
                     <label>
                         Perfil
+                        <!-- O perfil "Emissor de Senhas" não é oferecido na
+                             criação: por padrão de segurança, todo novo
+                             usuário nasce Atendente ou Administrador. Para
+                             tornar alguém Emissor, o administrador promove o
+                             usuário já cadastrado usando o seletor de perfil
+                             na tabela "Usuários Cadastrados" abaixo. -->
                         <select id="novo-perfil">
                             <option value="atendente" selected>Atendente (chama e finaliza atendimentos)</option>
-                            <option value="emissor">Emissor de Senhas (apenas emite)</option>
                             <option value="admin">Administrador (sem guichê)</option>
                         </select>
                     </label>

@@ -21,6 +21,8 @@ const elementoSenhaInfo = document.getElementById("senha-atual-info");
 const elementoFilaCorpo = document.getElementById("fila-corpo");
 const elementoFilaTotal = document.getElementById("fila-total");
 const elementoNotificacoes = document.getElementById("area-notificacoes");
+const elementoModalImpressao = document.getElementById("modal-impressao");
+const elementoModalImpressoraSelect = document.getElementById("modal-impressora-select");
 
 const TEMPO_ATUALIZACAO_MS = (window.SIGS_CONFIG && window.SIGS_CONFIG.tempoAtualizacaoMs) || 2000;
 
@@ -94,10 +96,17 @@ function vincularClique(idElemento, manipulador) {
  * Emite uma nova senha e atualiza a fila em seguida. Guichê e atendente
  * são resolvidos no servidor a partir da sessão de login (ver
  * app.py:api_emitir) — não são mais informados manualmente aqui.
+ *
+ * @param {string} [nomeImpressora] - Impressora escolhida na janela de
+ *   impressão (ver abrirModalImpressao). Se vazio/omitido, o servidor usa
+ *   a impressora padrão configurada em Configurações.
  */
-async function emitirSenha() {
+async function emitirSenha(nomeImpressora = "") {
     try {
-        const dados = await chamarApi("/api/emitir", { method: "POST", body: JSON.stringify({}) });
+        const dados = await chamarApi("/api/emitir", {
+            method: "POST",
+            body: JSON.stringify({ impressora: nomeImpressora }),
+        });
 
         const numero = String(dados.senha.numero).padStart(3, "0");
         exibirNotificacao(`Senha ${numero} emitida e enviada para impressão.`, "sucesso");
@@ -110,6 +119,55 @@ async function emitirSenha() {
     } catch (erro) {
         exibirNotificacao(`Erro ao emitir senha: ${erro.message}`, "erro");
     }
+}
+
+/**
+ * Abre a janela (modal) de escolha de impressora, exibida sempre que o
+ * usuário clica em "Emitir Senha". Busca a lista de impressoras
+ * instaladas no Windows via /api/impressoras e popula o seletor,
+ * mantendo a opção "Impressora padrão do sistema" sempre disponível.
+ */
+async function abrirModalImpressao() {
+    if (!elementoModalImpressao) {
+        // Segurança: se o modal não existir no HTML (perfil sem permissão
+        // de emissão), apenas emite direto com a impressora padrão.
+        await emitirSenha();
+        return;
+    }
+
+    // Reseta o seletor para apenas a opção padrão enquanto carrega a lista,
+    // evitando mostrar impressoras de uma abertura anterior do modal.
+    elementoModalImpressoraSelect.innerHTML = '<option value="">Impressora padrão do sistema</option>';
+
+    try {
+        const dados = await chamarApi("/api/impressoras");
+        (dados.impressoras || []).forEach((nomeImpressora) => {
+            const opcao = document.createElement("option");
+            opcao.value = nomeImpressora;
+            opcao.textContent = nomeImpressora;
+            elementoModalImpressoraSelect.appendChild(opcao);
+        });
+    } catch (erro) {
+        // Mesmo se a listagem falhar (ex.: ambiente sem pywin32), o modal
+        // continua utilizável com a opção de impressora padrão.
+        console.error("Não foi possível listar impressoras:", erro);
+    }
+
+    elementoModalImpressao.classList.remove("modal-oculto");
+}
+
+/** Fecha a janela de escolha de impressora sem emitir nenhuma senha. */
+function fecharModalImpressao() {
+    if (elementoModalImpressao) {
+        elementoModalImpressao.classList.add("modal-oculto");
+    }
+}
+
+/** Confirma a impressora escolhida na janela e emite a senha. */
+async function confirmarImpressaoEEmitir() {
+    const nomeImpressora = elementoModalImpressoraSelect ? elementoModalImpressoraSelect.value : "";
+    fecharModalImpressao();
+    await emitirSenha(nomeImpressora);
 }
 
 /**
@@ -279,7 +337,11 @@ async function cancelarSenha(senhaId) {
 
 function inicializar() {
     // Botões disponíveis para qualquer usuário logado (atendente ou admin).
-    vincularClique("btn-emitir", emitirSenha);
+    // "Emitir Senha" abre primeiro a janela de escolha de impressora — a
+    // emissão de fato só ocorre quando o usuário confirma nessa janela.
+    vincularClique("btn-emitir", abrirModalImpressao);
+    vincularClique("btn-confirmar-impressao", confirmarImpressaoEEmitir);
+    vincularClique("btn-cancelar-impressao", fecharModalImpressao);
     vincularClique("btn-chamar", chamarProximaSenha);
     vincularClique("btn-repetir", repetirChamada);
     vincularClique("btn-finalizar", finalizarAtendimento);

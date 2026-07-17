@@ -629,6 +629,47 @@ input:focus, select:focus {
     border-bottom-color: rgba(198, 40, 40, 0.3);
 }
 
+/* =============================================================
+   Modal de escolha de impressora (ao emitir senha)
+   ============================================================= */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+}
+
+.modal-overlay.modal-oculto {
+    display: none;
+}
+
+.modal-caixa {
+    background: var(--cor-branco);
+    border-radius: var(--raio-borda);
+    box-shadow: var(--sombra-padrao);
+    padding: 28px;
+    max-width: 420px;
+    width: 100%;
+}
+
+.modal-caixa h2 {
+    margin-top: 0;
+    color: var(--cor-principal);
+}
+
+.modal-caixa label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-weight: 600;
+    margin: 16px 0;
+}
+
 /* -------------------- Responsividade -------------------- */
 @media (max-width: 900px) {
     .painel-corpo {

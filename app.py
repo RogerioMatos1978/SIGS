@@ -72,6 +72,15 @@ app.secret_key = obter_secret_key()
 # atendimento inteiro sem exigir novo login no meio do expediente).
 app.permanent_session_lifetime = timedelta(hours=12)
 
+# Desativa o cache de arquivos estáticos (CSS/JS/imagens) no navegador.
+# Sem isso, o navegador pode continuar usando uma cópia antiga de
+# static/js/*.js mesmo após o arquivo ser atualizado no servidor, exigindo
+# um "hard refresh" manual (Ctrl+F5) do usuário a cada atualização do
+# sistema. Em produção de alto tráfego isso teria custo de performance,
+# mas para um sistema interno de atendimento a atualização imediata é
+# mais importante do que a economia de banda.
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+
 # Garante que o banco de dados e as tabelas existam antes de qualquer
 # requisição ser atendida.
 database.inicializar_banco()
@@ -267,8 +276,18 @@ def api_emitir():
     O guichê e o nome do atendente são obtidos diretamente da sessão de
     login (nunca do corpo da requisição), evitando que um atendente emita
     senhas em nome de outro guichê/usuário.
+
+    O corpo da requisição pode opcionalmente incluir ``{"impressora": "Nome"}``
+    para imprimir este ticket em uma impressora específica, escolhida pelo
+    usuário na janela de impressão exibida ao clicar em "Emitir Senha" (ver
+    index.js). Se omitido ou vazio, usa a impressora padrão configurada em
+    Configurações (ou a impressora padrão do Windows, se nenhuma estiver
+    configurada).
     """
     try:
+        dados = request.get_json(silent=True) or {}
+        impressora_escolhida = str(dados.get("impressora") or "").strip()
+
         usuario_sessao = auth.usuario_logado()
         guiche = f"Guichê {usuario_sessao['guiche']:02d}" if usuario_sessao.get("guiche") else None
         usuario = usuario_sessao.get("nome_completo")
@@ -278,7 +297,8 @@ def api_emitir():
         erro_impressao = None
         try:
             configuracoes = config_manager.obter_todas()
-            impressora = ImpressoraTermica(configuracoes.get("nome_impressora") or None)
+            nome_impressora = impressora_escolhida or configuracoes.get("nome_impressora") or None
+            impressora = ImpressoraTermica(nome_impressora)
             impressora.imprimir_senha(
                 numero=senha.numero,
                 nome_evento=configuracoes.get("nome_evento", ""),
@@ -480,10 +500,17 @@ def api_config_salvar():
 
 @app.route("/api/impressoras")
 @auth.login_required
-@auth.admin_required
 def api_impressoras():
-    """Lista as impressoras instaladas no Windows, para a tela de
-    Configurações popular o campo de seleção."""
+    """
+    Lista as impressoras instaladas no Windows.
+
+    Diferente das demais rotas de configuração, esta é acessível a
+    QUALQUER usuário logado (não apenas administradores): o emissor de
+    senhas precisa desta lista para escolher a impressora na janela
+    exibida ao clicar em "Emitir Senha" (ver index.js). Apenas ALTERAR a
+    impressora padrão do sistema (tela Configurações) continua restrito a
+    administradores.
+    """
     return resposta_sucesso({"impressoras": ImpressoraTermica.listar_impressoras_instaladas()})
 
 

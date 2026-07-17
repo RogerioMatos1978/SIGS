@@ -133,6 +133,29 @@
 
     </main>
 
+    {% if usuario_logado.perfil == 'emissor' %}
+    <!-- Janela (modal) de escolha de impressora, exibida ao clicar em
+         "Emitir Senha". Permite trocar a impressora usada apenas para
+         este ticket, sem alterar a impressora padrão do sistema
+         (configurada em Configurações, acessível somente a admins). -->
+    <div id="modal-impressao" class="modal-overlay modal-oculto">
+        <div class="modal-caixa">
+            <h2>Escolher Impressora</h2>
+            <p>Selecione a impressora para imprimir este ticket:</p>
+            <label>
+                Impressora
+                <select id="modal-impressora-select">
+                    <option value="">Impressora padrão do sistema</option>
+                </select>
+            </label>
+            <div class="acoes-formulario">
+                <button id="btn-confirmar-impressao" class="botao botao-primario">🖨️ Imprimir e Emitir</button>
+                <button id="btn-cancelar-impressao" class="botao botao-terciario">Cancelar</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div id="area-notificacoes" class="area-notificacoes"></div>
 
 </div>
