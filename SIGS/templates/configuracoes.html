@@ -1,0 +1,84 @@
+<!--
+    configuracoes.html
+    ===================
+    Tela de configurações gerais do SIGS: nome da impressora, nome do
+    evento, logotipo, quantidade de senhas exibidas no painel, tempo de
+    atualização e cor principal do sistema.
+-->
+{% extends "layout.html" %}
+
+{% block titulo %}SIGS - Configurações{% endblock %}
+
+{% block conteudo %}
+<div class="pagina pagina-config">
+
+    <header class="cabecalho">
+        <img class="logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo SENAI">
+        <div class="titulo-evento">
+            <h1>Configurações</h1>
+            <p>Parâmetros gerais do sistema</p>
+        </div>
+    </header>
+
+    <main class="conteudo-principal">
+        <form id="form-configuracoes" class="card card-formulario">
+
+            <label>
+                Nome do Evento
+                <input type="text" name="nome_evento" value="{{ config.nome_evento }}" required>
+            </label>
+
+            <label>
+                Impressora
+                <select name="nome_impressora">
+                    <option value="" {% if not config.nome_impressora %}selected{% endif %}>
+                        Impressora padrão do Windows
+                    </option>
+                    {% for impressora in impressoras %}
+                    <option value="{{ impressora }}" {% if impressora == config.nome_impressora %}selected{% endif %}>
+                        {{ impressora }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label>
+                Caminho do Logotipo
+                <input type="text" name="logo_path" value="{{ config.logo_path }}">
+            </label>
+
+            <label>
+                Quantidade de Senhas Exibidas no Painel
+                <input type="number" name="qtd_senhas_exibidas" min="1" max="50" value="{{ config.qtd_senhas_exibidas }}">
+            </label>
+
+            <label>
+                Tempo de Atualização do Painel (ms)
+                <input type="number" name="tempo_atualizacao_ms" min="500" step="500" value="{{ config.tempo_atualizacao_ms }}">
+            </label>
+
+            <label>
+                Quantidade de Guichês de Atendimento
+                <input type="number" name="qtd_guiches" min="1" max="50" value="{{ config.qtd_guiches }}">
+            </label>
+
+            <label>
+                Cor Principal do Sistema
+                <input type="color" name="cor_principal" value="{{ config.cor_principal }}">
+            </label>
+
+            <div class="acoes-formulario">
+                <button type="submit" class="botao botao-primario">💾 Salvar Configurações</button>
+                <a href="{{ url_for('index') }}" class="botao botao-terciario">← Voltar</a>
+            </div>
+
+            <div id="config-mensagem" class="mensagem-status"></div>
+        </form>
+    </main>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/configuracoes.js') }}"></script>
+{% endblock %}
