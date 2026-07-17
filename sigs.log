@@ -38,3 +38,24 @@
 2026-07-17 12:28:26 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
 2026-07-17 12:28:26 | INFO     | SIGS | Login realizado: 'rogeriomatos' (guichê 1).
 2026-07-17 12:29:18 | INFO     | SIGS | Usuário 'Maria' cadastrado com perfil 'atendente'.
+2026-07-17 12:30:35 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-07-17 12:30:43 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Maria'.
+2026-07-17 12:30:43 | INFO     | SIGS | Login realizado: 'Maria' (guichê 1).
+2026-07-17 12:30:53 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-07-17 12:30:53 | INFO     | SIGS | Senha emitida: número 001 (id=4)
+2026-07-17 12:30:56 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora '\\10.21.154.22\MONO'.
+2026-07-17 12:31:22 | INFO     | SIGS | Senha 001 chamada no guichê 'Guichê 01' por 'Maria'.
+2026-07-17 12:31:28 | INFO     | SIGS | Senha 001 chamada no guichê 'Guichê 01' por 'Maria'.
+2026-07-17 12:31:28 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-07-17 12:32:09 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-17 12:34:40 | INFO     | SIGS | Logout realizado: 'Maria'.
+2026-07-17 12:34:50 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
+2026-07-17 12:34:50 | INFO     | SIGS | Login realizado: 'rogeriomatos' (guichê 1).
+2026-07-17 12:35:20 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-07-17 12:35:20 | WARNING  | SIGS | TODAS as senhas emitidas e eventos de chamada foram apagados por um administrador.
+2026-07-17 12:36:03 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-07-17 12:37:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 12:37:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 12:37:41 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
+2026-07-17 12:37:41 | INFO     | SIGS | Login realizado: 'rogeriomatos' (guichê 1).
+2026-07-17 12:50:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db

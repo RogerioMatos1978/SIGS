@@ -22,6 +22,7 @@ Rotas principais:
     POST /api/emitir            Emite uma nova senha (grava + imprime)
     POST /api/chamar            Chama a próxima senha da fila (FIFO)
     POST /api/repetir           Repete a última chamada realizada
+    POST /api/finalizar-atendimento  Finaliza o atendimento e já chama a próxima
     POST /api/reiniciar         Reinicia o contador de senhas
     GET  /api/painel/status     Dados consumidos pelo painel (polling)
     GET  /api/fila              Lista da fila atual (tela principal)
@@ -50,6 +51,7 @@ from flask import Flask, jsonify, redirect, render_template, request, send_file,
 import auth
 import database
 from config import STATIC_DIR, TEMPLATES_DIR, config_manager, logger, obter_secret_key
+from models import PerfilUsuario
 from printer import ErroImpressora, ImpressoraTermica
 
 # ---------------------------------------------------------------------------
@@ -336,6 +338,43 @@ def api_repetir():
 
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao repetir chamada: {erro}", 500)
+
+
+@app.route("/api/finalizar-atendimento", methods=["POST"])
+@auth.login_required
+def api_finalizar_atendimento():
+    """
+    Finaliza o atendimento em andamento no guichê do usuário logado e
+    chama automaticamente a próxima senha da fila. Se não houver mais
+    senhas aguardando, retorna sucesso com um aviso informando que o
+    atendente deve aguardar a emissão de uma nova senha (isto NÃO é
+    tratado como erro, pois é uma situação normal do dia a dia).
+    """
+    try:
+        usuario_sessao = auth.usuario_logado()
+        if not usuario_sessao.get("guiche"):
+            return resposta_erro(
+                "Você não possui um guichê atribuído no momento. Apenas usuários "
+                "com perfil atendente e guichê ativo podem finalizar atendimentos.",
+                409,
+            )
+
+        guiche = f"Guichê {usuario_sessao['guiche']:02d}"
+        usuario = usuario_sessao.get("nome_completo")
+
+        resultado = database.finalizar_atendimento_e_chamar_proxima(guiche=guiche, usuario=usuario)
+
+        resposta = {
+            "senha_finalizada": resultado["senha_finalizada"],
+            "chamada": resultado["chamada"],
+        }
+        if resultado["chamada"] is None:
+            resposta["aviso"] = "Atendimento finalizado. Aguardando nova senha ser emitida."
+
+        return resposta_sucesso(resposta)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao finalizar atendimento: {erro}", 500)
 
 
 @app.route("/api/reiniciar", methods=["POST"])
@@ -687,15 +726,16 @@ def api_relatorios_pdf():
 @auth.admin_required
 def api_admin_criar_usuario():
     """Cria um novo usuário diretamente pelo painel de administração,
-    permitindo ao administrador definir o perfil (admin ou atendente)
-    já na criação — diferente do autocadastro público, que sempre cria
-    o usuário com perfil "atendente" (exceto o primeiro usuário do sistema)."""
+    permitindo ao administrador definir o perfil (admin, atendente ou
+    emissor) já na criação — diferente do autocadastro público, que
+    sempre cria o usuário com perfil "atendente" (exceto o primeiro
+    usuário do sistema, que se torna administrador)."""
     try:
         dados = request.get_json(silent=True) or {}
         nome_completo = str(dados.get("nome_completo") or "").strip()
         login_novo = str(dados.get("login") or "").strip()
         senha = str(dados.get("senha") or "")
-        perfil = str(dados.get("perfil") or "atendente").strip()
+        perfil = str(dados.get("perfil") or PerfilUsuario.ATENDENTE).strip()
 
         if not nome_completo or not login_novo:
             return resposta_erro("Informe nome completo e login.", 400)
@@ -704,7 +744,7 @@ def api_admin_criar_usuario():
         if erro_senha:
             return resposta_erro(erro_senha, 400)
 
-        if perfil not in ("admin", "atendente"):
+        if perfil not in PerfilUsuario.TODOS:
             return resposta_erro("Perfil inválido.", 400)
 
         usuario = database.criar_usuario(
@@ -748,7 +788,7 @@ def api_admin_resetar_senha(usuario_id: int):
 @auth.login_required
 @auth.admin_required
 def api_admin_definir_perfil(usuario_id: int):
-    """Altera o perfil (admin/atendente) de um usuário."""
+    """Altera o perfil (admin/atendente/emissor) de um usuário."""
     try:
         dados = request.get_json(silent=True) or {}
         perfil = str(dados.get("perfil") or "").strip()

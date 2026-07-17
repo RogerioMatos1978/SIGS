@@ -124,6 +124,15 @@ def inicializar_banco() -> None:
         )
 
         # Usuários do sistema (login obrigatório para qualquer acesso).
+        #
+        # Observação de projeto: o campo "perfil" NÃO possui uma cláusula
+        # CHECK travando os valores possíveis (ex.: apenas admin/atendente).
+        # Isso é proposital: a validação de perfis válidos é feita em
+        # Python (``PerfilUsuario.TODOS``, checado em
+        # ``definir_perfil_usuario`` e nas rotas de app.py), o que permite
+        # adicionar novos perfis no futuro (ex.: um perfil de supervisor)
+        # sem exigir migração de esquema do SQLite — apenas atualizar
+        # ``models.PerfilUsuario``.
         conexao.execute(
             f"""
             CREATE TABLE IF NOT EXISTS usuarios (
@@ -131,8 +140,7 @@ def inicializar_banco() -> None:
                 nome_completo TEXT NOT NULL,
                 login TEXT NOT NULL UNIQUE,
                 senha_hash TEXT NOT NULL,
-                perfil TEXT NOT NULL DEFAULT '{PerfilUsuario.ATENDENTE}'
-                    CHECK (perfil IN ('{PerfilUsuario.ADMIN}', '{PerfilUsuario.ATENDENTE}')),
+                perfil TEXT NOT NULL DEFAULT '{PerfilUsuario.ATENDENTE}',
                 ativo INTEGER NOT NULL DEFAULT 1,
                 data_criacao TEXT NOT NULL,
                 ultimo_login TEXT
@@ -369,6 +377,61 @@ def repetir_ultima_chamada() -> Optional[Dict]:
         "guiche": ultimo["guiche"],
         "usuario": ultimo["usuario"],
         "data_hora": data_hora,
+    }
+
+
+def obter_senha_em_atendimento(guiche: str) -> Optional[Senha]:
+    """
+    Retorna a senha atualmente em atendimento (status 'Chamada') em um
+    guichê específico, ou ``None`` se não houver nenhuma senha em
+    atendimento nesse guichê no momento.
+
+    Como cada guichê só pode estar ocupado por um usuário logado por vez
+    (ver ``ocupar_proximo_guiche_disponivel``), buscar pela string do
+    guichê é suficiente para identificar de forma inequívoca a senha que
+    o atendente está atualmente atendendo.
+    """
+    with get_connection() as conexao:
+        linha = conexao.execute(
+            """
+            SELECT * FROM senhas
+            WHERE status = ? AND guiche = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (StatusSenha.CHAMADA, guiche),
+        ).fetchone()
+
+    return Senha.from_row(linha) if linha else None
+
+
+def finalizar_atendimento_e_chamar_proxima(guiche: str, usuario: str) -> Dict:
+    """
+    Implementa o botão "Finalizar Atendimento": encerra (marca como
+    'Finalizada') a senha que está sendo atendida no guichê informado e,
+    em seguida, chama automaticamente a próxima senha da fila (FIFO) para
+    o mesmo guichê/atendente.
+
+    Retorna um dicionário com duas chaves:
+        - "senha_finalizada": dados da senha finalizada, ou ``None`` se
+          não havia nenhuma senha em atendimento neste guichê (o botão
+          então se comporta apenas como "Chamar Próxima").
+        - "chamada": dados da nova chamada (mesmo formato de
+          ``chamar_proxima``), ou ``None`` se a fila estiver vazia — caso
+          em que o atendente deve aguardar a emissão de uma nova senha.
+    """
+    senha_em_atendimento = obter_senha_em_atendimento(guiche)
+
+    senha_finalizada_dict = None
+    if senha_em_atendimento is not None:
+        finalizar_senha(senha_em_atendimento.id)
+        senha_finalizada_dict = senha_em_atendimento.to_dict()
+
+    proxima_chamada = chamar_proxima(guiche=guiche, usuario=usuario)
+
+    return {
+        "senha_finalizada": senha_finalizada_dict,
+        "chamada": proxima_chamada,
     }
 
 

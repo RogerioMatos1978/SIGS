@@ -44,8 +44,9 @@
                     <label>
                         Perfil
                         <select id="novo-perfil">
-                            <option value="atendente" selected>Atendente</option>
-                            <option value="admin">Administrador</option>
+                            <option value="atendente" selected>Atendente (chama e finaliza atendimentos)</option>
+                            <option value="emissor">Emissor de Senhas (apenas emite)</option>
+                            <option value="admin">Administrador (sem guichê)</option>
                         </select>
                     </label>
                 </div>
@@ -75,6 +76,7 @@
                         <td>
                             <select class="select-perfil" data-usuario-id="{{ usuario.id }}">
                                 <option value="atendente" {% if usuario.perfil == 'atendente' %}selected{% endif %}>Atendente</option>
+                                <option value="emissor" {% if usuario.perfil == 'emissor' %}selected{% endif %}>Emissor</option>
                                 <option value="admin" {% if usuario.perfil == 'admin' %}selected{% endif %}>Administrador</option>
                             </select>
                         </td>

@@ -71,12 +71,36 @@ class PerfilUsuario:
     SIGS. Mantida como classe de constantes (e não ``enum.Enum``) pelo
     mesmo motivo de ``StatusSenha``: compatibilidade direta com o valor
     armazenado como texto no SQLite.
+
+    Três perfis, com responsabilidades bem separadas:
+
+        ADMIN
+            Acesso administrativo total (Configurações, Relatórios,
+            Gerenciar Usuários, reinício de contador, reset de senhas
+            emitidas, reset de senha de outros usuários). NÃO ocupa
+            guichê e não opera a fila diretamente (não emite nem chama
+            senhas) — seu papel é de gestão do sistema, não de
+            atendimento.
+        ATENDENTE
+            Perfil "padrão" atribuído a quem se cadastra pela tela
+            pública de cadastro. Ao logar, assume automaticamente um
+            guichê de atendimento disponível e é responsável por chamar,
+            repetir chamada e finalizar o atendimento das senhas — a
+            finalização já dispara automaticamente a chamada da próxima
+            senha da fila.
+        EMISSOR
+            Perfil restrito, criado apenas por um administrador pela
+            tela de Gerenciar Usuários, destinado a operar um totem de
+            emissão de senhas (por exemplo, na entrada do evento). Só
+            emite senhas — essas senhas alimentam a fila consumida pelos
+            usuários "atendente". Não ocupa guichê e não chama senhas.
     """
 
     ADMIN = "admin"
     ATENDENTE = "atendente"
+    EMISSOR = "emissor"
 
-    TODOS = (ADMIN, ATENDENTE)
+    TODOS = (ADMIN, ATENDENTE, EMISSOR)
 
 
 @dataclass

@@ -259,6 +259,7 @@ input:focus, select:focus {
 
 .notificacao.sucesso { border-left-color: var(--cor-sucesso); }
 .notificacao.erro { border-left-color: var(--cor-erro); }
+.notificacao.info { border-left-color: var(--cor-principal-clara); }
 
 @keyframes entrada-notificacao {
     from { opacity: 0; transform: translateX(30px); }

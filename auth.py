@@ -96,8 +96,13 @@ def autenticar(login: str, senha: str):
 
 def iniciar_sessao(usuario) -> None:
     """
-    Grava os dados do usuário autenticado na sessão Flask e atribui
-    automaticamente o próximo guichê de atendimento disponível.
+    Grava os dados do usuário autenticado na sessão Flask.
+
+    Apenas usuários com perfil "atendente" assumem automaticamente um
+    guichê de atendimento disponível — administradores e emissores de
+    senha NÃO ocupam guichê, pois não realizam chamadas de atendimento
+    (o administrador gerencia o sistema; o emissor apenas emite senhas em
+    um totem).
     """
     session.clear()
     session[CHAVE_SESSAO_USUARIO_ID] = usuario.id
@@ -108,18 +113,21 @@ def iniciar_sessao(usuario) -> None:
 
     database.atualizar_ultimo_login(usuario.id)
 
-    qtd_guiches = config_manager.obter("qtd_guiches", 5)
-    guiche = database.ocupar_proximo_guiche_disponivel(usuario.id, usuario.nome_completo, qtd_guiches)
+    guiche = None
+    if usuario.perfil == PerfilUsuario.ATENDENTE:
+        qtd_guiches = config_manager.obter("qtd_guiches", 5)
+        guiche = database.ocupar_proximo_guiche_disponivel(usuario.id, usuario.nome_completo, qtd_guiches)
+
+        if guiche is None:
+            logger.warning(
+                "Usuário '%s' logou, mas não há guichês disponíveis (limite: %s).",
+                usuario.login,
+                qtd_guiches,
+            )
+
     session[CHAVE_SESSAO_GUICHE] = guiche
 
-    if guiche is None:
-        logger.warning(
-            "Usuário '%s' logou, mas não há guichês disponíveis (limite: %s).",
-            usuario.login,
-            qtd_guiches,
-        )
-
-    database.registrar_log("INFO", f"Login realizado: '{usuario.login}' (guichê {guiche}).")
+    database.registrar_log("INFO", f"Login realizado: '{usuario.login}' (perfil {usuario.perfil}, guichê {guiche}).")
 
 
 def encerrar_sessao() -> None:

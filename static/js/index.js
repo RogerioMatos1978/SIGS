@@ -140,6 +140,42 @@ async function repetirChamada() {
     }
 }
 
+/**
+ * Finaliza o atendimento em andamento no guichê do usuário logado e já
+ * chama automaticamente a próxima senha da fila. Se não houver mais
+ * senhas aguardando, exibe um aviso informativo (não um erro) pedindo
+ * para aguardar a emissão de uma nova senha.
+ */
+async function finalizarAtendimento() {
+    try {
+        const dados = await chamarApi("/api/finalizar-atendimento", { method: "POST", body: JSON.stringify({}) });
+
+        if (dados.senha_finalizada) {
+            exibirNotificacao(
+                `Senha ${String(dados.senha_finalizada.numero).padStart(3, "0")} finalizada.`,
+                "sucesso"
+            );
+        }
+
+        if (dados.chamada) {
+            atualizarDestaqueSenha(dados.chamada);
+            exibirNotificacao(
+                `Chamando a próxima: senha ${String(dados.chamada.numero).padStart(3, "0")}.`,
+                "sucesso"
+            );
+        } else {
+            // Fila vazia: não é um erro, apenas uma situação de espera.
+            elementoSenhaDestaque.textContent = "--";
+            elementoSenhaInfo.textContent = "Aguardando nova senha ser emitida.";
+            exibirNotificacao(dados.aviso || "Aguardando nova senha ser emitida.", "info");
+        }
+
+        await atualizarFila();
+    } catch (erro) {
+        exibirNotificacao(erro.message, "erro");
+    }
+}
+
 /** Abre o painel público em uma nova aba/janela. */
 function abrirPainel() {
     window.open("/painel", "_blank");
@@ -246,6 +282,7 @@ function inicializar() {
     vincularClique("btn-emitir", emitirSenha);
     vincularClique("btn-chamar", chamarProximaSenha);
     vincularClique("btn-repetir", repetirChamada);
+    vincularClique("btn-finalizar", finalizarAtendimento);
     vincularClique("btn-abrir-painel", abrirPainel);
     vincularClique("btn-testar-bip", tocarBip);
 

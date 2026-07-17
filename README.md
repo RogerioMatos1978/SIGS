@@ -128,31 +128,57 @@ operadores do sistema.
 
 **Primeiro acesso:** acesse `http://localhost:5000/cadastro` e crie o
 primeiro usuário. Ele se torna **administrador** automaticamente. Todos
-os cadastros seguintes (feitos por qualquer pessoa em `/cadastro`)
-recebem o perfil **atendente** (acesso restrito) por padrão — apenas um
-administrador pode promover outro usuário a administrador, pela tela
-**Usuários** (`/admin/usuarios`).
+os cadastros seguintes feitos por qualquer pessoa em `/cadastro` recebem
+o perfil **atendente** (acesso restrito, é o perfil "padrão" do sistema)
+— apenas um administrador pode promover outro usuário a administrador ou
+a emissor, pela tela **Usuários** (`/admin/usuarios`).
 
-**Perfis de acesso:**
+**Três perfis de acesso:**
 
-| Recurso | Atendente | Administrador |
-|---|---|---|
-| Emitir / Chamar / Repetir senha | ✅ | ✅ |
-| Abrir painel / Testar bip | ✅ | ✅ |
-| Configurações do sistema | ❌ | ✅ |
-| Relatórios (CSV/Excel/PDF) | ❌ | ✅ |
-| Gerenciar usuários | ❌ | ✅ |
-| Reiniciar contador de senhas | ❌ | ✅ |
-| Resetar senha de outro usuário | ❌ | ✅ |
-| Resetar (apagar) todas as senhas emitidas | ❌ | ✅ |
+- **Administrador** — acesso total ao sistema (Configurações,
+  Relatórios, Gerenciar Usuários, reinício de contador, reset de senha de
+  outros usuários, reset de todas as senhas emitidas). NÃO ocupa guichê e
+  não opera a fila (não emite nem chama senhas) — seu papel é de gestão,
+  não de atendimento.
+- **Atendente** (perfil padrão do autocadastro) — ao logar, assume
+  automaticamente um guichê de atendimento disponível. Responsável por
+  Chamar Próxima, Repetir Chamada e Finalizar Atendimento.
+- **Emissor de Senhas** — perfil restrito, criado apenas por um
+  administrador na tela Usuários. Não ocupa guichê. Só enxerga o botão
+  Emitir Senha — pensado para operar um totem de emissão na entrada do
+  evento; as senhas que ele emite alimentam a fila consumida pelos
+  atendentes.
 
-**Guichês:** ao fazer login, o usuário assume automaticamente o primeiro
-guichê disponível (entre 1 e a quantidade configurada em "Quantidade de
-Guichês de Atendimento"), sem precisar digitar ou selecionar nada. O
-guichê é liberado automaticamente no logout, ficando disponível para o
-próximo login. Se todos os guichês estiverem ocupados, a tela principal
-avisa o usuário e ele não conseguirá chamar senhas até que um guichê seja
-liberado (ou até um administrador aumentar a quantidade de guichês).
+| Recurso | Atendente | Emissor | Administrador |
+|---|---|---|---|
+| Emitir senha | ❌ | ✅ | ❌ |
+| Chamar / Repetir / Finalizar atendimento | ✅ | ❌ | ❌ |
+| Abrir painel / Testar bip | ✅ | ✅ | ✅ |
+| Ocupa guichê automaticamente | ✅ | ❌ | ❌ |
+| Configurações do sistema | ❌ | ❌ | ✅ |
+| Relatórios (CSV/Excel/PDF) | ❌ | ❌ | ✅ |
+| Gerenciar usuários | ❌ | ❌ | ✅ |
+| Reiniciar contador de senhas | ❌ | ❌ | ✅ |
+| Resetar senha de outro usuário | ❌ | ❌ | ✅ |
+| Resetar (apagar) todas as senhas emitidas | ❌ | ❌ | ✅ |
+
+**Guichês:** ao fazer login, um usuário **atendente** assume
+automaticamente o primeiro guichê disponível (entre 1 e a quantidade
+configurada em "Quantidade de Guichês de Atendimento"), sem precisar
+digitar ou selecionar nada. Administradores e emissores nunca ocupam
+guichê. O guichê é liberado automaticamente no logout, ficando disponível
+para o próximo login. Se todos os guichês estiverem ocupados, a tela
+principal avisa o atendente e ele não conseguirá chamar senhas até que um
+guichê seja liberado (ou até um administrador aumentar a quantidade de
+guichês em Configurações).
+
+**Finalizar Atendimento:** o botão "Finalizar Atendimento" (visível
+apenas para atendentes) marca a senha em atendimento no guichê como
+finalizada e, na mesma ação, já chama automaticamente a próxima senha da
+fila — não é necessário clicar em "Chamar Próxima" separadamente depois
+de atender um cliente. Se não houver mais senhas aguardando, o sistema
+exibe um aviso "Aguardando nova senha ser emitida" (isso não é tratado
+como erro, é uma situação normal de baixa demanda momentânea).
 
 **Reset de senha (login) x Reiniciar contador x Resetar senhas emitidas**
 — são três operações diferentes, todas restritas a administradores:

@@ -24,6 +24,7 @@
 
     <main class="conteudo-principal">
 
+        {% if usuario_logado.perfil == 'atendente' %}
         <section class="card card-identificacao">
             <h2>Atendente Logado</h2>
             <div class="identificacao-sessao">
@@ -49,29 +50,55 @@
             </p>
             {% endif %}
         </section>
+        {% else %}
+        <section class="card card-identificacao">
+            <h2>{{ 'Administrador' if eh_admin else 'Emissor de Senhas' }}</h2>
+            <p class="identificacao-valor">{{ usuario_logado.nome_completo }}</p>
+            {% if eh_admin %}
+            <p>Sem guichê atribuído — utilize o menu superior para acessar
+               Configurações, Relatórios e Usuários.</p>
+            {% else %}
+            <p>Sem guichê atribuído — este perfil apenas emite senhas para a
+               fila; a chamada e o atendimento são feitos pelos usuários com
+               perfil atendente.</p>
+            {% endif %}
+        </section>
+        {% endif %}
 
+        {% if usuario_logado.perfil == 'atendente' %}
         <section class="card card-senha-atual">
             <h2>Última Senha Chamada</h2>
             <div id="senha-atual-destaque" class="senha-destaque">--</div>
             <div id="senha-atual-info" class="senha-info">Nenhuma chamada realizada.</div>
         </section>
+        {% endif %}
 
         <section class="grade-botoes">
+            {% if usuario_logado.perfil == 'emissor' %}
             <button id="btn-emitir" class="botao botao-primario botao-grande">
                 🎫 Emitir Senha
             </button>
+            {% endif %}
+
+            {% if usuario_logado.perfil == 'atendente' %}
             <button id="btn-chamar" class="botao botao-primario botao-grande">
                 📢 Chamar Próxima
             </button>
             <button id="btn-repetir" class="botao botao-secundario botao-grande">
                 🔁 Repetir Chamada
             </button>
+            <button id="btn-finalizar" class="botao botao-primario botao-grande">
+                ✅ Finalizar Atendimento
+            </button>
+            {% endif %}
+
             <button id="btn-abrir-painel" class="botao botao-secundario botao-grande">
                 🖥️ Abrir Painel
             </button>
             <button id="btn-testar-bip" class="botao botao-secundario botao-grande">
                 🔔 Testar Bip
             </button>
+
             {% if eh_admin %}
             <button id="btn-configuracoes" class="botao botao-terciario botao-grande">
                 ⚙️ Configurações
