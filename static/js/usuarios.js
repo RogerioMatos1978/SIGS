@@ -34,14 +34,37 @@ async function chamarApiAdmin(url, opcoes = {}) {
     return dados;
 }
 
-/** Cria um novo usuário a partir do formulário "Novo Usuário". */
+/**
+ * Cria um novo usuário a partir do formulário "Novo Usuário".
+ *
+ * O botão de envio é desabilitado IMEDIATAMENTE (de forma síncrona, antes
+ * de qualquer chamada assíncrona) para impedir duplo envio do formulário
+ * — por exemplo, um clique duplo acidental, ou o usuário clicando de novo
+ * por achar que nada aconteceu enquanto aguarda a resposta do servidor.
+ * Sem essa trava, duas requisições quase simultâneas podiam gerar uma
+ * criação bem-sucedida seguida de um erro de "login duplicado" da
+ * segunda tentativa, confundindo o administrador (a mensagem de erro da
+ * segunda requisição podia sobrescrever a de sucesso da primeira).
+ */
 async function criarUsuario(evento) {
     evento.preventDefault();
 
-    const nomeCompleto = document.getElementById("novo-nome").value;
-    const login = document.getElementById("novo-login").value;
+    const botaoEnviar = formularioNovoUsuario.querySelector('button[type="submit"]');
+    if (botaoEnviar.disabled) {
+        // Já existe um envio em andamento: ignora cliques/eventos extras.
+        return;
+    }
+
+    const nomeCompleto = document.getElementById("novo-nome").value.trim();
+    const login = document.getElementById("novo-login").value.trim();
     const senha = document.getElementById("novo-senha").value;
     const perfil = document.getElementById("novo-perfil").value;
+
+    botaoEnviar.disabled = true;
+    const textoOriginalBotao = botaoEnviar.textContent;
+    botaoEnviar.textContent = "Criando...";
+    mensagemNovoUsuario.textContent = "";
+    mensagemNovoUsuario.className = "mensagem-status";
 
     try {
         await chamarApiAdmin("/api/admin/usuarios", {
@@ -54,10 +77,16 @@ async function criarUsuario(evento) {
 
         // Recarrega a página para exibir o novo usuário na tabela (mais
         // simples e confiável do que reconstruir a linha da tabela em JS).
+        // O botão permanece desabilitado até a página recarregar.
         setTimeout(() => window.location.reload(), 900);
     } catch (erro) {
         mensagemNovoUsuario.textContent = `Erro: ${erro.message}`;
         mensagemNovoUsuario.className = "mensagem-status erro";
+
+        // Reabilita o botão apenas em caso de erro, permitindo corrigir os
+        // dados (ex.: escolher outro login) e tentar novamente.
+        botaoEnviar.disabled = false;
+        botaoEnviar.textContent = textoOriginalBotao;
     }
 }
 

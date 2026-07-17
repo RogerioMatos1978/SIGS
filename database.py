@@ -680,7 +680,14 @@ def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optio
     seguintes recebem, por padrão, o perfil "atendente" (acesso restrito),
     a menos que um administrador altere o perfil posteriormente pela tela
     de Gerenciar Usuários.
+
+    O login é normalizado (espaços removidos e convertido para minúsculas)
+    antes de ser gravado, evitando que "Joao", "joao" e " joao " sejam
+    tratados como usuários diferentes por uma simples variação de
+    maiúsculas/minúsculas ou espaços acidentais.
     """
+    login_normalizado = (login or "").strip().lower()
+
     if perfil is None:
         perfil = PerfilUsuario.ADMIN if contar_usuarios() == 0 else PerfilUsuario.ATENDENTE
 
@@ -693,20 +700,20 @@ def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optio
                 INSERT INTO usuarios (nome_completo, login, senha_hash, perfil, ativo, data_criacao)
                 VALUES (?, ?, ?, ?, 1, ?)
                 """,
-                (nome_completo, login, senha_hash, perfil, data_criacao),
+                (nome_completo, login_normalizado, senha_hash, perfil, data_criacao),
             )
             conexao.commit()
         except sqlite3.IntegrityError as erro:
-            raise ValueError(f"Já existe um usuário com o login '{login}'.") from erro
+            raise ValueError(f"Já existe um usuário com o login '{login_normalizado}'.") from erro
 
         usuario_id = cursor.lastrowid
 
-    registrar_log("INFO", f"Usuário '{login}' cadastrado com perfil '{perfil}'.")
+    registrar_log("INFO", f"Usuário '{login_normalizado}' cadastrado com perfil '{perfil}'.")
 
     return Usuario(
         id=usuario_id,
         nome_completo=nome_completo,
-        login=login,
+        login=login_normalizado,
         senha_hash=senha_hash,
         perfil=perfil,
         ativo=True,
@@ -716,10 +723,16 @@ def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optio
 
 
 def obter_usuario_por_login(login: str) -> Optional[Usuario]:
-    """Busca um usuário pelo login (utilizado no processo de autenticação)."""
+    """Busca um usuário pelo login (utilizado no processo de autenticação).
+
+    A comparação é normalizada (espaços removidos e minúsculas) para
+    corresponder à forma como o login é armazenado em ``criar_usuario``,
+    evitando falhas de login por diferença de maiúsculas/minúsculas.
+    """
+    login_normalizado = (login or "").strip().lower()
     with get_connection() as conexao:
         linha = conexao.execute(
-            "SELECT * FROM usuarios WHERE login = ?", (login,)
+            "SELECT * FROM usuarios WHERE login = ?", (login_normalizado,)
         ).fetchone()
     return Usuario.from_row(linha) if linha else None
 

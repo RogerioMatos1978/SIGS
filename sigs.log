@@ -59,3 +59,17 @@
 2026-07-17 12:37:41 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
 2026-07-17 12:37:41 | INFO     | SIGS | Login realizado: 'rogeriomatos' (guichê 1).
 2026-07-17 12:50:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 12:51:13 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 12:51:13 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 12:51:55 | ERROR    | SIGS | Já existe um usuário com o login 'rogerio'.
+2026-07-17 12:52:20 | ERROR    | SIGS | Já existe um usuário com o login 'rogeriom'.
+2026-07-17 12:52:27 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-07-17 12:52:49 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-07-17 12:53:13 | INFO     | SIGS | Usuário 'rogeriom' cadastrado com perfil 'atendente'.
+2026-07-17 12:53:19 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-07-17 12:53:24 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio Matos'.
+2026-07-17 12:53:24 | INFO     | SIGS | Login realizado: 'rogeriom' (perfil atendente, guichê 1).
+2026-07-17 12:53:44 | INFO     | SIGS | Logout realizado: 'rogeriom'.
+2026-07-17 12:53:52 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-07-17 12:54:00 | ERROR    | SIGS | Erro ao atualizar perfil: CHECK constraint failed: perfil IN ('admin', 'atendente')
+2026-07-17 12:54:26 | ERROR    | SIGS | Já existe um usuário com o login 'alicya'.
