@@ -92,3 +92,23 @@
 2026-07-17 13:35:40 | WARNING  | SIGS | Perfil do usuário id=5 alterado para 'emissor'.
 2026-07-17 13:36:20 | INFO     | SIGS | Usuário 'teste02' cadastrado com perfil 'atendente'.
 2026-07-17 13:36:27 | WARNING  | SIGS | Perfil do usuário id=6 alterado para 'emissor'.
+2026-07-17 13:43:22 | WARNING  | SIGS | Referência quebrada detectada na tabela 'guiches_ocupados' (apontava para uma tabela temporária de migração já removida). Recriando a tabela do zero...
+2026-07-17 13:43:22 | WARNING  | SIGS | Tabela 'guiches_ocupados' recriada com sucesso.
+2026-07-17 13:43:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 13:43:23 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 13:43:32 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-07-17 13:43:38 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-07-17 13:43:54 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-07-17 13:44:02 | INFO     | SIGS | Login realizado: 'teste02' (perfil emissor, guichê None).
+2026-07-17 13:44:19 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-07-17 13:44:19 | INFO     | SIGS | Senha emitida: número 001 (id=1)
+2026-07-17 13:44:35 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
+2026-07-17 13:45:22 | INFO     | SIGS | Logout realizado: 'teste02'.
+2026-07-17 13:45:30 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio Matos'.
+2026-07-17 13:45:30 | INFO     | SIGS | Login realizado: 'rogeriom' (perfil atendente, guichê 1).
+2026-07-17 13:45:45 | INFO     | SIGS | Senha 001 chamada no guichê 'Guichê 01' por 'Rogerio Matos'.
+2026-07-17 13:46:34 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-17 13:46:37 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-17 13:46:39 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-07-17 13:46:43 | INFO     | SIGS | Senha id=1 finalizada.
+2026-07-17 13:46:59 | INFO     | SIGS | Logout realizado: 'rogeriom'.
