@@ -25,17 +25,29 @@
     <main class="conteudo-principal">
 
         <section class="card card-identificacao">
-            <h2>Identificação do Atendente</h2>
-            <div class="campos-identificacao">
-                <label>
-                    Guichê
-                    <input type="text" id="campo-guiche" placeholder="Ex.: Guichê 01" value="Guichê 01">
-                </label>
-                <label>
-                    Atendente
-                    <input type="text" id="campo-usuario" placeholder="Nome do atendente">
-                </label>
+            <h2>Atendente Logado</h2>
+            <div class="identificacao-sessao">
+                <div class="identificacao-item">
+                    <span class="identificacao-label">Nome</span>
+                    <span class="identificacao-valor">{{ usuario_logado.nome_completo }}</span>
+                </div>
+                <div class="identificacao-item">
+                    <span class="identificacao-label">Guichê</span>
+                    <span class="identificacao-valor">
+                        {% if usuario_logado.guiche %}
+                            {{ '%02d' | format(usuario_logado.guiche) }}
+                        {% else %}
+                            Nenhum guichê livre
+                        {% endif %}
+                    </span>
+                </div>
             </div>
+            {% if not usuario_logado.guiche %}
+            <p class="mensagem-status erro">
+                Todos os guichês estão ocupados no momento. Peça a um administrador para
+                aumentar a quantidade de guichês em Configurações, ou aguarde a liberação de um guichê.
+            </p>
+            {% endif %}
         </section>
 
         <section class="card card-senha-atual">
@@ -60,15 +72,20 @@
             <button id="btn-testar-bip" class="botao botao-secundario botao-grande">
                 🔔 Testar Bip
             </button>
+            {% if eh_admin %}
             <button id="btn-configuracoes" class="botao botao-terciario botao-grande">
                 ⚙️ Configurações
             </button>
             <button id="btn-relatorios" class="botao botao-terciario botao-grande">
                 📊 Relatórios
             </button>
+            <button id="btn-usuarios" class="botao botao-terciario botao-grande">
+                👤 Usuários
+            </button>
             <button id="btn-reiniciar" class="botao botao-alerta botao-grande">
                 ♻️ Reiniciar Contador
             </button>
+            {% endif %}
         </section>
 
         <section class="card card-fila">

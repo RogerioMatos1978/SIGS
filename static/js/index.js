@@ -16,8 +16,6 @@
 // Referências de elementos DOM
 // -----------------------------------------------------------------------
 
-const elementoGuiche = document.getElementById("campo-guiche");
-const elementoUsuario = document.getElementById("campo-usuario");
 const elementoSenhaDestaque = document.getElementById("senha-atual-destaque");
 const elementoSenhaInfo = document.getElementById("senha-atual-info");
 const elementoFilaCorpo = document.getElementById("fila-corpo");
@@ -60,6 +58,13 @@ async function chamarApi(url, opcoes = {}) {
 
     const dados = await resposta.json().catch(() => ({}));
 
+    // Sessão expirada ou usuário desativado: redireciona para o login em
+    // vez de apenas exibir um erro, já que nenhuma ação faria sentido.
+    if (resposta.status === 401) {
+        window.location.href = "/login";
+        throw new Error("Sessão expirada. Redirecionando para o login...");
+    }
+
     if (!resposta.ok || dados.sucesso === false) {
         const mensagemErro = dados.erro || `Erro inesperado (HTTP ${resposta.status}).`;
         throw new Error(mensagemErro);
@@ -68,20 +73,31 @@ async function chamarApi(url, opcoes = {}) {
     return dados;
 }
 
+/**
+ * Vincula um evento de clique a um elemento apenas se ele existir na
+ * página. Necessário porque os botões restritos a administradores (ex.:
+ * Configurações, Relatórios, Reiniciar Contador) não são renderizados no
+ * HTML para usuários com perfil "atendente" (ver index.html).
+ */
+function vincularClique(idElemento, manipulador) {
+    const elemento = document.getElementById(idElemento);
+    if (elemento) {
+        elemento.addEventListener("click", manipulador);
+    }
+}
+
 // -----------------------------------------------------------------------
 // Ações dos botões principais
 // -----------------------------------------------------------------------
 
-/** Emite uma nova senha e atualiza a fila em seguida. */
+/**
+ * Emite uma nova senha e atualiza a fila em seguida. Guichê e atendente
+ * são resolvidos no servidor a partir da sessão de login (ver
+ * app.py:api_emitir) — não são mais informados manualmente aqui.
+ */
 async function emitirSenha() {
     try {
-        const dados = await chamarApi("/api/emitir", {
-            method: "POST",
-            body: JSON.stringify({
-                guiche: elementoGuiche.value,
-                usuario: elementoUsuario.value,
-            }),
-        });
+        const dados = await chamarApi("/api/emitir", { method: "POST", body: JSON.stringify({}) });
 
         const numero = String(dados.senha.numero).padStart(3, "0");
         exibirNotificacao(`Senha ${numero} emitida e enviada para impressão.`, "sucesso");
@@ -96,16 +112,14 @@ async function emitirSenha() {
     }
 }
 
-/** Chama a próxima senha da fila, respeitando a ordem FIFO. */
+/**
+ * Chama a próxima senha da fila, respeitando a ordem FIFO. O guichê e o
+ * atendente são sempre os da sessão logada no momento (o servidor rejeita
+ * qualquer tentativa de sobrescrever esses dados pelo cliente).
+ */
 async function chamarProximaSenha() {
     try {
-        const dados = await chamarApi("/api/chamar", {
-            method: "POST",
-            body: JSON.stringify({
-                guiche: elementoGuiche.value,
-                usuario: elementoUsuario.value,
-            }),
-        });
+        const dados = await chamarApi("/api/chamar", { method: "POST", body: JSON.stringify({}) });
 
         atualizarDestaqueSenha(dados.chamada);
         exibirNotificacao(`Senha ${String(dados.chamada.numero).padStart(3, "0")} chamada.`, "sucesso");
@@ -228,18 +242,21 @@ async function cancelarSenha(senhaId) {
 // -----------------------------------------------------------------------
 
 function inicializar() {
-    document.getElementById("btn-emitir").addEventListener("click", emitirSenha);
-    document.getElementById("btn-chamar").addEventListener("click", chamarProximaSenha);
-    document.getElementById("btn-repetir").addEventListener("click", repetirChamada);
-    document.getElementById("btn-abrir-painel").addEventListener("click", abrirPainel);
-    document.getElementById("btn-testar-bip").addEventListener("click", tocarBip);
-    document.getElementById("btn-configuracoes").addEventListener("click", () => {
-        window.location.href = "/configuracoes";
-    });
-    document.getElementById("btn-relatorios").addEventListener("click", () => {
-        window.location.href = "/relatorios";
-    });
-    document.getElementById("btn-reiniciar").addEventListener("click", reiniciarContador);
+    // Botões disponíveis para qualquer usuário logado (atendente ou admin).
+    vincularClique("btn-emitir", emitirSenha);
+    vincularClique("btn-chamar", chamarProximaSenha);
+    vincularClique("btn-repetir", repetirChamada);
+    vincularClique("btn-abrir-painel", abrirPainel);
+    vincularClique("btn-testar-bip", tocarBip);
+
+    // Botões restritos a administradores. Podem não existir no DOM para
+    // usuários com perfil "atendente" (o Jinja simplesmente não os
+    // renderiza), por isso o uso de vincularClique (que verifica a
+    // existência do elemento antes de anexar o evento).
+    vincularClique("btn-configuracoes", () => { window.location.href = "/configuracoes"; });
+    vincularClique("btn-relatorios", () => { window.location.href = "/relatorios"; });
+    vincularClique("btn-usuarios", () => { window.location.href = "/admin/usuarios"; });
+    vincularClique("btn-reiniciar", reiniciarContador);
 
     atualizarFila();
     setInterval(atualizarFila, TEMPO_ATUALIZACAO_MS);

@@ -461,6 +461,173 @@ input:focus, select:focus {
     background: rgba(255, 255, 255, 0.15);
 }
 
+/* =============================================================
+   Autenticação (login / cadastro), barra de usuário e admin
+   ============================================================= */
+
+.barra-usuario {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--cor-principal);
+    color: var(--cor-branco);
+    padding: 12px 24px;
+}
+
+.barra-usuario-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    flex-wrap: wrap;
+}
+
+.barra-usuario-perfil, .barra-usuario-guiche {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.barra-usuario-acoes {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.barra-usuario-acoes a {
+    color: var(--cor-branco);
+    text-decoration: none;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.barra-usuario-acoes a:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+.form-logout {
+    margin: 0;
+}
+
+.botao-sair {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+}
+
+.pagina-auth {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: none;
+}
+
+.card-auth {
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+}
+
+.logo-auth {
+    height: 70px;
+    margin-bottom: 12px;
+}
+
+.card-auth h1 {
+    margin: 0 0 4px;
+    color: var(--cor-principal);
+}
+
+.subtitulo-auth {
+    color: #5A6572;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+}
+
+.card-auth .card-formulario label {
+    text-align: left;
+}
+
+.auth-rodape {
+    margin-top: 20px;
+    color: #5A6572;
+}
+
+.auth-rodape a {
+    color: var(--cor-principal-clara);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.identificacao-sessao {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.identificacao-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.identificacao-label {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #5A6572;
+    font-weight: 700;
+}
+
+.identificacao-valor {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--cor-principal);
+}
+
+.status-badge-ativo, .status-badge-inativo {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.status-badge-ativo {
+    background: rgba(46, 125, 50, 0.15);
+    color: var(--cor-sucesso);
+}
+
+.status-badge-inativo {
+    background: rgba(198, 40, 40, 0.15);
+    color: var(--cor-erro);
+}
+
+.acoes-usuario {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.select-perfil {
+    padding: 6px 8px;
+    font-size: 0.9rem;
+}
+
+.card-zona-perigo {
+    border: 2px solid var(--cor-erro);
+}
+
+.card-zona-perigo h2 {
+    color: var(--cor-erro);
+    border-bottom-color: rgba(198, 40, 40, 0.3);
+}
+
 /* -------------------- Responsividade -------------------- */
 @media (max-width: 900px) {
     .painel-corpo {
@@ -492,5 +659,14 @@ input:focus, select:focus {
 
     .grade-botoes {
         grid-template-columns: 1fr;
+    }
+
+    .barra-usuario {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .identificacao-sessao {
+        gap: 14px;
     }
 }

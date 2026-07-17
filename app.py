@@ -10,10 +10,14 @@ impressão física em ``printer.py`` e a configuração em ``config.py``.
 
 Rotas principais:
 
-    GET  /                      Tela principal (emissão/chamada de senhas)
-    GET  /painel                Painel público de chamadas (tela cheia)
-    GET  /configuracoes         Tela de configurações do sistema
-    GET  /relatorios            Tela de geração de relatórios
+    GET  /                      Tela principal (emissão/chamada de senhas) [login]
+    GET  /painel                Painel público de chamadas (tela cheia) [público]
+    GET  /configuracoes         Tela de configurações do sistema [admin]
+    GET  /relatorios            Tela de geração de relatórios [admin]
+    GET/POST /login             Autenticação de usuários
+    POST /logout                Encerra sessão e libera o guichê
+    GET/POST /cadastro          Autocadastro (1º usuário = admin; demais = atendente)
+    GET  /admin/usuarios        Gerenciamento de usuários [admin]
 
     POST /api/emitir            Emite uma nova senha (grava + imprime)
     POST /api/chamar            Chama a próxima senha da fila (FIFO)
@@ -39,12 +43,13 @@ Execução:
 
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, redirect, render_template, request, send_file, url_for
 
+import auth
 import database
-from config import STATIC_DIR, TEMPLATES_DIR, config_manager, logger
+from config import STATIC_DIR, TEMPLATES_DIR, config_manager, logger, obter_secret_key
 from printer import ErroImpressora, ImpressoraTermica
 
 # ---------------------------------------------------------------------------
@@ -57,9 +62,27 @@ app = Flask(
     template_folder=str(TEMPLATES_DIR),
 )
 
+# Chave secreta utilizada para assinar o cookie de sessão (login). É gerada
+# automaticamente e persistida em disco por config.obter_secret_key().
+app.secret_key = obter_secret_key()
+
+# Sessões de login duram até 12 horas de inatividade (cobre um turno de
+# atendimento inteiro sem exigir novo login no meio do expediente).
+app.permanent_session_lifetime = timedelta(hours=12)
+
 # Garante que o banco de dados e as tabelas existam antes de qualquer
 # requisição ser atendida.
 database.inicializar_banco()
+
+
+@app.context_processor
+def injetar_usuario_logado():
+    """
+    Disponibiliza a variável ``usuario_logado`` (e ``eh_admin``) para
+    TODOS os templates automaticamente, sem precisar repassá-la
+    manualmente em cada chamada a ``render_template``.
+    """
+    return {"usuario_logado": auth.usuario_logado(), "eh_admin": auth.eh_admin()}
 
 
 # ---------------------------------------------------------------------------
@@ -84,32 +107,146 @@ def resposta_sucesso(dados: dict, codigo_http: int = 200):
 # ---------------------------------------------------------------------------
 
 @app.route("/")
+@auth.login_required
 def index():
-    """Tela principal, utilizada pelo atendente para emitir e chamar senhas."""
+    """Tela principal, utilizada pelo atendente para emitir e chamar senhas.
+
+    Exige login. O guichê exibido é o atribuído automaticamente ao usuário
+    no momento em que ele autenticou (ver auth.iniciar_sessao)."""
     configuracoes = config_manager.obter_todas()
     return render_template("index.html", config=configuracoes)
 
 
 @app.route("/painel")
 def painel():
-    """Painel público de chamadas, projetado para exibição em TV/monitor."""
+    """
+    Painel público de chamadas, projetado para exibição em TV/monitor.
+
+    Esta tela é INTENCIONALMENTE pública (sem exigência de login): ela é
+    voltada ao público que aguarda atendimento, e não a operadores do
+    sistema. Apenas telas operacionais/administrativas exigem login.
+    """
     configuracoes = config_manager.obter_todas()
     return render_template("painel.html", config=configuracoes)
 
 
 @app.route("/configuracoes")
+@auth.login_required
+@auth.admin_required
 def configuracoes_tela():
-    """Tela de configurações gerais do sistema."""
+    """Tela de configurações gerais do sistema. Acesso restrito a administradores."""
     configuracoes = config_manager.obter_todas()
     impressoras = ImpressoraTermica.listar_impressoras_instaladas()
     return render_template("configuracoes.html", config=configuracoes, impressoras=impressoras)
 
 
 @app.route("/relatorios")
+@auth.login_required
+@auth.admin_required
 def relatorios_tela():
-    """Tela de geração de relatórios (CSV, Excel, PDF)."""
+    """Tela de geração de relatórios (CSV, Excel, PDF). Acesso restrito a administradores."""
     configuracoes = config_manager.obter_todas()
     return render_template("relatorios.html", config=configuracoes)
+
+
+# ---------------------------------------------------------------------------
+# Rotas de autenticação (login / logout / cadastro)
+# ---------------------------------------------------------------------------
+
+@app.route("/login", methods=["GET", "POST"])
+def login_tela():
+    """
+    Tela de login. Todo acesso ao sistema (exceto o painel público) exige
+    autenticação prévia. No POST, valida as credenciais e, em caso de
+    sucesso, atribui automaticamente o próximo guichê disponível ao
+    usuário (ver auth.iniciar_sessao).
+    """
+    if auth.usuario_logado():
+        return redirect(url_for("index"))
+
+    erro = None
+    if request.method == "POST":
+        login_informado = request.form.get("login", "")
+        senha_informada = request.form.get("senha", "")
+
+        usuario, erro = auth.autenticar(login_informado, senha_informada)
+        if usuario is not None:
+            auth.iniciar_sessao(usuario)
+            destino = request.args.get("proximo")
+            if destino and destino.startswith("/"):
+                return redirect(destino)
+            return redirect(url_for("index"))
+
+    return render_template("login.html", erro=erro)
+
+
+@app.route("/logout", methods=["POST"])
+@auth.login_required
+def logout_tela():
+    """Encerra a sessão do usuário e libera o guichê que ele ocupava."""
+    auth.encerrar_sessao()
+    return redirect(url_for("login_tela"))
+
+
+@app.route("/cadastro", methods=["GET", "POST"])
+def cadastro_tela():
+    """
+    Tela de autocadastro de novos usuários. O primeiro usuário cadastrado
+    no sistema torna-se administrador automaticamente; todos os demais
+    recebem o perfil "atendente" (acesso restrito), conforme regra de
+    negócio implementada em ``database.criar_usuario``.
+    """
+    if auth.usuario_logado():
+        return redirect(url_for("index"))
+
+    erro = None
+    if request.method == "POST":
+        nome_completo = (request.form.get("nome_completo") or "").strip()
+        login_informado = (request.form.get("login") or "").strip()
+        senha = request.form.get("senha") or ""
+        confirmar_senha = request.form.get("confirmar_senha") or ""
+
+        if not nome_completo or not login_informado:
+            erro = "Preencha nome completo e login."
+        elif senha != confirmar_senha:
+            erro = "As senhas informadas não coincidem."
+        else:
+            erro = auth.validar_forca_senha(senha)
+
+        if erro is None:
+            try:
+                usuario = database.criar_usuario(
+                    nome_completo=nome_completo,
+                    login=login_informado,
+                    senha_hash=auth.gerar_hash_senha(senha),
+                )
+                auth.iniciar_sessao(usuario)
+                return redirect(url_for("index"))
+            except ValueError as excecao:
+                erro = str(excecao)
+
+    return render_template("cadastro.html", erro=erro)
+
+
+# ---------------------------------------------------------------------------
+# Administração de usuários (apenas administradores)
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/usuarios")
+@auth.login_required
+@auth.admin_required
+def usuarios_tela():
+    """Tela de gerenciamento de usuários: criação, reset de senha,
+    ativação/desativação e alteração de perfil. Acesso restrito a
+    administradores."""
+    usuarios = database.listar_usuarios()
+    guiches_ocupados = database.listar_guiches_ocupados()
+    return render_template(
+        "usuarios.html",
+        config=config_manager.obter_todas(),
+        usuarios=usuarios,
+        guiches_ocupados=guiches_ocupados,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -117,17 +254,22 @@ def relatorios_tela():
 # ---------------------------------------------------------------------------
 
 @app.route("/api/emitir", methods=["POST"])
+@auth.login_required
 def api_emitir():
     """
     Emite uma nova senha: grava no banco de dados e envia para impressão
     imediatamente. Caso a impressão falhe, a senha permanece gravada no
     banco (o atendimento não deve ser bloqueado por falha de impressora),
     mas o erro é reportado ao cliente para que o atendente seja avisado.
+
+    O guichê e o nome do atendente são obtidos diretamente da sessão de
+    login (nunca do corpo da requisição), evitando que um atendente emita
+    senhas em nome de outro guichê/usuário.
     """
     try:
-        dados = request.get_json(silent=True) or {}
-        guiche = str(dados.get("guiche") or "").strip() or None
-        usuario = str(dados.get("usuario") or "").strip() or None
+        usuario_sessao = auth.usuario_logado()
+        guiche = f"Guichê {usuario_sessao['guiche']:02d}" if usuario_sessao.get("guiche") else None
+        usuario = usuario_sessao.get("nome_completo")
 
         senha = database.criar_senha(guiche=guiche, usuario=usuario)
 
@@ -154,13 +296,22 @@ def api_emitir():
 
 
 @app.route("/api/chamar", methods=["POST"])
+@auth.login_required
 def api_chamar():
-    """Chama a próxima senha da fila (FIFO), respeitando guichê/usuário
-    informados pelo atendente."""
+    """Chama a próxima senha da fila (FIFO), sempre em nome do guichê e do
+    usuário atualmente logados (obtidos da sessão, nunca do corpo da
+    requisição, para evitar chamadas em nome de outro guichê)."""
     try:
-        dados = request.get_json(silent=True) or {}
-        guiche = str(dados.get("guiche") or "Guichê 01").strip()
-        usuario = str(dados.get("usuario") or "Atendente").strip()
+        usuario_sessao = auth.usuario_logado()
+        if not usuario_sessao.get("guiche"):
+            return resposta_erro(
+                "Você não possui um guichê atribuído no momento (todos ocupados). "
+                "Faça logout e login novamente ou contate um administrador.",
+                409,
+            )
+
+        guiche = f"Guichê {usuario_sessao['guiche']:02d}"
+        usuario = usuario_sessao.get("nome_completo")
 
         resultado = database.chamar_proxima(guiche=guiche, usuario=usuario)
         if resultado is None:
@@ -173,6 +324,7 @@ def api_chamar():
 
 
 @app.route("/api/repetir", methods=["POST"])
+@auth.login_required
 def api_repetir():
     """Repete a última chamada realizada (nova animação/bip no painel)."""
     try:
@@ -187,8 +339,11 @@ def api_repetir():
 
 
 @app.route("/api/reiniciar", methods=["POST"])
+@auth.login_required
+@auth.admin_required
 def api_reiniciar():
-    """Reinicia o contador de numeração de senhas para zero."""
+    """Reinicia o contador de numeração de senhas para zero. Restrito a
+    administradores (é uma operação sensível que afeta todos os guichês)."""
     try:
         database.reiniciar_contador()
         return resposta_sucesso({"mensagem": "Contador reiniciado com sucesso."})
@@ -197,6 +352,7 @@ def api_reiniciar():
 
 
 @app.route("/api/fila")
+@auth.login_required
 def api_fila():
     """Retorna a fila atual de senhas aguardando chamada."""
     try:
@@ -207,6 +363,7 @@ def api_fila():
 
 
 @app.route("/api/senha/<int:senha_id>/finalizar", methods=["POST"])
+@auth.login_required
 def api_finalizar(senha_id: int):
     """Marca uma senha como finalizada."""
     if database.finalizar_senha(senha_id):
@@ -215,6 +372,7 @@ def api_finalizar(senha_id: int):
 
 
 @app.route("/api/senha/<int:senha_id>/cancelar", methods=["POST"])
+@auth.login_required
 def api_cancelar(senha_id: int):
     """Marca uma senha como cancelada."""
     if database.cancelar_senha(senha_id):
@@ -257,14 +415,18 @@ def api_painel_status():
 # ---------------------------------------------------------------------------
 
 @app.route("/api/config", methods=["GET"])
+@auth.login_required
+@auth.admin_required
 def api_config_obter():
-    """Retorna todas as configurações atuais do sistema."""
+    """Retorna todas as configurações atuais do sistema. Restrito a administradores."""
     return resposta_sucesso({"config": config_manager.obter_todas()})
 
 
 @app.route("/api/config", methods=["POST"])
+@auth.login_required
+@auth.admin_required
 def api_config_salvar():
-    """Atualiza uma ou mais configurações do sistema."""
+    """Atualiza uma ou mais configurações do sistema. Restrito a administradores."""
     try:
         dados = request.get_json(silent=True) or {}
         if not dados:
@@ -278,6 +440,8 @@ def api_config_salvar():
 
 
 @app.route("/api/impressoras")
+@auth.login_required
+@auth.admin_required
 def api_impressoras():
     """Lista as impressoras instaladas no Windows, para a tela de
     Configurações popular o campo de seleção."""
@@ -296,6 +460,8 @@ def _parametros_periodo():
 
 
 @app.route("/api/relatorios/resumo")
+@auth.login_required
+@auth.admin_required
 def api_relatorios_resumo():
     """Retorna um resumo estatístico (JSON) para exibição na tela de
     relatórios: total emitidas, total chamadas e tempo médio de espera."""
@@ -317,6 +483,8 @@ def api_relatorios_resumo():
 
 
 @app.route("/api/relatorios/csv")
+@auth.login_required
+@auth.admin_required
 def api_relatorios_csv():
     """Gera e retorna um relatório em formato CSV para download."""
     try:
@@ -357,6 +525,8 @@ def api_relatorios_csv():
 
 
 @app.route("/api/relatorios/excel")
+@auth.login_required
+@auth.admin_required
 def api_relatorios_excel():
     """Gera e retorna um relatório em formato Excel (.xlsx) para download."""
     try:
@@ -409,6 +579,8 @@ def api_relatorios_excel():
 
 
 @app.route("/api/relatorios/pdf")
+@auth.login_required
+@auth.admin_required
 def api_relatorios_pdf():
     """Gera e retorna um relatório em formato PDF para download.
 
@@ -504,6 +676,141 @@ def api_relatorios_pdf():
 
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao gerar relatório PDF: {erro}", 500)
+
+
+# ---------------------------------------------------------------------------
+# API - Administração de usuários (apenas administradores)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/admin/usuarios", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_criar_usuario():
+    """Cria um novo usuário diretamente pelo painel de administração,
+    permitindo ao administrador definir o perfil (admin ou atendente)
+    já na criação — diferente do autocadastro público, que sempre cria
+    o usuário com perfil "atendente" (exceto o primeiro usuário do sistema)."""
+    try:
+        dados = request.get_json(silent=True) or {}
+        nome_completo = str(dados.get("nome_completo") or "").strip()
+        login_novo = str(dados.get("login") or "").strip()
+        senha = str(dados.get("senha") or "")
+        perfil = str(dados.get("perfil") or "atendente").strip()
+
+        if not nome_completo or not login_novo:
+            return resposta_erro("Informe nome completo e login.", 400)
+
+        erro_senha = auth.validar_forca_senha(senha)
+        if erro_senha:
+            return resposta_erro(erro_senha, 400)
+
+        if perfil not in ("admin", "atendente"):
+            return resposta_erro("Perfil inválido.", 400)
+
+        usuario = database.criar_usuario(
+            nome_completo=nome_completo,
+            login=login_novo,
+            senha_hash=auth.gerar_hash_senha(senha),
+            perfil=perfil,
+        )
+        return resposta_sucesso({"usuario": usuario.to_dict_publico()}, 201)
+
+    except ValueError as erro:
+        return resposta_erro(str(erro), 409)
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao criar usuário: {erro}", 500)
+
+
+@app.route("/api/admin/usuarios/<int:usuario_id>/resetar-senha", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_resetar_senha(usuario_id: int):
+    """Reseta (redefine) a senha de login de um usuário. Esta é a
+    funcionalidade de 'reset de senha' exigida para o administrador do
+    sistema — distinta do reinício do contador de senhas de atendimento."""
+    try:
+        dados = request.get_json(silent=True) or {}
+        nova_senha = str(dados.get("nova_senha") or "")
+
+        erro_senha = auth.validar_forca_senha(nova_senha)
+        if erro_senha:
+            return resposta_erro(erro_senha, 400)
+
+        if database.resetar_senha_usuario(usuario_id, auth.gerar_hash_senha(nova_senha)):
+            return resposta_sucesso({"mensagem": "Senha redefinida com sucesso."})
+        return resposta_erro("Usuário não encontrado.", 404)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao redefinir senha: {erro}", 500)
+
+
+@app.route("/api/admin/usuarios/<int:usuario_id>/perfil", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_definir_perfil(usuario_id: int):
+    """Altera o perfil (admin/atendente) de um usuário."""
+    try:
+        dados = request.get_json(silent=True) or {}
+        perfil = str(dados.get("perfil") or "").strip()
+
+        if database.definir_perfil_usuario(usuario_id, perfil):
+            return resposta_sucesso({"mensagem": "Perfil atualizado."})
+        return resposta_erro("Usuário não encontrado.", 404)
+
+    except ValueError as erro:
+        return resposta_erro(str(erro), 400)
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao atualizar perfil: {erro}", 500)
+
+
+@app.route("/api/admin/usuarios/<int:usuario_id>/status", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_definir_status(usuario_id: int):
+    """Ativa ou desativa o acesso de um usuário ao sistema."""
+    try:
+        dados = request.get_json(silent=True) or {}
+        ativo = bool(dados.get("ativo", True))
+
+        if database.definir_status_usuario(usuario_id, ativo):
+            if not ativo:
+                # Libera imediatamente o guichê do usuário desativado.
+                database.liberar_guiche(usuario_id)
+            return resposta_sucesso({"mensagem": "Status do usuário atualizado."})
+        return resposta_erro("Usuário não encontrado.", 404)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao atualizar status: {erro}", 500)
+
+
+@app.route("/api/admin/reset-senhas-emitidas", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_reset_senhas_emitidas():
+    """
+    Apaga TODO o histórico de senhas emitidas e chamadas, reiniciando o
+    contador para zero. Operação destrutiva e irreversível, restrita a
+    administradores — exige confirmação explícita no corpo da requisição
+    (``{"confirmar": true}``) para evitar acionamento acidental.
+    """
+    try:
+        dados = request.get_json(silent=True) or {}
+        if dados.get("confirmar") is not True:
+            return resposta_erro("Confirmação obrigatória para esta operação destrutiva.", 400)
+
+        database.resetar_senhas_emitidas()
+        return resposta_sucesso({"mensagem": "Todas as senhas emitidas foram apagadas."})
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao resetar senhas emitidas: {erro}", 500)
+
+
+@app.route("/api/admin/guiches")
+@auth.login_required
+@auth.admin_required
+def api_admin_guiches():
+    """Retorna a lista de guichês atualmente ocupados (monitoramento)."""
+    return resposta_sucesso({"guiches": database.listar_guiches_ocupados()})
 
 
 # ---------------------------------------------------------------------------

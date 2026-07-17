@@ -18,6 +18,7 @@ Essas regras ficam em ``database.py``. Aqui tratamos apenas de parâmetros
 gerais do sistema (nome do evento, impressora, logotipo, cores, etc.).
 """
 
+import secrets
 import sqlite3
 import logging
 from pathlib import Path
@@ -45,6 +46,12 @@ LOGO_PADRAO = "static/img/logo.png"
 # Arquivo de log de aplicação (eventos técnicos, erros, exceções).
 LOG_FILE = BASE_DIR / "sigs.log"
 
+# Arquivo que armazena a chave secreta usada para assinar as sessões
+# (cookies) do Flask. É gerada automaticamente na primeira execução e
+# reaproveitada nas execuções seguintes, para que sessões de login não
+# sejam invalidadas a cada reinício do servidor.
+SECRET_KEY_FILE = BASE_DIR / "secret.key"
+
 # ---------------------------------------------------------------------------
 # Nome da tabela de configurações e valores padrão
 # ---------------------------------------------------------------------------
@@ -62,10 +69,16 @@ CONFIGURACOES_PADRAO: Dict[str, str] = {
     "tempo_atualizacao_ms": "2000",    # intervalo de atualização do painel (ms)
     "cor_principal": "#003C71",        # azul institucional SENAI
     "contador_atual": "0",             # último número de senha emitido
+    "qtd_guiches": "5",                 # quantidade de guichês de atendimento disponíveis
 }
 
 # Chaves que devem ser tratadas como números inteiros na leitura.
-CHAVES_INTEIRAS = {"qtd_senhas_exibidas", "tempo_atualizacao_ms", "contador_atual"}
+CHAVES_INTEIRAS = {
+    "qtd_senhas_exibidas",
+    "tempo_atualizacao_ms",
+    "contador_atual",
+    "qtd_guiches",
+}
 
 # ---------------------------------------------------------------------------
 # Logger da aplicação
@@ -224,3 +237,24 @@ class ConfigManager:
 
 # Instância única (singleton simples) utilizada por toda a aplicação.
 config_manager = ConfigManager()
+
+
+def obter_secret_key() -> str:
+    """
+    Retorna a chave secreta utilizada para assinar cookies de sessão do
+    Flask (login), gerando uma nova chave aleatória e persistindo-a em
+    ``secret.key`` na primeira execução do sistema.
+
+    Manter a chave persistida (em vez de gerá-la em memória a cada
+    execução) evita que todos os usuários sejam deslogados sempre que o
+    servidor for reiniciado.
+    """
+    if SECRET_KEY_FILE.exists():
+        chave = SECRET_KEY_FILE.read_text(encoding="utf-8").strip()
+        if chave:
+            return chave
+
+    nova_chave = secrets.token_hex(32)
+    SECRET_KEY_FILE.write_text(nova_chave, encoding="utf-8")
+    logger.info("Nova chave secreta de sessão gerada em: %s", SECRET_KEY_FILE)
+    return nova_chave

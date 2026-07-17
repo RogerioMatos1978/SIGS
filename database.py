@@ -39,7 +39,7 @@ from datetime import datetime
 from typing import Dict, Generator, List, Optional
 
 from config import DATABASE_DIR, DATABASE_PATH, config_manager, logger
-from models import ChamadaEvento, Senha, StatusSenha
+from models import ChamadaEvento, PerfilUsuario, Senha, StatusSenha, Usuario
 
 # Lock utilizado para proteger operações que precisam ser atômicas mesmo
 # quando o servidor Flask é executado em modo threaded=True (várias
@@ -123,11 +123,44 @@ def inicializar_banco() -> None:
             """
         )
 
+        # Usuários do sistema (login obrigatório para qualquer acesso).
+        conexao.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome_completo TEXT NOT NULL,
+                login TEXT NOT NULL UNIQUE,
+                senha_hash TEXT NOT NULL,
+                perfil TEXT NOT NULL DEFAULT '{PerfilUsuario.ATENDENTE}'
+                    CHECK (perfil IN ('{PerfilUsuario.ADMIN}', '{PerfilUsuario.ATENDENTE}')),
+                ativo INTEGER NOT NULL DEFAULT 1,
+                data_criacao TEXT NOT NULL,
+                ultimo_login TEXT
+            )
+            """
+        )
+
+        # Ocupação de guichês: cada guichê (1..N, N definido em
+        # Configurações) só pode estar associado a um usuário logado por
+        # vez. A linha é removida quando o usuário efetua logout.
+        conexao.execute(
+            """
+            CREATE TABLE IF NOT EXISTS guiches_ocupados (
+                guiche INTEGER PRIMARY KEY,
+                usuario_id INTEGER NOT NULL,
+                usuario_nome TEXT NOT NULL,
+                ocupado_desde TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
+            )
+            """
+        )
+
         # Índices para acelerar as consultas mais frequentes.
         conexao.execute("CREATE INDEX IF NOT EXISTS idx_senhas_status ON senhas (status)")
         conexao.execute(
             "CREATE INDEX IF NOT EXISTS idx_eventos_data ON eventos_chamada (data_hora)"
         )
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_usuarios_login ON usuarios (login)")
 
         conexao.commit()
 
@@ -556,3 +589,249 @@ def tempo_medio_atendimento(inicio: Optional[str] = None, fim: Optional[str] = N
         "tempo_medio_formatado": f"{minutos:02d}:{segundos:02d}",
         "total_amostras": len(diferencas),
     }
+
+
+# ---------------------------------------------------------------------------
+# Usuários (autenticação e autorização)
+# ---------------------------------------------------------------------------
+#
+# As funções de hashing/verificação de senha ficam em ``auth.py`` (camada
+# de autenticação), não aqui. Este módulo apenas persiste e consulta os
+# dados já com o hash pronto, mantendo a separação de responsabilidades.
+
+def contar_usuarios() -> int:
+    """Retorna a quantidade total de usuários cadastrados no sistema."""
+    with get_connection() as conexao:
+        linha = conexao.execute("SELECT COUNT(*) AS total FROM usuarios").fetchone()
+    return int(linha["total"])
+
+
+def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optional[str] = None) -> Usuario:
+    """
+    Cria um novo usuário no sistema.
+
+    Regra de negócio importante: o PRIMEIRO usuário cadastrado no sistema
+    (quando a tabela ``usuarios`` está vazia) se torna administrador
+    automaticamente, permitindo o "bootstrap" inicial do sistema sem
+    exigir configuração manual do banco de dados. Todos os cadastros
+    seguintes recebem, por padrão, o perfil "atendente" (acesso restrito),
+    a menos que um administrador altere o perfil posteriormente pela tela
+    de Gerenciar Usuários.
+    """
+    if perfil is None:
+        perfil = PerfilUsuario.ADMIN if contar_usuarios() == 0 else PerfilUsuario.ATENDENTE
+
+    data_criacao = _agora_iso()
+
+    with get_connection() as conexao:
+        try:
+            cursor = conexao.execute(
+                """
+                INSERT INTO usuarios (nome_completo, login, senha_hash, perfil, ativo, data_criacao)
+                VALUES (?, ?, ?, ?, 1, ?)
+                """,
+                (nome_completo, login, senha_hash, perfil, data_criacao),
+            )
+            conexao.commit()
+        except sqlite3.IntegrityError as erro:
+            raise ValueError(f"Já existe um usuário com o login '{login}'.") from erro
+
+        usuario_id = cursor.lastrowid
+
+    registrar_log("INFO", f"Usuário '{login}' cadastrado com perfil '{perfil}'.")
+
+    return Usuario(
+        id=usuario_id,
+        nome_completo=nome_completo,
+        login=login,
+        senha_hash=senha_hash,
+        perfil=perfil,
+        ativo=True,
+        data_criacao=data_criacao,
+        ultimo_login=None,
+    )
+
+
+def obter_usuario_por_login(login: str) -> Optional[Usuario]:
+    """Busca um usuário pelo login (utilizado no processo de autenticação)."""
+    with get_connection() as conexao:
+        linha = conexao.execute(
+            "SELECT * FROM usuarios WHERE login = ?", (login,)
+        ).fetchone()
+    return Usuario.from_row(linha) if linha else None
+
+
+def obter_usuario_por_id(usuario_id: int) -> Optional[Usuario]:
+    """Busca um usuário pelo id (utilizado para carregar a sessão logada)."""
+    with get_connection() as conexao:
+        linha = conexao.execute(
+            "SELECT * FROM usuarios WHERE id = ?", (usuario_id,)
+        ).fetchone()
+    return Usuario.from_row(linha) if linha else None
+
+
+def listar_usuarios() -> List[Dict]:
+    """Retorna todos os usuários cadastrados (sem o hash de senha), para a
+    tela de administração de usuários."""
+    with get_connection() as conexao:
+        linhas = conexao.execute("SELECT * FROM usuarios ORDER BY nome_completo ASC").fetchall()
+    return [Usuario.from_row(linha).to_dict_publico() for linha in linhas]
+
+
+def atualizar_ultimo_login(usuario_id: int) -> None:
+    """Atualiza o timestamp de último login do usuário."""
+    with get_connection() as conexao:
+        conexao.execute(
+            "UPDATE usuarios SET ultimo_login = ? WHERE id = ?",
+            (_agora_iso(), usuario_id),
+        )
+        conexao.commit()
+
+
+def definir_perfil_usuario(usuario_id: int, perfil: str) -> bool:
+    """Altera o perfil (admin/atendente) de um usuário. Apenas
+    administradores podem chamar esta operação (validado em app.py)."""
+    if perfil not in PerfilUsuario.TODOS:
+        raise ValueError(f"Perfil inválido: {perfil}")
+
+    with get_connection() as conexao:
+        cursor = conexao.execute(
+            "UPDATE usuarios SET perfil = ? WHERE id = ?", (perfil, usuario_id)
+        )
+        conexao.commit()
+        alterou = cursor.rowcount > 0
+
+    if alterou:
+        registrar_log("WARNING", f"Perfil do usuário id={usuario_id} alterado para '{perfil}'.")
+    return alterou
+
+
+def definir_status_usuario(usuario_id: int, ativo: bool) -> bool:
+    """Ativa ou desativa o acesso de um usuário ao sistema (sem excluir o
+    cadastro, preservando o histórico de senhas emitidas/chamadas)."""
+    with get_connection() as conexao:
+        cursor = conexao.execute(
+            "UPDATE usuarios SET ativo = ? WHERE id = ?", (1 if ativo else 0, usuario_id)
+        )
+        conexao.commit()
+        alterou = cursor.rowcount > 0
+
+    if alterou:
+        estado = "ativado" if ativo else "desativado"
+        registrar_log("WARNING", f"Usuário id={usuario_id} {estado}.")
+    return alterou
+
+
+def resetar_senha_usuario(usuario_id: int, nova_senha_hash: str) -> bool:
+    """
+    Reseta (redefine) a senha de login de um usuário, gravando o novo
+    hash informado. Esta é a operação de "reset de senha" exigida para o
+    administrador do sistema — não deve ser confundida com o reinício do
+    contador de numeração de senhas de atendimento (``reiniciar_contador``).
+    """
+    with get_connection() as conexao:
+        cursor = conexao.execute(
+            "UPDATE usuarios SET senha_hash = ? WHERE id = ?",
+            (nova_senha_hash, usuario_id),
+        )
+        conexao.commit()
+        alterou = cursor.rowcount > 0
+
+    if alterou:
+        registrar_log("WARNING", f"Senha do usuário id={usuario_id} foi redefinida por um administrador.")
+    return alterou
+
+
+def resetar_senhas_emitidas() -> None:
+    """
+    Apaga TODO o histórico de senhas emitidas e de eventos de chamada,
+    reiniciando também o contador de numeração para zero.
+
+    Esta é uma operação destrutiva e irreversível, disponível apenas para
+    administradores (validado em app.py), útil por exemplo no início de um
+    novo evento/feirão, quando se deseja começar do zero sem nenhum
+    resquício de dados do evento anterior.
+    """
+    with get_connection() as conexao:
+        conexao.execute("DELETE FROM eventos_chamada")
+        conexao.execute("DELETE FROM senhas")
+        conexao.execute("DELETE FROM sqlite_sequence WHERE name IN ('senhas', 'eventos_chamada')")
+        conexao.commit()
+
+    with _lock:
+        config_manager.salvar({"contador_atual": 0})
+
+    registrar_log("WARNING", "TODAS as senhas emitidas e eventos de chamada foram apagados por um administrador.")
+
+
+# ---------------------------------------------------------------------------
+# Ocupação de guichês
+# ---------------------------------------------------------------------------
+
+def obter_guiche_do_usuario(usuario_id: int) -> Optional[int]:
+    """Retorna o número do guichê atualmente ocupado por um usuário, ou
+    ``None`` caso ele não esteja ocupando nenhum guichê no momento."""
+    with get_connection() as conexao:
+        linha = conexao.execute(
+            "SELECT guiche FROM guiches_ocupados WHERE usuario_id = ?", (usuario_id,)
+        ).fetchone()
+    return int(linha["guiche"]) if linha else None
+
+
+def ocupar_proximo_guiche_disponivel(usuario_id: int, usuario_nome: str, qtd_guiches: int) -> Optional[int]:
+    """
+    Atribui automaticamente ao usuário o primeiro guichê disponível (entre
+    1 e ``qtd_guiches``), implementando o requisito de que o usuário
+    logado assume um guichê disponível sem necessidade de seleção manual.
+
+    Se o usuário já estiver ocupando um guichê, retorna o mesmo guichê
+    (idempotente — não ocupa um segundo guichê para o mesmo usuário).
+    Retorna ``None`` se não houver nenhum guichê livre no momento.
+    """
+    with _lock:
+        guiche_atual = obter_guiche_do_usuario(usuario_id)
+        if guiche_atual is not None:
+            return guiche_atual
+
+        with get_connection() as conexao:
+            ocupados = {
+                linha["guiche"]
+                for linha in conexao.execute("SELECT guiche FROM guiches_ocupados").fetchall()
+            }
+
+            guiche_livre = next(
+                (numero for numero in range(1, qtd_guiches + 1) if numero not in ocupados),
+                None,
+            )
+
+            if guiche_livre is None:
+                return None
+
+            conexao.execute(
+                """
+                INSERT INTO guiches_ocupados (guiche, usuario_id, usuario_nome, ocupado_desde)
+                VALUES (?, ?, ?, ?)
+                """,
+                (guiche_livre, usuario_id, usuario_nome, _agora_iso()),
+            )
+            conexao.commit()
+
+    registrar_log("INFO", f"Guichê {guiche_livre} atribuído automaticamente a '{usuario_nome}'.")
+    return guiche_livre
+
+
+def liberar_guiche(usuario_id: int) -> None:
+    """Libera o guichê ocupado por um usuário (chamado no logout)."""
+    with get_connection() as conexao:
+        conexao.execute("DELETE FROM guiches_ocupados WHERE usuario_id = ?", (usuario_id,))
+        conexao.commit()
+
+
+def listar_guiches_ocupados() -> List[Dict]:
+    """Retorna a lista de guichês atualmente ocupados, útil para telas de
+    administração/monitoramento do atendimento."""
+    with get_connection() as conexao:
+        linhas = conexao.execute(
+            "SELECT * FROM guiches_ocupados ORDER BY guiche ASC"
+        ).fetchall()
+    return [dict(linha) for linha in linhas]

@@ -2,6 +2,7 @@
 # requirements.txt - SIGS (Sistema Integrado de Gerenciamento de Senhas)
 # =============================================================
 # Instalação:
+#       python.exe -m pip install --upgrade pip
 #     pip install -r requirements.txt
 #
 # Observação importante:
@@ -13,21 +14,25 @@
 #   disponível, retornando um erro amigável ao usuário).
 # =============================================================
 
-Flask==3.0.3
-Werkzeug==3.0.3
+Flask>=3.0.3
+Werkzeug>=3.0.3
 
 # Impressão nativa do Windows (obrigatório em produção no Windows).
-pywin32>=306; sys_platform == "win32"
+# Sem pin de versão exata: o número de build mais recente do pywin32
+# varia conforme a versão do Python instalada (3.10, 3.11, 3.12, 3.13...),
+# e travar em uma versão especifica (ex.: 306) pode nao ter wheel
+# disponivel para o seu Python, causando falha na instalacao.
+pywin32>=305; sys_platform == "win32"
 
 # Usado por printer.py para desenhar o logotipo no ticket impresso.
-Pillow==10.4.0
+Pillow>=10.4.0
 
 # Geração de relatórios em Excel (.xlsx).
-openpyxl==3.1.5
+openpyxl>=3.1.5
 
 # Geração de relatórios em PDF (apenas relatórios gerenciais, nunca o
 # ticket de senha, que é sempre impresso via GDI/pywin32).
-reportlab==4.2.5
+reportlab>=4.2.5
 
 # Servidor WSGI recomendado para produção no Windows (ver README.md).
-waitress==3.0.0
+waitress>=3.0.0

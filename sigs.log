@@ -23,3 +23,18 @@
 2026-07-16 18:00:20 | ERROR    | SIGS | Não há senhas aguardando chamada.
 2026-07-17 11:02:58 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
 2026-07-17 11:02:59 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 11:54:00 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 11:54:01 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 11:54:26 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-07-17 11:54:26 | INFO     | SIGS | Senha emitida: número 001 (id=3)
+2026-07-17 11:57:22 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-07-17 11:57:22 | WARNING  | SIGS | Contador de senhas reiniciado manualmente.
+2026-07-17 12:00:33 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 12:00:33 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 12:03:49 | INFO     | SIGS | Nova chave secreta de sessão gerada em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\secret.key
+2026-07-17 12:03:49 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 12:03:50 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-07-17 12:28:26 | INFO     | SIGS | Usuário 'rogeriomatos' cadastrado com perfil 'admin'.
+2026-07-17 12:28:26 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
+2026-07-17 12:28:26 | INFO     | SIGS | Login realizado: 'rogeriomatos' (guichê 1).
+2026-07-17 12:29:18 | INFO     | SIGS | Usuário 'Maria' cadastrado com perfil 'atendente'.

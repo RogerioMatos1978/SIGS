@@ -65,6 +65,62 @@ class Senha:
         )
 
 
+class PerfilUsuario:
+    """
+    Enumeração (baseada em strings) dos perfis de acesso disponíveis no
+    SIGS. Mantida como classe de constantes (e não ``enum.Enum``) pelo
+    mesmo motivo de ``StatusSenha``: compatibilidade direta com o valor
+    armazenado como texto no SQLite.
+    """
+
+    ADMIN = "admin"
+    ATENDENTE = "atendente"
+
+    TODOS = (ADMIN, ATENDENTE)
+
+
+@dataclass
+class Usuario:
+    """
+    Representa um usuário do sistema (atendente ou administrador).
+
+    O campo ``senha_hash`` nunca armazena a senha em texto puro — apenas o
+    hash gerado por ``werkzeug.security.generate_password_hash`` (ver
+    ``auth.py``). O método ``to_dict_publico`` deve ser utilizado sempre
+    que os dados do usuário forem enviados ao navegador (API/JSON), pois
+    remove o hash da senha da resposta.
+    """
+
+    id: int
+    nome_completo: str
+    login: str
+    senha_hash: str
+    perfil: str
+    ativo: bool
+    data_criacao: str
+    ultimo_login: Optional[str] = None
+
+    def to_dict_publico(self) -> dict:
+        """Retorna os dados do usuário SEM o hash de senha, seguro para
+        ser enviado ao cliente (navegador) em respostas JSON."""
+        dados = asdict(self)
+        dados.pop("senha_hash", None)
+        return dados
+
+    @staticmethod
+    def from_row(linha: sqlite3.Row) -> "Usuario":
+        return Usuario(
+            id=linha["id"],
+            nome_completo=linha["nome_completo"],
+            login=linha["login"],
+            senha_hash=linha["senha_hash"],
+            perfil=linha["perfil"],
+            ativo=bool(linha["ativo"]),
+            data_criacao=linha["data_criacao"],
+            ultimo_login=linha["ultimo_login"],
+        )
+
+
 @dataclass
 class ChamadaEvento:
     """
