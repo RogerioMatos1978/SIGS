@@ -11,10 +11,25 @@
 #   web em outros sistemas operacionais, a aplicação Flask funciona
 #   normalmente sem elas (a impressão simplesmente não estará
 #   disponível, retornando um erro amigável ao usuário).
+#
+#   Desde esta versão, o banco de dados é o PostgreSQL (antes era SQLite,
+#   que não exigia biblioteca externa). O PostgreSQL roda em um container
+#   Docker (ver docker-compose.yml) e o app.py, mesmo continuando a rodar
+#   nativamente no Windows, precisa do driver psycopg2-binary para se
+#   conectar a ele.
 # =============================================================
 
 Flask>=3.0.3
 Werkzeug>=3.0.3
+
+# Driver de conexão com o PostgreSQL. Usamos a variante "binary" (em vez de
+# psycopg2 puro) para não exigir compilador C / libpq-dev instalados na
+# máquina Windows — o pacote já vem com tudo compilado.
+psycopg2-binary>=2.9.9
+
+# Lê o arquivo ".env" (POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
+# POSTGRES_USER, POSTGRES_PASSWORD) automaticamente ao iniciar o app.
+python-dotenv>=1.0.1
 
 # Impressão nativa do Windows (obrigatório em produção no Windows).
 # Sem pin de versão exata: o número de build mais recente do pywin32

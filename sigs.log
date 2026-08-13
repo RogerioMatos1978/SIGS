@@ -112,3 +112,9 @@
 2026-07-17 13:46:39 | INFO     | SIGS | Repetição de chamada da senha 001.
 2026-07-17 13:46:43 | INFO     | SIGS | Senha id=1 finalizada.
 2026-07-17 13:46:59 | INFO     | SIGS | Logout realizado: 'rogeriom'.
+2026-08-13 08:08:17 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-13 08:08:18 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-13 08:11:58 | INFO     | SIGS | Usuário 'rsmatos' cadastrado com perfil 'atendente'.
+2026-08-13 08:11:58 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
+2026-08-13 08:11:58 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil atendente, guichê 1).
+2026-08-13 08:12:47 | INFO     | SIGS | Logout realizado: 'rsmatos'.

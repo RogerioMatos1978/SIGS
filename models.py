@@ -6,16 +6,21 @@ models.py
 Definição dos modelos de dados (representações estruturadas) utilizados
 pelo SIGS. Este módulo não acessa o banco de dados diretamente; ele apenas
 define a forma dos dados e funções auxiliares de conversão a partir de
-linhas retornadas pelo SQLite (``sqlite3.Row``).
+linhas retornadas pelo PostgreSQL (``psycopg2.extras.RealDictRow``, que se
+comporta como um dicionário — suporta acesso por chave, ex.:
+``linha["numero"]``).
 
 Manter os modelos separados da camada de acesso a dados (``database.py``)
-facilita a evolução futura do sistema, por exemplo, a troca do SQLite por
-outro banco de dados, ou a exposição desses mesmos modelos em uma API REST.
+facilita a evolução futura do sistema, por exemplo, a troca do banco de
+dados, ou a exposição desses mesmos modelos em uma API REST.
 """
 
-import sqlite3
 from dataclasses import dataclass, asdict
-from typing import Optional
+from typing import Any, Mapping, Optional
+
+# Alias de tipo para as linhas retornadas pelo psycopg2 (RealDictCursor):
+# são objetos do tipo Mapping (dict-like), suportando ``linha["campo"]``.
+LinhaBanco = Mapping[str, Any]
 
 
 class StatusSenha:
@@ -52,9 +57,9 @@ class Senha:
         return asdict(self)
 
     @staticmethod
-    def from_row(linha: sqlite3.Row) -> "Senha":
+    def from_row(linha: LinhaBanco) -> "Senha":
         """Constrói uma instância de ``Senha`` a partir de uma linha do
-        banco de dados (``sqlite3.Row``)."""
+        banco de dados (dict-like, ex.: ``psycopg2.extras.RealDictRow``)."""
         return Senha(
             id=linha["id"],
             numero=linha["numero"],
@@ -132,7 +137,7 @@ class Usuario:
         return dados
 
     @staticmethod
-    def from_row(linha: sqlite3.Row) -> "Usuario":
+    def from_row(linha: LinhaBanco) -> "Usuario":
         return Usuario(
             id=linha["id"],
             nome_completo=linha["nome_completo"],
@@ -168,7 +173,7 @@ class ChamadaEvento:
         return asdict(self)
 
     @staticmethod
-    def from_row(linha: sqlite3.Row) -> "ChamadaEvento":
+    def from_row(linha: LinhaBanco) -> "ChamadaEvento":
         return ChamadaEvento(
             id=linha["id"],
             senha_id=linha["senha_id"],

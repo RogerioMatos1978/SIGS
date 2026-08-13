@@ -29,7 +29,7 @@ Regras de negócio implementadas aqui:
 from functools import wraps
 from typing import Optional
 
-from flask import jsonify, redirect, request, session, url_for
+from flask import flash, jsonify, redirect, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import database
@@ -197,6 +197,7 @@ def login_required(funcao_view):
         if usuario_id is None:
             if _requisicao_eh_api():
                 return jsonify({"sucesso": False, "erro": "Sessão expirada. Faça login novamente."}), 401
+            flash("Sua sessão expirou. Faça login novamente para continuar.", "erro")
             return redirect(url_for("login_tela", proximo=request.path))
 
         usuario = database.obter_usuario_por_id(usuario_id)
@@ -204,6 +205,7 @@ def login_required(funcao_view):
             encerrar_sessao()
             if _requisicao_eh_api():
                 return jsonify({"sucesso": False, "erro": "Usuário desativado ou removido."}), 403
+            flash("Seu usuário foi desativado ou removido. Procure um administrador.", "erro")
             return redirect(url_for("login_tela"))
 
         return funcao_view(*args, **kwargs)
@@ -223,6 +225,7 @@ def admin_required(funcao_view):
         if not eh_admin():
             if _requisicao_eh_api():
                 return jsonify({"sucesso": False, "erro": "Acesso restrito a administradores."}), 403
+            flash("Esta área é restrita a administradores.", "erro")
             return redirect(url_for("index"))
 
         return funcao_view(*args, **kwargs)

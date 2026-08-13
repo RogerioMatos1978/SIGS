@@ -45,6 +45,7 @@ Execução:
 import csv
 import io
 from datetime import datetime, timedelta
+from typing import Optional
 
 from flask import Flask, jsonify, redirect, render_template, request, send_file, url_for
 
@@ -113,6 +114,17 @@ def resposta_sucesso(dados: dict, codigo_http: int = 200):
     return jsonify(payload), codigo_http
 
 
+def _guiche_formatado(usuario_sessao: dict) -> Optional[str]:
+    """Formata o número do guichê do usuário logado como 'Guichê 01',
+    'Guichê 02' etc., ou ``None`` se o usuário não ocupa guichê algum.
+
+    Centralizar essa formatação evita repetir ``f"Guichê {n:02d}"`` em
+    cada rota que precisa dela (``/api/chamar`` e
+    ``/api/finalizar-atendimento``), reduzindo o risco de inconsistência."""
+    guiche = usuario_sessao.get("guiche")
+    return f"Guichê {guiche:02d}" if guiche else None
+
+
 # ---------------------------------------------------------------------------
 # Rotas de páginas (HTML)
 # ---------------------------------------------------------------------------
@@ -126,6 +138,42 @@ def index():
     no momento em que ele autenticou (ver auth.iniciar_sessao)."""
     configuracoes = config_manager.obter_todas()
     return render_template("index.html", config=configuracoes)
+
+
+@app.route("/favicon.ico")
+def favicon():
+    """
+    Responde imediatamente com "sem conteúdo" para requisições automáticas
+    de favicon feitas pelo navegador, evitando que elas caiam no
+    tratamento de erro 404 (o que geraria uma página de erro completa, ou
+    ruído desnecessário nos logs, para um recurso puramente cosmético).
+    """
+    return "", 204
+
+
+@app.route("/health")
+def health():
+    """
+    Endpoint de verificação de saúde ("health check"), útil para confirmar
+    rapidamente se o servidor Flask está no ar E se a conexão com o banco
+    de dados PostgreSQL está funcionando — por exemplo, logo após rodar
+    "docker compose up -d" e antes de liberar o sistema para uso, ou em
+    scripts de monitoramento/deploy.
+
+    Sempre público (sem exigir login), pois seu único propósito é
+    diagnóstico técnico e não expõe nenhum dado sensível do sistema.
+    """
+    try:
+        total_usuarios = database.contar_usuarios()
+        return resposta_sucesso(
+            {
+                "status": "ok",
+                "banco_de_dados": "conectado",
+                "total_usuarios_cadastrados": total_usuarios,
+            }
+        )
+    except Exception as erro:  # pragma: no cover - falha de infraestrutura
+        return resposta_erro(f"Falha na conexão com o banco de dados: {erro}", 503)
 
 
 @app.route("/painel")
@@ -176,6 +224,7 @@ def login_tela():
         return redirect(url_for("index"))
 
     erro = None
+    login_informado = ""
     if request.method == "POST":
         login_informado = request.form.get("login", "")
         senha_informada = request.form.get("senha", "")
@@ -188,7 +237,10 @@ def login_tela():
                 return redirect(destino)
             return redirect(url_for("index"))
 
-    return render_template("login.html", erro=erro)
+    # Em caso de erro, o login digitado é reenviado ao template para que o
+    # campo não precise ser redigitado — apenas a senha é sempre limpa por
+    # segurança (nunca reenviamos senha de volta ao HTML).
+    return render_template("login.html", erro=erro, login_informado=login_informado)
 
 
 @app.route("/logout", methods=["POST"])
@@ -211,6 +263,8 @@ def cadastro_tela():
         return redirect(url_for("index"))
 
     erro = None
+    nome_completo = ""
+    login_informado = ""
     if request.method == "POST":
         nome_completo = (request.form.get("nome_completo") or "").strip()
         login_informado = (request.form.get("login") or "").strip()
@@ -236,7 +290,15 @@ def cadastro_tela():
             except ValueError as excecao:
                 erro = str(excecao)
 
-    return render_template("cadastro.html", erro=erro)
+    # Assim como na tela de login, reenviamos nome/login ao template em
+    # caso de erro para que o usuário não precise redigitar tudo de novo
+    # (apenas as senhas nunca são reenviadas, por segurança).
+    return render_template(
+        "cadastro.html",
+        erro=erro,
+        nome_completo_informado=nome_completo,
+        login_informado=login_informado,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +394,7 @@ def api_chamar():
                 409,
             )
 
-        guiche = f"Guichê {usuario_sessao['guiche']:02d}"
+        guiche = _guiche_formatado(usuario_sessao)
         usuario = usuario_sessao.get("nome_completo")
 
         resultado = database.chamar_proxima(guiche=guiche, usuario=usuario)
@@ -379,7 +441,7 @@ def api_finalizar_atendimento():
                 409,
             )
 
-        guiche = f"Guichê {usuario_sessao['guiche']:02d}"
+        guiche = _guiche_formatado(usuario_sessao)
         usuario = usuario_sessao.get("nome_completo")
 
         resultado = database.finalizar_atendimento_e_chamar_proxima(guiche=guiche, usuario=usuario)
@@ -884,15 +946,80 @@ def api_admin_guiches():
 # Tratamento global de erros
 # ---------------------------------------------------------------------------
 
+def _config_para_erro() -> dict:
+    """
+    Retorna as configurações do sistema para uso na página de erro amigável
+    (erro.html), com uma proteção extra: se a própria leitura das
+    configurações falhar (por exemplo, o erro 500 foi causado justamente
+    por uma falha de conexão com o PostgreSQL), cai de volta em um valor
+    padrão mínimo em vez de gerar um segundo erro dentro do tratamento do
+    primeiro erro.
+    """
+    try:
+        return config_manager.obter_todas()
+    except Exception:  # pragma: no cover - proteção contra falha em cascata
+        return {"cor_principal": "#003C71"}
+
+
+def _requisicao_eh_api() -> bool:
+    """Identifica se a requisição atual é para um endpoint de API (JSON) ou
+    para uma página HTML. Usado pelos error handlers abaixo para decidir
+    se devolvem JSON (para chamadas de tela feitas via JavaScript) ou uma
+    página HTML amigável (para navegação direta do usuário, ex.: digitar
+    uma URL errada ou clicar em um link quebrado)."""
+    return request.path.startswith("/api/")
+
+
 @app.errorhandler(404)
 def erro_404(_erro):
-    return jsonify({"sucesso": False, "erro": "Recurso não encontrado."}), 404
+    if _requisicao_eh_api():
+        return jsonify({"sucesso": False, "erro": "Recurso não encontrado."}), 404
+    return (
+        render_template(
+            "erro.html",
+            config=_config_para_erro(),
+            codigo=404,
+            titulo="Página não encontrada",
+            mensagem="O endereço acessado não existe ou foi movido.",
+        ),
+        404,
+    )
 
 
 @app.errorhandler(500)
 def erro_500(erro):
     logger.error("Erro interno não tratado: %s", erro)
-    return jsonify({"sucesso": False, "erro": "Erro interno do servidor."}), 500
+    if _requisicao_eh_api():
+        return jsonify({"sucesso": False, "erro": "Erro interno do servidor."}), 500
+    return (
+        render_template(
+            "erro.html",
+            config=_config_para_erro(),
+            codigo=500,
+            titulo="Erro interno do servidor",
+            mensagem=(
+                "Algo deu errado ao processar sua solicitação. Tente novamente "
+                "em instantes; se o problema persistir, procure um administrador."
+            ),
+        ),
+        500,
+    )
+
+
+@app.errorhandler(403)
+def erro_403(_erro):
+    if _requisicao_eh_api():
+        return jsonify({"sucesso": False, "erro": "Acesso negado."}), 403
+    return (
+        render_template(
+            "erro.html",
+            config=_config_para_erro(),
+            codigo=403,
+            titulo="Acesso negado",
+            mensagem="Você não tem permissão para acessar esta página.",
+        ),
+        403,
+    )
 
 
 # ---------------------------------------------------------------------------

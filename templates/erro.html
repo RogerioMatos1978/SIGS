@@ -1,0 +1,25 @@
+<!--
+    erro.html
+    =========
+    Página de erro amigável, exibida para navegação HTML normal (não para
+    chamadas de API, que continuam recebendo JSON). Usada pelos error
+    handlers 403/404/500 registrados em app.py.
+-->
+{% extends "layout.html" %}
+
+{% block titulo %}SIGS - Erro {{ codigo }}{% endblock %}
+
+{% block conteudo %}
+<div class="pagina pagina-auth">
+    <div class="card card-auth">
+        <img class="logo-auth" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo SENAI">
+        <h1>{{ codigo }}</h1>
+        <p class="subtitulo-auth">{{ titulo }}</p>
+        <div class="mensagem-status erro">{{ mensagem }}</div>
+
+        <p class="auth-rodape">
+            <a href="{{ url_for('index') }}">← Voltar para o início</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

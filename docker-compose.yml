@@ -1,0 +1,50 @@
+# =============================================================
+# docker-compose.yml - SIGS (Sistema Integrado de Gerenciamento de Senhas)
+# =============================================================
+# Sobe apenas o banco de dados PostgreSQL em um container Docker. O
+# aplicativo Flask (app.py) continua rodando NATIVAMENTE no Windows, pois
+# a impressão de tickets depende de pywin32 (win32print/win32ui), que só
+# funciona em Windows nativo — containers Linux não têm acesso às
+# impressoras e drivers do Windows.
+#
+# Uso:
+#     docker compose up -d          # sobe o PostgreSQL em segundo plano
+#     docker compose logs -f db     # acompanha os logs do banco
+#     docker compose down           # para o banco (mantém os dados)
+#     docker compose down -v        # para o banco E APAGA os dados (cuidado!)
+#
+# Depois de subir o banco, configure as variáveis de ambiente descritas em
+# ".env.example" (copie para ".env") e rode o app normalmente:
+#     python app.py
+#
+# Veja o README.md, seção "Docker e PostgreSQL", para o passo a passo
+# completo.
+# =============================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sigs_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sigs}
+      POSTGRES_USER: ${POSTGRES_USER:-sigs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sigs}
+    ports:
+      # Publica a porta padrão do PostgreSQL no host (Windows), permitindo
+      # que o app.py, rodando nativamente, se conecte via localhost:5432.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Volume nomeado: os dados do banco persistem entre reinicializações
+      # do container e até mesmo entre "docker compose down" (sem -v).
+      - sigs_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sigs} -d ${POSTGRES_DB:-sigs}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  sigs_postgres_data:
+    name: sigs_postgres_data

@@ -29,6 +29,16 @@
 </head>
 <body>
 
+    {% with mensagens_flash = get_flashed_messages(with_categories=true) %}
+        {% if mensagens_flash %}
+        <div class="flash-mensagens">
+            {% for categoria, mensagem in mensagens_flash %}
+            <div class="mensagem-status {{ 'erro' if categoria == 'erro' else 'sucesso' }}">{{ mensagem }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
     {% if usuario_logado %}
     <!-- Barra superior com dados da sessao logada. So aparece quando ha um
          usuario autenticado (nao aparece em /login nem /cadastro). -->
