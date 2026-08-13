@@ -118,3 +118,17 @@
 2026-08-13 08:11:58 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
 2026-08-13 08:11:58 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil atendente, guichê 1).
 2026-08-13 08:12:47 | INFO     | SIGS | Logout realizado: 'rsmatos'.
+2026-08-13 09:20:39 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): connection to server at "localhost" (::1), port 5432 failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+
+2026-08-13 09:20:41 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:20:43 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:20:45 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:20:47 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:20:49 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:20:51 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:20:54 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:20:56 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:20:58 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:20:58 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).

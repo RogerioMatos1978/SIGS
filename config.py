@@ -29,10 +29,36 @@ nativo, não dentro de um container Linux.
 """
 
 import logging
+import os
 import secrets
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+# ---------------------------------------------------------------------------
+# Idioma das mensagens de erro do libpq/psycopg2
+# ---------------------------------------------------------------------------
+#
+# Em Windows com o sistema operacional localizado em português, a
+# biblioteca C usada por baixo dos panos pelo psycopg2 (libpq) traduz suas
+# próprias mensagens de erro (ex.: "password authentication failed") para
+# o idioma do sistema, usando um catálogo de tradução que, em algumas
+# instalações do Windows, está em uma codificação antiga (Latin-1/CP1252)
+# em vez de UTF-8. Quando isso acontece, o psycopg2 quebra com
+# ``UnicodeDecodeError`` ao tentar decodificar essa mensagem já traduzida
+# como UTF-8 — mascarando o erro real (senha incorreta, banco fora do ar,
+# etc.) atrás de um traceback confuso sobre bytes inválidos.
+#
+# Forçar essas variáveis de ambiente para "C" (o "idioma" neutro/ASCII)
+# faz o libpq usar suas mensagens originais em inglês, sempre válidas como
+# UTF-8, eliminando esse problema por completo. Isso não afeta nenhuma
+# outra parte do sistema (que continua 100% em português) — afeta apenas
+# o idioma das mensagens de erro internas do driver do banco de dados.
+os.environ.setdefault("LC_ALL", "C")
+os.environ.setdefault("LC_MESSAGES", "C")
+os.environ.setdefault("LANGUAGE", "C")
+os.environ.setdefault("LANG", "C")
 
 # ---------------------------------------------------------------------------
 # Carregamento do arquivo .env (se existir)
@@ -42,14 +68,33 @@ from typing import Any, Dict, Optional
 # funcionando normalmente usando apenas variáveis de ambiente já definidas
 # no sistema operacional (ou os valores padrão abaixo). Isso evita quebrar
 # a inicialização do app por causa de uma dependência de conveniência.
+#
+# Os avisos abaixo são impressos diretamente (em vez de usar o logger, que
+# ainda não foi configurado neste ponto do arquivo) para que um '.env' não
+# encontrado — uma causa comum de "a senha do banco não bate" quando o
+# arquivo existe mas não está sendo lido — fique visível imediatamente ao
+# iniciar o sistema.
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    _env_carregado = load_dotenv()
+    if not _env_carregado:
+        print(
+            "[SIGS] Aviso: nenhum arquivo '.env' foi encontrado na pasta do "
+            "projeto (ou pastas acima). Usando valores padrão / variáveis de "
+            "ambiente do sistema para conectar ao PostgreSQL. Se você criou "
+            "um '.env' a partir de '.env.example', confirme que ele está na "
+            "mesma pasta de app.py/config.py.",
+            file=sys.stderr,
+        )
 except ImportError:  # pragma: no cover - ambiente sem python-dotenv instalado
-    pass
-
-import os
+    print(
+        "[SIGS] Aviso: a biblioteca 'python-dotenv' não está instalada "
+        "(rode 'pip install -r requirements.txt'). O arquivo '.env' NÃO "
+        "será lido — a conexão com o PostgreSQL usará apenas variáveis de "
+        "ambiente do sistema operacional ou os valores padrão embutidos.",
+        file=sys.stderr,
+    )
 
 # ---------------------------------------------------------------------------
 # Caminhos base do projeto
@@ -185,7 +230,19 @@ def conectar_com_retentativas():
     assim que aceita conexões, mas ainda pode haver uma pequena janela de
     latência entre o container subir e o app tentar se conectar.
 
-    Levanta a última exceção de conexão se todas as tentativas falharem.
+    Levanta um erro claro (``RuntimeError``) se todas as tentativas
+    falharem, com uma mensagem em português explicando as causas mais
+    prováveis.
+
+    Nota sobre Windows/psycopg2: quando a conexão TCP falha de verdade
+    (ex.: o container ainda não subiu, ou a porta está errada), o Windows
+    retorna a mensagem de erro do sistema operacional no idioma da
+    instalação (ex.: português). O psycopg2, ao tentar decodificar essa
+    mensagem localizada como UTF-8, pode falhar com um
+    ``UnicodeDecodeError`` em vez de reportar o problema real
+    ("connection refused"). Por isso, tratamos ``UnicodeDecodeError`` da
+    mesma forma que um erro de conexão comum aqui — o efeito é o mesmo
+    (não foi possível conectar), a mensagem é que fica confusa.
     """
     # Importação local: evita exigir psycopg2 apenas para importar config.py
     # (por exemplo, em scripts que só leem outras configurações).
@@ -206,7 +263,7 @@ def conectar_com_retentativas():
             if tentativa > 1:
                 logger.info("Conexão com o PostgreSQL estabelecida na tentativa %d.", tentativa)
             return conexao
-        except psycopg2.OperationalError as erro:
+        except (psycopg2.OperationalError, UnicodeDecodeError) as erro:
             ultimo_erro = erro
             logger.warning(
                 "Falha ao conectar ao PostgreSQL (tentativa %d/%d): %s",
@@ -218,12 +275,27 @@ def conectar_com_retentativas():
                 time.sleep(DB_INTERVALO_TENTATIVAS_SEGUNDOS)
 
     logger.error(
-        "Não foi possível conectar ao PostgreSQL após %d tentativas. "
-        "Verifique se o container está rodando ('docker compose up -d') e "
-        "se as variáveis POSTGRES_HOST/PORT/DB/USER/PASSWORD estão corretas.",
+        "Não foi possível conectar ao PostgreSQL após %d tentativas "
+        "(host=%s, porta=%s, banco=%s).",
         DB_TENTATIVAS_CONEXAO,
+        DB_HOST,
+        DB_PORT,
+        DB_NAME,
     )
-    raise ultimo_erro
+    raise RuntimeError(
+        f"Não foi possível conectar ao PostgreSQL em {DB_HOST}:{DB_PORT} "
+        f"(banco '{DB_NAME}') após {DB_TENTATIVAS_CONEXAO} tentativas.\n"
+        "Causas mais prováveis:\n"
+        "  1. O Docker Desktop não está aberto, ou o container do banco não "
+        "foi iniciado — rode 'docker compose up -d' na pasta do projeto e "
+        "confirme com 'docker compose ps' que o status está 'healthy'.\n"
+        "  2. O arquivo '.env' não existe ou tem valores incorretos de "
+        "POSTGRES_HOST/PORT/DB/USER/PASSWORD (copie '.env.example' para "
+        "'.env' se ainda não fez isso).\n"
+        "  3. A porta configurada (padrão 5432) está sendo usada por outro "
+        "programa ou bloqueada por firewall.\n"
+        f"Detalhe técnico da última tentativa: {ultimo_erro!r}"
+    ) from ultimo_erro
 
 
 # ---------------------------------------------------------------------------
