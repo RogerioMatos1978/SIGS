@@ -41,7 +41,7 @@
 
     {% if usuario_logado %}
     <!-- Barra superior com dados da sessao logada. So aparece quando ha um
-         usuario autenticado (nao aparece em /login nem /cadastro). -->
+         usuario autenticado (nao aparece em /login). -->
     <div class="barra-usuario">
         <span class="barra-usuario-info">
             {{ usuario_logado.nome_completo }}
@@ -70,6 +70,15 @@
     {% endif %}
 
     {% block conteudo %}{% endblock %}
+
+    {% if request.endpoint != 'painel' %}
+    <!-- Rodape fixo, exibido em todas as paginas internas (o painel publico,
+         em tela cheia, nao exibe rodape). Mostra a versao do sistema,
+         util para confirmar rapidamente se uma atualizacao foi aplicada. -->
+    <footer class="rodape-sigs">
+        SIGS &copy; {{ config.nome_evento if config else 'SENAI' }} &middot; v{{ sigs_versao }}
+    </footer>
+    {% endif %}
 
     {% block scripts %}{% endblock %}
 </body>

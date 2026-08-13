@@ -5,9 +5,9 @@ database.py
 
 Camada de acesso a dados (DAO - Data Access Object) do SIGS.
 
-Este módulo concentra TODA a interação com o banco de dados PostgreSQL
-(via psycopg2), incluindo:
-    - Criação automática das tabelas.
+Este módulo concentra TODA a interação com o banco de dados SQLite,
+incluindo:
+    - Criação automática do banco e das tabelas.
     - Emissão de senhas (com geração atômica do número sequencial).
     - Chamada de senhas em regime FIFO (primeira a entrar, primeira a sair).
     - Repetição da última chamada (nova animação/bip no painel, sem alterar
@@ -16,8 +16,8 @@ Este módulo concentra TODA a interação com o banco de dados PostgreSQL
     - Consultas para relatórios (emitidas, chamadas, tempo médio de espera).
     - Registro de logs de auditoria em tabela própria.
 
-Todas as consultas utilizam parâmetros (``%s``) do psycopg2, nunca
-concatenação de strings, prevenindo SQL Injection.
+Todas as consultas utilizam parâmetros (``?``) do SQLite, nunca concatenação
+de strings, prevenindo SQL Injection.
 
 Tabelas criadas:
 
@@ -37,31 +37,21 @@ Tabelas criadas:
 
     guiches_ocupados
         guiche, usuario_id, usuario_nome, ocupado_desde
-
-Observação sobre tipos de data/hora: por simplicidade e para manter total
-compatibilidade com o restante do sistema (``models.py``, templates e
-JavaScript do painel, que sempre trabalharam com datas como texto no
-formato ``AAAA-MM-DD HH:MM:SS``), as colunas de data/hora continuam sendo
-armazenadas como TEXT, exatamente como no SQLite. Isso evita ter que
-converter objetos ``datetime`` para string em dezenas de pontos do código
-e elimina uma fonte de risco na migração.
 """
 
+import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Dict, Generator, List, Optional
 
-import psycopg2
-from psycopg2.extensions import connection as PGConnection
-
-from config import DB_HOST, DB_NAME, config_manager, conectar_com_retentativas, logger
+from config import DATABASE_DIR, DATABASE_PATH, config_manager, logger
 from models import ChamadaEvento, PerfilUsuario, Senha, StatusSenha, Usuario
 
 # Lock utilizado para proteger operações que precisam ser atômicas mesmo
 # quando o servidor Flask é executado em modo threaded=True (várias
-# requisições simultâneas). O PostgreSQL já garante consistência a nível de
-# transação, mas o lock evita condições de corrida na lógica de aplicação
+# requisições simultâneas). O SQLite já serializa escritas no nível do
+# arquivo, mas o lock evita condições de corrida na lógica de aplicação
 # (por exemplo, ler o contador, incrementar e gravar).
 _lock = threading.Lock()
 
@@ -71,17 +61,19 @@ _lock = threading.Lock()
 # ---------------------------------------------------------------------------
 
 @contextmanager
-def get_connection() -> Generator[PGConnection, None, None]:
+def get_connection() -> Generator[sqlite3.Connection, None, None]:
     """
-    Context manager que abre uma conexão com o PostgreSQL e garante o
+    Context manager que abre uma conexão com o banco SQLite e garante o
     fechamento correto (mesmo em caso de exceção).
 
-    A conexão já é aberta com ``cursor_factory=RealDictCursor`` (configurado
-    em ``config.conectar_com_retentativas``), permitindo acesso aos campos
-    por nome (ex.: ``linha["numero"]``), assim como acontecia com
-    ``sqlite3.Row`` na versão anterior baseada em SQLite.
+    Utiliza ``sqlite3.Row`` como row_factory para permitir acesso aos
+    campos por nome (ex.: linha["numero"]), tornando o código mais legível.
     """
-    conexao = conectar_com_retentativas()
+    conexao = sqlite3.connect(str(DATABASE_PATH), timeout=10, check_same_thread=False)
+    conexao.row_factory = sqlite3.Row
+    # PRAGMA para melhorar concorrência de leitura/escrita.
+    conexao.execute("PRAGMA journal_mode = WAL")
+    conexao.execute("PRAGMA foreign_keys = ON")
     try:
         yield conexao
     finally:
@@ -90,101 +82,259 @@ def get_connection() -> Generator[PGConnection, None, None]:
 
 def inicializar_banco() -> None:
     """
-    Garante a existência de todas as tabelas necessárias no PostgreSQL.
+    Cria o diretório e o arquivo do banco de dados (se ainda não existirem)
+    e garante a existência de todas as tabelas necessárias.
 
     Esta função deve ser chamada uma única vez, na inicialização da
-    aplicação Flask (ver ``app.py``), e é segura para ser chamada
-    repetidamente (usa ``CREATE TABLE IF NOT EXISTS``).
+    aplicação Flask (ver ``app.py``).
     """
+    DATABASE_DIR.mkdir(parents=True, exist_ok=True)
+
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS senhas (
-                    id SERIAL PRIMARY KEY,
-                    numero INTEGER NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'Emitida'
-                        CHECK (status IN ('Emitida', 'Chamada', 'Finalizada', 'Cancelada')),
-                    data_hora TEXT NOT NULL,
-                    guiche TEXT,
-                    usuario TEXT
-                )
-                """
+        conexao.execute(
+            """
+            CREATE TABLE IF NOT EXISTS senhas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Emitida'
+                    CHECK (status IN ('Emitida', 'Chamada', 'Finalizada', 'Cancelada')),
+                data_hora TEXT NOT NULL,
+                guiche TEXT,
+                usuario TEXT
             )
+            """
+        )
 
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS eventos_chamada (
-                    id SERIAL PRIMARY KEY,
-                    senha_id INTEGER NOT NULL REFERENCES senhas (id),
-                    numero INTEGER NOT NULL,
-                    guiche TEXT,
-                    usuario TEXT,
-                    data_hora TEXT NOT NULL
-                )
-                """
+        conexao.execute(
+            """
+            CREATE TABLE IF NOT EXISTS eventos_chamada (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                senha_id INTEGER NOT NULL,
+                numero INTEGER NOT NULL,
+                guiche TEXT,
+                usuario TEXT,
+                data_hora TEXT NOT NULL,
+                FOREIGN KEY (senha_id) REFERENCES senhas (id)
             )
+            """
+        )
 
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS logs (
-                    id SERIAL PRIMARY KEY,
-                    data_hora TEXT NOT NULL,
-                    nivel TEXT NOT NULL,
-                    mensagem TEXT NOT NULL
-                )
-                """
+        conexao.execute(
+            """
+            CREATE TABLE IF NOT EXISTS logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                data_hora TEXT NOT NULL,
+                nivel TEXT NOT NULL,
+                mensagem TEXT NOT NULL
             )
+            """
+        )
 
-            # Usuários do sistema (login obrigatório para qualquer acesso).
-            #
-            # Observação de projeto: o campo "perfil" NÃO possui uma cláusula
-            # CHECK travando os valores possíveis (ex.: apenas admin/atendente).
-            # Isso é proposital: a validação de perfis válidos é feita em
-            # Python (``PerfilUsuario.TODOS``, checado em
-            # ``definir_perfil_usuario`` e nas rotas de app.py), o que permite
-            # adicionar novos perfis no futuro (ex.: um perfil de supervisor)
-            # sem exigir migração de esquema — apenas atualizar
-            # ``models.PerfilUsuario``.
-            cursor.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS usuarios (
-                    id SERIAL PRIMARY KEY,
-                    nome_completo TEXT NOT NULL,
-                    login TEXT NOT NULL UNIQUE,
-                    senha_hash TEXT NOT NULL,
-                    perfil TEXT NOT NULL DEFAULT '{PerfilUsuario.ATENDENTE}',
-                    ativo BOOLEAN NOT NULL DEFAULT TRUE,
-                    data_criacao TEXT NOT NULL,
-                    ultimo_login TEXT
-                )
-                """
+        # Usuários do sistema (login obrigatório para qualquer acesso).
+        #
+        # Observação de projeto: o campo "perfil" NÃO possui uma cláusula
+        # CHECK travando os valores possíveis (ex.: apenas admin/atendente).
+        # Isso é proposital: a validação de perfis válidos é feita em
+        # Python (``PerfilUsuario.TODOS``, checado em
+        # ``definir_perfil_usuario`` e nas rotas de app.py), o que permite
+        # adicionar novos perfis no futuro (ex.: um perfil de supervisor)
+        # sem exigir migração de esquema do SQLite — apenas atualizar
+        # ``models.PerfilUsuario``.
+        conexao.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome_completo TEXT NOT NULL,
+                login TEXT NOT NULL UNIQUE,
+                senha_hash TEXT NOT NULL,
+                perfil TEXT NOT NULL DEFAULT '{PerfilUsuario.ATENDENTE}',
+                ativo INTEGER NOT NULL DEFAULT 1,
+                data_criacao TEXT NOT NULL,
+                ultimo_login TEXT
             )
+            """
+        )
 
-            # Ocupação de guichês: cada guichê (1..N, N definido em
-            # Configurações) só pode estar associado a um usuário logado por
-            # vez. A linha é removida quando o usuário efetua logout.
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS guiches_ocupados (
-                    guiche INTEGER PRIMARY KEY,
-                    usuario_id INTEGER NOT NULL REFERENCES usuarios (id),
-                    usuario_nome TEXT NOT NULL,
-                    ocupado_desde TEXT NOT NULL
-                )
-                """
+        # Ocupação de guichês: cada guichê (1..N, N definido em
+        # Configurações) só pode estar associado a um usuário logado por
+        # vez. A linha é removida quando o usuário efetua logout.
+        conexao.execute(
+            """
+            CREATE TABLE IF NOT EXISTS guiches_ocupados (
+                guiche INTEGER PRIMARY KEY,
+                usuario_id INTEGER NOT NULL,
+                usuario_nome TEXT NOT NULL,
+                ocupado_desde TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
             )
+            """
+        )
 
-            # Índices para acelerar as consultas mais frequentes.
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_senhas_status ON senhas (status)")
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_eventos_data ON eventos_chamada (data_hora)"
-            )
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_usuarios_login ON usuarios (login)")
+        # Índices para acelerar as consultas mais frequentes.
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_senhas_status ON senhas (status)")
+        conexao.execute(
+            "CREATE INDEX IF NOT EXISTS idx_eventos_data ON eventos_chamada (data_hora)"
+        )
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_usuarios_login ON usuarios (login)")
 
         conexao.commit()
 
-    logger.info("Banco de dados PostgreSQL inicializado (host=%s, banco=%s).", DB_HOST, DB_NAME)
+        # Corrige bancos de dados criados por uma versão anterior do SIGS,
+        # cuja tabela "usuarios" possuía uma restrição CHECK travando o
+        # perfil em apenas admin/atendente. "CREATE TABLE IF NOT EXISTS"
+        # não altera tabelas já existentes, então esse passo é necessário
+        # para quem já usava o sistema antes do perfil "emissor" existir.
+        _migrar_tabela_usuarios_sem_check(conexao)
+
+        # Corrige um possível efeito colateral da migração acima: o SQLite
+        # atualiza automaticamente a cláusula FOREIGN KEY de outras tabelas
+        # quando a tabela referenciada é renomeada, o que podia deixar
+        # "guiches_ocupados" apontando para o nome temporário usado durante
+        # a migração (já removido) em vez de "usuarios". Ver docstring de
+        # ``_reparar_guiches_ocupados`` para detalhes.
+        _reparar_guiches_ocupados(conexao)
+
+    logger.info("Banco de dados inicializado em: %s", DATABASE_PATH)
+
+
+def _migrar_tabela_usuarios_sem_check(conexao: sqlite3.Connection) -> None:
+    """
+    Detecta se a tabela ``usuarios`` foi criada com a antiga cláusula
+    ``CHECK (perfil IN ('admin', 'atendente'))`` (presente em versões do
+    SIGS anteriores à introdução do perfil "emissor") e, se for o caso,
+    recria a tabela sem essa restrição, preservando todos os usuários já
+    cadastrados.
+
+    Sem esta migração, tentar criar ou promover um usuário para o perfil
+    "emissor" em um banco de dados antigo falha com o erro:
+    ``CHECK constraint failed: perfil IN ('admin', 'atendente')``.
+
+    Esta função é chamada toda vez que o sistema inicia
+    (``inicializar_banco``) e não faz nada se o banco já estiver no
+    formato atual (sem a restrição), portanto é seguro executá-la
+    repetidamente.
+
+    IMPORTANTE: a tabela ``guiches_ocupados`` possui uma cláusula
+    ``FOREIGN KEY (usuario_id) REFERENCES usuarios (id)``. Por padrão, o
+    SQLite atualiza automaticamente essa referência quando a tabela
+    "usuarios" é renomeada (comportamento ``legacy_alter_table = OFF``),
+    o que deixaria ``guiches_ocupados`` apontando para o nome temporário
+    usado durante a migração. Para evitar isso, desativamos
+    temporariamente esse comportamento (``PRAGMA legacy_alter_table = ON``)
+    e a checagem de chaves estrangeiras (``PRAGMA foreign_keys = OFF``)
+    apenas durante a operação de renomear/recriar/copiar/remover, restau-
+    rando ambas ao final.
+    """
+    linha = conexao.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'usuarios'"
+    ).fetchone()
+
+    if linha is None or not linha["sql"] or "CHECK" not in linha["sql"].upper():
+        return  # Tabela não existe ainda, ou já está no formato novo.
+
+    logger.warning(
+        "Esquema antigo da tabela 'usuarios' detectado (restrição CHECK de "
+        "perfil). Migrando automaticamente para permitir o perfil 'emissor'..."
+    )
+
+    conexao.execute("PRAGMA foreign_keys = OFF")
+    conexao.execute("PRAGMA legacy_alter_table = ON")
+
+    try:
+        conexao.execute("ALTER TABLE usuarios RENAME TO usuarios_migracao_temp")
+
+        conexao.execute(
+            f"""
+            CREATE TABLE usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome_completo TEXT NOT NULL,
+                login TEXT NOT NULL UNIQUE,
+                senha_hash TEXT NOT NULL,
+                perfil TEXT NOT NULL DEFAULT '{PerfilUsuario.ATENDENTE}',
+                ativo INTEGER NOT NULL DEFAULT 1,
+                data_criacao TEXT NOT NULL,
+                ultimo_login TEXT
+            )
+            """
+        )
+
+        conexao.execute(
+            """
+            INSERT INTO usuarios (id, nome_completo, login, senha_hash, perfil, ativo, data_criacao, ultimo_login)
+            SELECT id, nome_completo, login, senha_hash, perfil, ativo, data_criacao, ultimo_login
+            FROM usuarios_migracao_temp
+            """
+        )
+
+        conexao.execute("DROP TABLE usuarios_migracao_temp")
+        conexao.commit()
+    finally:
+        conexao.execute("PRAGMA legacy_alter_table = OFF")
+        conexao.execute("PRAGMA foreign_keys = ON")
+
+    logger.warning(
+        "Migração concluída: a tabela 'usuarios' agora aceita o perfil "
+        "'emissor' sem necessidade de recriar o banco de dados."
+    )
+
+
+def _reparar_guiches_ocupados(conexao: sqlite3.Connection) -> None:
+    """
+    Corrige a tabela ``guiches_ocupados`` caso sua definição tenha ficado
+    com uma referência de chave estrangeira quebrada, apontando para a
+    tabela temporária "usuarios_migracao_temp" (que já foi removida) em
+    vez de "usuarios".
+
+    Isso podia ocorrer como efeito colateral de uma versão anterior desta
+    migração, que renomeava a tabela "usuarios" sem desativar
+    ``legacy_alter_table`` — o SQLite, por padrão, atualiza automaticamente
+    as referências FOREIGN KEY de outras tabelas ao renomear a tabela
+    referenciada. O sintoma é o erro
+    ``OperationalError: no such table: main.usuarios_migracao_temp`` ao
+    tentar inserir ou remover linhas de ``guiches_ocupados`` (por exemplo,
+    ao fazer login ou logout).
+
+    Como ``guiches_ocupados`` armazena apenas o estado transitório de
+    "quem está em qual guichê agora" (é recriado a cada login e liberado a
+    cada logout), é seguro recriá-la do zero sem qualquer perda de dados
+    relevante — na pior hipótese, um usuário que estava com um guichê
+    ocupado precisará relogar para assumir um guichê novamente.
+    """
+    linha = conexao.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'guiches_ocupados'"
+    ).fetchone()
+
+    if linha is None or not linha["sql"]:
+        return  # Tabela ainda não existe; será criada normalmente.
+
+    if "usuarios_migracao_temp" not in linha["sql"]:
+        return  # Referência já está saudável (aponta para "usuarios").
+
+    logger.warning(
+        "Referência quebrada detectada na tabela 'guiches_ocupados' "
+        "(apontava para uma tabela temporária de migração já removida). "
+        "Recriando a tabela do zero..."
+    )
+
+    conexao.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conexao.execute("DROP TABLE guiches_ocupados")
+        conexao.execute(
+            """
+            CREATE TABLE guiches_ocupados (
+                guiche INTEGER PRIMARY KEY,
+                usuario_id INTEGER NOT NULL,
+                usuario_nome TEXT NOT NULL,
+                ocupado_desde TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
+            )
+            """
+        )
+        conexao.commit()
+    finally:
+        conexao.execute("PRAGMA foreign_keys = ON")
+
+    logger.warning("Tabela 'guiches_ocupados' recriada com sucesso.")
 
 
 # ---------------------------------------------------------------------------
@@ -212,13 +362,12 @@ def registrar_log(nivel: str, mensagem: str) -> None:
 
     try:
         with get_connection() as conexao:
-            with conexao.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO logs (data_hora, nivel, mensagem) VALUES (%s, %s, %s)",
-                    (_agora_iso(), nivel, mensagem),
-                )
+            conexao.execute(
+                "INSERT INTO logs (data_hora, nivel, mensagem) VALUES (?, ?, ?)",
+                (_agora_iso(), nivel, mensagem),
+            )
             conexao.commit()
-    except psycopg2.Error as erro:
+    except sqlite3.Error as erro:
         # Se o próprio registro de log falhar, ao menos garantimos que o
         # erro seja visível no console/arquivo de log da aplicação.
         logger.error("Falha ao gravar log no banco de dados: %s", erro)
@@ -246,17 +395,15 @@ def criar_senha(guiche: Optional[str] = None, usuario: Optional[str] = None) -> 
 
         data_hora = _agora_iso()
         with get_connection() as conexao:
-            with conexao.cursor() as cursor:
-                cursor.execute(
-                    """
-                    INSERT INTO senhas (numero, status, data_hora, guiche, usuario)
-                    VALUES (%s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (novo_numero, StatusSenha.EMITIDA, data_hora, guiche, usuario),
-                )
-                senha_id = cursor.fetchone()["id"]
+            cursor = conexao.execute(
+                """
+                INSERT INTO senhas (numero, status, data_hora, guiche, usuario)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (novo_numero, StatusSenha.EMITIDA, data_hora, guiche, usuario),
+            )
             conexao.commit()
+            senha_id = cursor.lastrowid
 
     registrar_log("INFO", f"Senha emitida: número {novo_numero:03d} (id={senha_id})")
 
@@ -292,17 +439,15 @@ def obter_proxima_emitida() -> Optional[Senha]:
     chegada (FIFO), ou ``None`` caso não haja senhas aguardando chamada.
     """
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT * FROM senhas
-                WHERE status = %s
-                ORDER BY id ASC
-                LIMIT 1
-                """,
-                (StatusSenha.EMITIDA,),
-            )
-            linha = cursor.fetchone()
+        linha = conexao.execute(
+            """
+            SELECT * FROM senhas
+            WHERE status = ?
+            ORDER BY id ASC
+            LIMIT 1
+            """,
+            (StatusSenha.EMITIDA,),
+        ).fetchone()
 
     return Senha.from_row(linha) if linha else None
 
@@ -326,21 +471,19 @@ def chamar_proxima(guiche: str, usuario: str) -> Optional[Dict]:
 
         data_hora = _agora_iso()
         with get_connection() as conexao:
-            with conexao.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE senhas SET status = %s, guiche = %s, usuario = %s WHERE id = %s",
-                    (StatusSenha.CHAMADA, guiche, usuario, proxima.id),
-                )
-                cursor.execute(
-                    """
-                    INSERT INTO eventos_chamada (senha_id, numero, guiche, usuario, data_hora)
-                    VALUES (%s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (proxima.id, proxima.numero, guiche, usuario, data_hora),
-                )
-                evento_id = cursor.fetchone()["id"]
+            conexao.execute(
+                "UPDATE senhas SET status = ?, guiche = ?, usuario = ? WHERE id = ?",
+                (StatusSenha.CHAMADA, guiche, usuario, proxima.id),
+            )
+            cursor = conexao.execute(
+                """
+                INSERT INTO eventos_chamada (senha_id, numero, guiche, usuario, data_hora)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (proxima.id, proxima.numero, guiche, usuario, data_hora),
+            )
             conexao.commit()
+            evento_id = cursor.lastrowid
 
     registrar_log(
         "INFO",
@@ -368,26 +511,24 @@ def repetir_ultima_chamada() -> Optional[Dict]:
     Retorna ``None`` se ainda não houve nenhuma chamada.
     """
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("SELECT * FROM eventos_chamada ORDER BY id DESC LIMIT 1")
-            ultimo = cursor.fetchone()
+        ultimo = conexao.execute(
+            "SELECT * FROM eventos_chamada ORDER BY id DESC LIMIT 1"
+        ).fetchone()
 
     if ultimo is None:
         return None
 
     data_hora = _agora_iso()
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO eventos_chamada (senha_id, numero, guiche, usuario, data_hora)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (ultimo["senha_id"], ultimo["numero"], ultimo["guiche"], ultimo["usuario"], data_hora),
-            )
-            evento_id = cursor.fetchone()["id"]
+        cursor = conexao.execute(
+            """
+            INSERT INTO eventos_chamada (senha_id, numero, guiche, usuario, data_hora)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (ultimo["senha_id"], ultimo["numero"], ultimo["guiche"], ultimo["usuario"], data_hora),
+        )
         conexao.commit()
+        evento_id = cursor.lastrowid
 
     registrar_log("INFO", f"Repetição de chamada da senha {ultimo['numero']:03d}.")
 
@@ -407,23 +548,21 @@ def obter_senha_em_atendimento(guiche: str) -> Optional[Senha]:
     guichê específico, ou ``None`` se não houver nenhuma senha em
     atendimento nesse guichê no momento.
 
-    Como cada guichê só pode estar associado a um usuário logado por vez
+    Como cada guichê só pode estar ocupado por um usuário logado por vez
     (ver ``ocupar_proximo_guiche_disponivel``), buscar pela string do
     guichê é suficiente para identificar de forma inequívoca a senha que
     o atendente está atualmente atendendo.
     """
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT * FROM senhas
-                WHERE status = %s AND guiche = %s
-                ORDER BY id DESC
-                LIMIT 1
-                """,
-                (StatusSenha.CHAMADA, guiche),
-            )
-            linha = cursor.fetchone()
+        linha = conexao.execute(
+            """
+            SELECT * FROM senhas
+            WHERE status = ? AND guiche = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (StatusSenha.CHAMADA, guiche),
+        ).fetchone()
 
     return Senha.from_row(linha) if linha else None
 
@@ -465,9 +604,9 @@ def obter_chamada_atual() -> Optional[Dict]:
     chamada foi realizada ainda.
     """
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("SELECT * FROM eventos_chamada ORDER BY id DESC LIMIT 1")
-            linha = cursor.fetchone()
+        linha = conexao.execute(
+            "SELECT * FROM eventos_chamada ORDER BY id DESC LIMIT 1"
+        ).fetchone()
 
     if linha is None:
         return None
@@ -487,12 +626,10 @@ def listar_ultimas_emitidas(quantidade: int = 10) -> List[Dict]:
     para exibir o histórico de senhas emitidas.
     """
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "SELECT * FROM senhas ORDER BY id DESC LIMIT %s",
-                (quantidade,),
-            )
-            linhas = cursor.fetchall()
+        linhas = conexao.execute(
+            "SELECT * FROM senhas ORDER BY id DESC LIMIT ?",
+            (quantidade,),
+        ).fetchall()
 
     return [Senha.from_row(linha).to_dict() for linha in linhas]
 
@@ -500,12 +637,10 @@ def listar_ultimas_emitidas(quantidade: int = 10) -> List[Dict]:
 def contar_aguardando() -> int:
     """Retorna a quantidade de senhas atualmente aguardando chamada."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "SELECT COUNT(*) AS total FROM senhas WHERE status = %s",
-                (StatusSenha.EMITIDA,),
-            )
-            linha = cursor.fetchone()
+        linha = conexao.execute(
+            "SELECT COUNT(*) AS total FROM senhas WHERE status = ?",
+            (StatusSenha.EMITIDA,),
+        ).fetchone()
     return int(linha["total"])
 
 
@@ -516,13 +651,12 @@ def contar_aguardando() -> int:
 def finalizar_senha(senha_id: int) -> bool:
     """Marca uma senha como 'Finalizada' (atendimento concluído)."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "UPDATE senhas SET status = %s WHERE id = %s",
-                (StatusSenha.FINALIZADA, senha_id),
-            )
-            alterou = cursor.rowcount > 0
+        cursor = conexao.execute(
+            "UPDATE senhas SET status = ? WHERE id = ?",
+            (StatusSenha.FINALIZADA, senha_id),
+        )
         conexao.commit()
+        alterou = cursor.rowcount > 0
 
     if alterou:
         registrar_log("INFO", f"Senha id={senha_id} finalizada.")
@@ -532,13 +666,12 @@ def finalizar_senha(senha_id: int) -> bool:
 def cancelar_senha(senha_id: int) -> bool:
     """Marca uma senha como 'Cancelada' (não será chamada)."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "UPDATE senhas SET status = %s WHERE id = %s",
-                (StatusSenha.CANCELADA, senha_id),
-            )
-            alterou = cursor.rowcount > 0
+        cursor = conexao.execute(
+            "UPDATE senhas SET status = ? WHERE id = ?",
+            (StatusSenha.CANCELADA, senha_id),
+        )
         conexao.commit()
+        alterou = cursor.rowcount > 0
 
     if alterou:
         registrar_log("WARNING", f"Senha id={senha_id} cancelada.")
@@ -549,17 +682,15 @@ def listar_fila_atual(limite: int = 20) -> List[Dict]:
     """Retorna as senhas atualmente aguardando chamada (status Emitida),
     em ordem de chegada, para exibição em uma tela de gerenciamento."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT * FROM senhas
-                WHERE status = %s
-                ORDER BY id ASC
-                LIMIT %s
-                """,
-                (StatusSenha.EMITIDA, limite),
-            )
-            linhas = cursor.fetchall()
+        linhas = conexao.execute(
+            """
+            SELECT * FROM senhas
+            WHERE status = ?
+            ORDER BY id ASC
+            LIMIT ?
+            """,
+            (StatusSenha.EMITIDA, limite),
+        ).fetchall()
 
     return [Senha.from_row(linha).to_dict() for linha in linhas]
 
@@ -577,31 +708,27 @@ def listar_senhas_periodo(
     Retorna as senhas emitidas dentro de um período (datas no formato
     'YYYY-MM-DD'), opcionalmente filtradas por status. Utilizado pela
     geração de relatórios (CSV, Excel, PDF).
-
-    O campo ``data_hora`` é armazenado como texto (ex.:
-    '2026-08-13 14:32:05'); o cast ``::date`` faz o PostgreSQL interpretar
-    esse texto como data e comparar apenas a parte de data, ignorando o
-    horário — equivalente ao ``date(data_hora)`` usado na versão SQLite.
     """
     condicoes = []
     parametros: List = []
 
     if inicio:
-        condicoes.append("data_hora::date >= %s::date")
+        condicoes.append("date(data_hora) >= date(?)")
         parametros.append(inicio)
     if fim:
-        condicoes.append("data_hora::date <= %s::date")
+        condicoes.append("date(data_hora) <= date(?)")
         parametros.append(fim)
     if status:
-        condicoes.append("status = %s")
+        condicoes.append("status = ?")
         parametros.append(status)
 
     where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
 
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(f"SELECT * FROM senhas {where} ORDER BY id ASC", parametros)
-            linhas = cursor.fetchall()
+        linhas = conexao.execute(
+            f"SELECT * FROM senhas {where} ORDER BY id ASC",
+            parametros,
+        ).fetchall()
 
     return [Senha.from_row(linha).to_dict() for linha in linhas]
 
@@ -612,18 +739,19 @@ def listar_chamadas_periodo(inicio: Optional[str] = None, fim: Optional[str] = N
     parametros: List = []
 
     if inicio:
-        condicoes.append("data_hora::date >= %s::date")
+        condicoes.append("date(data_hora) >= date(?)")
         parametros.append(inicio)
     if fim:
-        condicoes.append("data_hora::date <= %s::date")
+        condicoes.append("date(data_hora) <= date(?)")
         parametros.append(fim)
 
     where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
 
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(f"SELECT * FROM eventos_chamada {where} ORDER BY id ASC", parametros)
-            linhas = cursor.fetchall()
+        linhas = conexao.execute(
+            f"SELECT * FROM eventos_chamada {where} ORDER BY id ASC",
+            parametros,
+        ).fetchall()
 
     return [ChamadaEvento.from_row(linha).to_dict() for linha in linhas]
 
@@ -641,10 +769,10 @@ def tempo_medio_atendimento(inicio: Optional[str] = None, fim: Optional[str] = N
     parametros: List = []
 
     if inicio:
-        condicoes.append("s.data_hora::date >= %s::date")
+        condicoes.append("date(s.data_hora) >= date(?)")
         parametros.append(inicio)
     if fim:
-        condicoes.append("s.data_hora::date <= %s::date")
+        condicoes.append("date(s.data_hora) <= date(?)")
         parametros.append(fim)
 
     where = " AND ".join(condicoes)
@@ -656,13 +784,11 @@ def tempo_medio_atendimento(inicio: Optional[str] = None, fim: Optional[str] = N
         SELECT s.data_hora AS emissao, MIN(e.data_hora) AS primeira_chamada
         FROM senhas s
         JOIN eventos_chamada e ON {where}
-        GROUP BY s.id, s.data_hora
+        GROUP BY s.id
     """
 
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(consulta, parametros)
-            linhas = cursor.fetchall()
+        linhas = conexao.execute(consulta, parametros).fetchall()
 
     if not linhas:
         return {"tempo_medio_segundos": 0, "tempo_medio_formatado": "00:00", "total_amostras": 0}
@@ -701,9 +827,7 @@ def tempo_medio_atendimento(inicio: Optional[str] = None, fim: Optional[str] = N
 def contar_usuarios() -> int:
     """Retorna a quantidade total de usuários cadastrados no sistema."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) AS total FROM usuarios")
-            linha = cursor.fetchone()
+        linha = conexao.execute("SELECT COUNT(*) AS total FROM usuarios").fetchone()
     return int(linha["total"])
 
 
@@ -733,26 +857,25 @@ def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optio
 
     with get_connection() as conexao:
         try:
-            with conexao.cursor() as cursor:
-                cursor.execute(
-                    """
-                    INSERT INTO usuarios (nome_completo, login, senha_hash, perfil, ativo, data_criacao)
-                    VALUES (%s, %s, %s, %s, TRUE, %s)
-                    RETURNING id
-                    """,
-                    (nome_completo, login_normalizado, senha_hash, perfil, data_criacao),
-                )
-                usuario_id = cursor.fetchone()["id"]
+            cursor = conexao.execute(
+                """
+                INSERT INTO usuarios (nome_completo, login, senha_hash, perfil, ativo, data_criacao)
+                VALUES (?, ?, ?, ?, 1, ?)
+                """,
+                (nome_completo, login_normalizado, senha_hash, perfil, data_criacao),
+            )
             conexao.commit()
-        except psycopg2.IntegrityError as erro:
-            conexao.rollback()
-            # Código "23505" é o código padrão do PostgreSQL para violação
-            # de restrição UNIQUE (login duplicado). Diferenciar evita
-            # mostrar "login já existe" para um erro que na verdade é outra
-            # coisa completamente diferente.
-            if getattr(erro, "pgcode", None) == "23505":
+        except sqlite3.IntegrityError as erro:
+            # Importante: nem todo IntegrityError é login duplicado — pode
+            # ser, por exemplo, uma restrição CHECK antiga de uma versão
+            # anterior do banco (ver ``_migrar_tabela_usuarios_sem_check``).
+            # Diferenciar evita mostrar "login já existe" para um erro que
+            # na verdade é outra coisa completamente diferente.
+            if "UNIQUE" in str(erro).upper():
                 raise ValueError(f"Já existe um usuário com o login '{login_normalizado}'.") from erro
             raise ValueError(f"Não foi possível criar o usuário: {erro}") from erro
+
+        usuario_id = cursor.lastrowid
 
     registrar_log("INFO", f"Usuário '{login_normalizado}' cadastrado com perfil '{perfil}'.")
 
@@ -777,18 +900,18 @@ def obter_usuario_por_login(login: str) -> Optional[Usuario]:
     """
     login_normalizado = (login or "").strip().lower()
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("SELECT * FROM usuarios WHERE login = %s", (login_normalizado,))
-            linha = cursor.fetchone()
+        linha = conexao.execute(
+            "SELECT * FROM usuarios WHERE login = ?", (login_normalizado,)
+        ).fetchone()
     return Usuario.from_row(linha) if linha else None
 
 
 def obter_usuario_por_id(usuario_id: int) -> Optional[Usuario]:
     """Busca um usuário pelo id (utilizado para carregar a sessão logada)."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("SELECT * FROM usuarios WHERE id = %s", (usuario_id,))
-            linha = cursor.fetchone()
+        linha = conexao.execute(
+            "SELECT * FROM usuarios WHERE id = ?", (usuario_id,)
+        ).fetchone()
     return Usuario.from_row(linha) if linha else None
 
 
@@ -796,20 +919,17 @@ def listar_usuarios() -> List[Dict]:
     """Retorna todos os usuários cadastrados (sem o hash de senha), para a
     tela de administração de usuários."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("SELECT * FROM usuarios ORDER BY nome_completo ASC")
-            linhas = cursor.fetchall()
+        linhas = conexao.execute("SELECT * FROM usuarios ORDER BY nome_completo ASC").fetchall()
     return [Usuario.from_row(linha).to_dict_publico() for linha in linhas]
 
 
 def atualizar_ultimo_login(usuario_id: int) -> None:
     """Atualiza o timestamp de último login do usuário."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "UPDATE usuarios SET ultimo_login = %s WHERE id = %s",
-                (_agora_iso(), usuario_id),
-            )
+        conexao.execute(
+            "UPDATE usuarios SET ultimo_login = ? WHERE id = ?",
+            (_agora_iso(), usuario_id),
+        )
         conexao.commit()
 
 
@@ -821,15 +941,19 @@ def definir_perfil_usuario(usuario_id: int, perfil: str) -> bool:
 
     with get_connection() as conexao:
         try:
-            with conexao.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE usuarios SET perfil = %s WHERE id = %s", (perfil, usuario_id)
-                )
-                alterou = cursor.rowcount > 0
+            cursor = conexao.execute(
+                "UPDATE usuarios SET perfil = ? WHERE id = ?", (perfil, usuario_id)
+            )
             conexao.commit()
-        except psycopg2.Error as erro:
-            conexao.rollback()
-            raise ValueError(f"Não foi possível definir o perfil '{perfil}': {erro}") from erro
+        except sqlite3.IntegrityError as erro:
+            # Em tese não deveria mais ocorrer (ver
+            # ``_migrar_tabela_usuarios_sem_check``), mas se acontecer,
+            # relata de forma clara em vez de deixar a exceção crua subir.
+            raise ValueError(
+                f"Não foi possível definir o perfil '{perfil}': {erro}. "
+                "Reinicie o servidor para aplicar a migração automática do banco de dados."
+            ) from erro
+        alterou = cursor.rowcount > 0
 
     if alterou:
         registrar_log("WARNING", f"Perfil do usuário id={usuario_id} alterado para '{perfil}'.")
@@ -840,12 +964,11 @@ def definir_status_usuario(usuario_id: int, ativo: bool) -> bool:
     """Ativa ou desativa o acesso de um usuário ao sistema (sem excluir o
     cadastro, preservando o histórico de senhas emitidas/chamadas)."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "UPDATE usuarios SET ativo = %s WHERE id = %s", (bool(ativo), usuario_id)
-            )
-            alterou = cursor.rowcount > 0
+        cursor = conexao.execute(
+            "UPDATE usuarios SET ativo = ? WHERE id = ?", (1 if ativo else 0, usuario_id)
+        )
         conexao.commit()
+        alterou = cursor.rowcount > 0
 
     if alterou:
         estado = "ativado" if ativo else "desativado"
@@ -861,13 +984,12 @@ def resetar_senha_usuario(usuario_id: int, nova_senha_hash: str) -> bool:
     contador de numeração de senhas de atendimento (``reiniciar_contador``).
     """
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "UPDATE usuarios SET senha_hash = %s WHERE id = %s",
-                (nova_senha_hash, usuario_id),
-            )
-            alterou = cursor.rowcount > 0
+        cursor = conexao.execute(
+            "UPDATE usuarios SET senha_hash = ? WHERE id = ?",
+            (nova_senha_hash, usuario_id),
+        )
         conexao.commit()
+        alterou = cursor.rowcount > 0
 
     if alterou:
         registrar_log("WARNING", f"Senha do usuário id={usuario_id} foi redefinida por um administrador.")
@@ -885,13 +1007,9 @@ def resetar_senhas_emitidas() -> None:
     resquício de dados do evento anterior.
     """
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("DELETE FROM eventos_chamada")
-            cursor.execute("DELETE FROM senhas")
-            # Reinicia as sequências (SERIAL) usadas para gerar os "id" das
-            # tabelas, equivalente a limpar "sqlite_sequence" no SQLite.
-            cursor.execute("ALTER SEQUENCE senhas_id_seq RESTART WITH 1")
-            cursor.execute("ALTER SEQUENCE eventos_chamada_id_seq RESTART WITH 1")
+        conexao.execute("DELETE FROM eventos_chamada")
+        conexao.execute("DELETE FROM senhas")
+        conexao.execute("DELETE FROM sqlite_sequence WHERE name IN ('senhas', 'eventos_chamada')")
         conexao.commit()
 
     with _lock:
@@ -908,11 +1026,9 @@ def obter_guiche_do_usuario(usuario_id: int) -> Optional[int]:
     """Retorna o número do guichê atualmente ocupado por um usuário, ou
     ``None`` caso ele não esteja ocupando nenhum guichê no momento."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "SELECT guiche FROM guiches_ocupados WHERE usuario_id = %s", (usuario_id,)
-            )
-            linha = cursor.fetchone()
+        linha = conexao.execute(
+            "SELECT guiche FROM guiches_ocupados WHERE usuario_id = ?", (usuario_id,)
+        ).fetchone()
     return int(linha["guiche"]) if linha else None
 
 
@@ -932,25 +1048,26 @@ def ocupar_proximo_guiche_disponivel(usuario_id: int, usuario_nome: str, qtd_gui
             return guiche_atual
 
         with get_connection() as conexao:
-            with conexao.cursor() as cursor:
-                cursor.execute("SELECT guiche FROM guiches_ocupados")
-                ocupados = {linha["guiche"] for linha in cursor.fetchall()}
+            ocupados = {
+                linha["guiche"]
+                for linha in conexao.execute("SELECT guiche FROM guiches_ocupados").fetchall()
+            }
 
-                guiche_livre = next(
-                    (numero for numero in range(1, qtd_guiches + 1) if numero not in ocupados),
-                    None,
-                )
+            guiche_livre = next(
+                (numero for numero in range(1, qtd_guiches + 1) if numero not in ocupados),
+                None,
+            )
 
-                if guiche_livre is None:
-                    return None
+            if guiche_livre is None:
+                return None
 
-                cursor.execute(
-                    """
-                    INSERT INTO guiches_ocupados (guiche, usuario_id, usuario_nome, ocupado_desde)
-                    VALUES (%s, %s, %s, %s)
-                    """,
-                    (guiche_livre, usuario_id, usuario_nome, _agora_iso()),
-                )
+            conexao.execute(
+                """
+                INSERT INTO guiches_ocupados (guiche, usuario_id, usuario_nome, ocupado_desde)
+                VALUES (?, ?, ?, ?)
+                """,
+                (guiche_livre, usuario_id, usuario_nome, _agora_iso()),
+            )
             conexao.commit()
 
     registrar_log("INFO", f"Guichê {guiche_livre} atribuído automaticamente a '{usuario_nome}'.")
@@ -960,8 +1077,7 @@ def ocupar_proximo_guiche_disponivel(usuario_id: int, usuario_nome: str, qtd_gui
 def liberar_guiche(usuario_id: int) -> None:
     """Libera o guichê ocupado por um usuário (chamado no logout)."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("DELETE FROM guiches_ocupados WHERE usuario_id = %s", (usuario_id,))
+        conexao.execute("DELETE FROM guiches_ocupados WHERE usuario_id = ?", (usuario_id,))
         conexao.commit()
 
 
@@ -969,7 +1085,7 @@ def listar_guiches_ocupados() -> List[Dict]:
     """Retorna a lista de guichês atualmente ocupados, útil para telas de
     administração/monitoramento do atendimento."""
     with get_connection() as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("SELECT * FROM guiches_ocupados ORDER BY guiche ASC")
-            linhas = cursor.fetchall()
+        linhas = conexao.execute(
+            "SELECT * FROM guiches_ocupados ORDER BY guiche ASC"
+        ).fetchall()
     return [dict(linha) for linha in linhas]

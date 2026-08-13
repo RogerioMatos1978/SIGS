@@ -16,7 +16,6 @@ Rotas principais:
     GET  /relatorios            Tela de geração de relatórios [admin]
     GET/POST /login             Autenticação de usuários
     POST /logout                Encerra sessão e libera o guichê
-    GET/POST /cadastro          Autocadastro (1º usuário = admin; demais = atendente)
     GET  /admin/usuarios        Gerenciamento de usuários [admin]
 
     POST /api/emitir            Emite uma nova senha (grava + imprime)
@@ -51,7 +50,7 @@ from flask import Flask, jsonify, redirect, render_template, request, send_file,
 
 import auth
 import database
-from config import STATIC_DIR, TEMPLATES_DIR, config_manager, logger, obter_secret_key
+from config import SIGS_VERSAO, STATIC_DIR, TEMPLATES_DIR, config_manager, logger, obter_secret_key
 from models import PerfilUsuario
 from printer import ErroImpressora, ImpressoraTermica
 
@@ -90,11 +89,16 @@ database.inicializar_banco()
 @app.context_processor
 def injetar_usuario_logado():
     """
-    Disponibiliza a variável ``usuario_logado`` (e ``eh_admin``) para
-    TODOS os templates automaticamente, sem precisar repassá-la
-    manualmente em cada chamada a ``render_template``.
+    Disponibiliza as variáveis ``usuario_logado``, ``eh_admin`` e
+    ``sigs_versao`` para TODOS os templates automaticamente, sem precisar
+    repassá-las manualmente em cada chamada a ``render_template``.
+    ``sigs_versao`` é usada pelo rodapé fixo (ver templates/layout.html).
     """
-    return {"usuario_logado": auth.usuario_logado(), "eh_admin": auth.eh_admin()}
+    return {
+        "usuario_logado": auth.usuario_logado(),
+        "eh_admin": auth.eh_admin(),
+        "sigs_versao": SIGS_VERSAO,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -155,10 +159,10 @@ def favicon():
 def health():
     """
     Endpoint de verificação de saúde ("health check"), útil para confirmar
-    rapidamente se o servidor Flask está no ar E se a conexão com o banco
-    de dados PostgreSQL está funcionando — por exemplo, logo após rodar
-    "docker compose up -d" e antes de liberar o sistema para uso, ou em
-    scripts de monitoramento/deploy.
+    rapidamente se o servidor Flask está no ar E se o banco de dados
+    SQLite está acessível — por exemplo, em scripts de monitoramento/deploy,
+    ou para diagnosticar um problema de arquivo/permissão em
+    "database/senhas.db".
 
     Sempre público (sem exigir login), pois seu único propósito é
     diagnóstico técnico e não expõe nenhum dado sensível do sistema.
@@ -209,7 +213,14 @@ def relatorios_tela():
 
 
 # ---------------------------------------------------------------------------
-# Rotas de autenticação (login / logout / cadastro)
+# Rotas de autenticação (login / logout)
+#
+# Não existe autocadastro público: o primeiro administrador é criado pelo
+# script de linha de comando "criar_admin.py" (ver README, seção 12.3), e
+# todos os demais usuários são cadastrados exclusivamente por um
+# administrador já logado, pela tela "Gerenciar Usuários"
+# (/admin/usuarios). Isso evita que qualquer pessoa com acesso ao
+# navegador crie sua própria conta no sistema.
 # ---------------------------------------------------------------------------
 
 @app.route("/login", methods=["GET", "POST"])
@@ -249,56 +260,6 @@ def logout_tela():
     """Encerra a sessão do usuário e libera o guichê que ele ocupava."""
     auth.encerrar_sessao()
     return redirect(url_for("login_tela"))
-
-
-@app.route("/cadastro", methods=["GET", "POST"])
-def cadastro_tela():
-    """
-    Tela de autocadastro de novos usuários. O primeiro usuário cadastrado
-    no sistema torna-se administrador automaticamente; todos os demais
-    recebem o perfil "atendente" (acesso restrito), conforme regra de
-    negócio implementada em ``database.criar_usuario``.
-    """
-    if auth.usuario_logado():
-        return redirect(url_for("index"))
-
-    erro = None
-    nome_completo = ""
-    login_informado = ""
-    if request.method == "POST":
-        nome_completo = (request.form.get("nome_completo") or "").strip()
-        login_informado = (request.form.get("login") or "").strip()
-        senha = request.form.get("senha") or ""
-        confirmar_senha = request.form.get("confirmar_senha") or ""
-
-        if not nome_completo or not login_informado:
-            erro = "Preencha nome completo e login."
-        elif senha != confirmar_senha:
-            erro = "As senhas informadas não coincidem."
-        else:
-            erro = auth.validar_forca_senha(senha)
-
-        if erro is None:
-            try:
-                usuario = database.criar_usuario(
-                    nome_completo=nome_completo,
-                    login=login_informado,
-                    senha_hash=auth.gerar_hash_senha(senha),
-                )
-                auth.iniciar_sessao(usuario)
-                return redirect(url_for("index"))
-            except ValueError as excecao:
-                erro = str(excecao)
-
-    # Assim como na tela de login, reenviamos nome/login ao template em
-    # caso de erro para que o usuário não precise redigitar tudo de novo
-    # (apenas as senhas nunca são reenviadas, por segurança).
-    return render_template(
-        "cadastro.html",
-        erro=erro,
-        nome_completo_informado=nome_completo,
-        login_informado=login_informado,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -816,9 +777,10 @@ def api_relatorios_pdf():
 def api_admin_criar_usuario():
     """Cria um novo usuário diretamente pelo painel de administração,
     permitindo ao administrador definir o perfil (admin, atendente ou
-    emissor) já na criação — diferente do autocadastro público, que
-    sempre cria o usuário com perfil "atendente" (exceto o primeiro
-    usuário do sistema, que se torna administrador)."""
+    emissor) já na criação. Esta é a ÚNICA forma de cadastrar um usuário
+    pelo navegador — não existe autocadastro público (ver
+    "criar_admin.py" para criar o primeiro administrador via linha de
+    comando)."""
     try:
         dados = request.get_json(silent=True) or {}
         nome_completo = str(dados.get("nome_completo") or "").strip()
@@ -951,7 +913,7 @@ def _config_para_erro() -> dict:
     Retorna as configurações do sistema para uso na página de erro amigável
     (erro.html), com uma proteção extra: se a própria leitura das
     configurações falhar (por exemplo, o erro 500 foi causado justamente
-    por uma falha de conexão com o PostgreSQL), cai de volta em um valor
+    por uma falha de acesso ao banco de dados), cai de volta em um valor
     padrão mínimo em vez de gerar um segundo erro dentro do tratamento do
     primeiro erro.
     """

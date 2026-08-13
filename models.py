@@ -6,21 +6,16 @@ models.py
 Definição dos modelos de dados (representações estruturadas) utilizados
 pelo SIGS. Este módulo não acessa o banco de dados diretamente; ele apenas
 define a forma dos dados e funções auxiliares de conversão a partir de
-linhas retornadas pelo PostgreSQL (``psycopg2.extras.RealDictRow``, que se
-comporta como um dicionário — suporta acesso por chave, ex.:
-``linha["numero"]``).
+linhas retornadas pelo SQLite (``sqlite3.Row``).
 
 Manter os modelos separados da camada de acesso a dados (``database.py``)
-facilita a evolução futura do sistema, por exemplo, a troca do banco de
-dados, ou a exposição desses mesmos modelos em uma API REST.
+facilita a evolução futura do sistema, por exemplo, a troca do SQLite por
+outro banco de dados, ou a exposição desses mesmos modelos em uma API REST.
 """
 
+import sqlite3
 from dataclasses import dataclass, asdict
-from typing import Any, Mapping, Optional
-
-# Alias de tipo para as linhas retornadas pelo psycopg2 (RealDictCursor):
-# são objetos do tipo Mapping (dict-like), suportando ``linha["campo"]``.
-LinhaBanco = Mapping[str, Any]
+from typing import Optional
 
 
 class StatusSenha:
@@ -57,9 +52,9 @@ class Senha:
         return asdict(self)
 
     @staticmethod
-    def from_row(linha: LinhaBanco) -> "Senha":
+    def from_row(linha: sqlite3.Row) -> "Senha":
         """Constrói uma instância de ``Senha`` a partir de uma linha do
-        banco de dados (dict-like, ex.: ``psycopg2.extras.RealDictRow``)."""
+        banco de dados (``sqlite3.Row``)."""
         return Senha(
             id=linha["id"],
             numero=linha["numero"],
@@ -87,8 +82,9 @@ class PerfilUsuario:
             senhas) — seu papel é de gestão do sistema, não de
             atendimento.
         ATENDENTE
-            Perfil "padrão" atribuído a quem se cadastra pela tela
-            pública de cadastro. Ao logar, assume automaticamente um
+            Perfil "padrão" sugerido ao administrador ao cadastrar um
+            novo usuário pela tela "Gerenciar Usuários" (não há
+            autocadastro público). Ao logar, assume automaticamente um
             guichê de atendimento disponível e é responsável por chamar,
             repetir chamada e finalizar o atendimento das senhas — a
             finalização já dispara automaticamente a chamada da próxima
@@ -137,7 +133,7 @@ class Usuario:
         return dados
 
     @staticmethod
-    def from_row(linha: LinhaBanco) -> "Usuario":
+    def from_row(linha: sqlite3.Row) -> "Usuario":
         return Usuario(
             id=linha["id"],
             nome_completo=linha["nome_completo"],
@@ -173,7 +169,7 @@ class ChamadaEvento:
         return asdict(self)
 
     @staticmethod
-    def from_row(linha: LinhaBanco) -> "ChamadaEvento":
+    def from_row(linha: sqlite3.Row) -> "ChamadaEvento":
         return ChamadaEvento(
             id=linha["id"],
             senha_id=linha["senha_id"],

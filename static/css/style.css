@@ -39,7 +39,10 @@ body {
 .pagina {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 24px;
+    padding: 40px 48px;
+    /* Espaço reservado para o rodapé fixo (ver .rodape-sigs), evitando
+       que o conteúdo final da página fique escondido atrás dele. */
+    padding-bottom: 88px;
 }
 
 .cabecalho {
@@ -49,8 +52,8 @@ body {
     background: var(--cor-branco);
     border-radius: var(--raio-borda);
     box-shadow: var(--sombra-padrao);
-    padding: 20px 28px;
-    margin-bottom: 24px;
+    padding: 28px 36px;
+    margin-bottom: 28px;
 }
 
 .cabecalho .logo {
@@ -74,7 +77,7 @@ body {
 .conteudo-principal {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 28px;
 }
 
 /* -------------------- Cards -------------------- */
@@ -82,7 +85,7 @@ body {
     background: var(--cor-branco);
     border-radius: var(--raio-borda);
     box-shadow: var(--sombra-padrao);
-    padding: 24px 28px;
+    padding: 32px 36px;
 }
 
 .card h2 {
@@ -527,6 +530,8 @@ input:focus, select:focus {
     align-items: center;
     justify-content: center;
     max-width: none;
+    /* Espaço reservado para o rodapé fixo (ver .rodape-sigs). */
+    padding-bottom: 88px;
 }
 
 .card-auth {
@@ -670,6 +675,26 @@ input:focus, select:focus {
     margin: 16px 0;
 }
 
+/* =============================================================
+   Rodapé fixo (versionamento do sistema)
+   ============================================================= */
+
+.rodape-sigs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 500;
+    background: var(--cor-principal);
+    color: rgba(255, 255, 255, 0.85);
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    padding: 12px 16px;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.12);
+}
+
 /* -------------------- Responsividade -------------------- */
 @media (max-width: 900px) {
     .painel-corpo {
@@ -688,7 +713,17 @@ input:focus, select:focus {
 
 @media (max-width: 600px) {
     .pagina {
-        padding: 14px;
+        padding: 20px;
+        padding-bottom: 76px;
+    }
+
+    .pagina-auth {
+        padding-bottom: 76px;
+    }
+
+    .rodape-sigs {
+        font-size: 0.75rem;
+        padding: 10px 12px;
     }
 
     .painel {

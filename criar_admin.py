@@ -18,10 +18,8 @@ Quando usar este script:
       implantação (deploy).
 
 Pré-requisitos:
-    - O PostgreSQL precisa estar rodando e acessível (ex.: já executou
-      "docker compose up -d" na raiz do projeto).
-    - As variáveis de ambiente / arquivo ".env" com os dados de conexão
-      devem estar configurados (ver ".env.example").
+    - Nenhum! O banco de dados é SQLite (arquivo único em
+      database/senhas.db, criado automaticamente se ainda não existir).
 
 Modo interativo (recomendado):
     python criar_admin.py
@@ -112,11 +110,10 @@ def main() -> None:
 
     try:
         database.inicializar_banco()
-    except Exception as erro:  # noqa: BLE001 - queremos capturar qualquer falha de conexão
+    except Exception as erro:  # noqa: BLE001 - queremos capturar qualquer falha inesperada
         print(
-            "\nNão foi possível conectar ao PostgreSQL.\n"
-            "Verifique se o container está rodando ('docker compose up -d') e se "
-            "o arquivo '.env' está configurado corretamente (ver '.env.example').\n"
+            "\nNão foi possível abrir o banco de dados SQLite "
+            "(database/senhas.db).\n"
             f"\nDetalhe técnico: {erro}"
         )
         sys.exit(1)

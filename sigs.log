@@ -132,3 +132,93 @@
 2026-08-13 09:20:56 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
 2026-08-13 09:20:58 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
 2026-08-13 09:20:58 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
+2026-08-13 09:44:40 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:42 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:45 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:47 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:49 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:51 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:53 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:55 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:57 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:59 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:44:59 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
+2026-08-13 09:53:15 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:17 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:19 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:21 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:23 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:25 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:27 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:29 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:32 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:34 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
+2026-08-13 09:53:34 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
+2026-08-13 09:57:36 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:38 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:41 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:43 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:45 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:47 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:49 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:51 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:53 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:55 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 09:57:55 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
+2026-08-13 10:01:07 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:09 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:12 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:14 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:16 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:18 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:20 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:22 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:24 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:26 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:01:26 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
+2026-08-13 10:03:13 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:15 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:17 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:19 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:21 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:23 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:25 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:28 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:30 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:32 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
+2026-08-13 10:03:32 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
+2026-08-13 10:16:57 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-13 10:17:26 | WARNING  | SIGS | Senha do usuário id=7 foi redefinida por um administrador.
+2026-08-13 10:17:26 | WARNING  | SIGS | Perfil do usuário id=7 alterado para 'admin'.
+2026-08-13 10:17:37 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-13 10:17:38 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-13 10:17:49 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
+2026-08-13 10:18:43 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'logo_path', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'cor_principal']
+2026-08-13 10:20:17 | INFO     | SIGS | Logout realizado: 'rsmatos'.
+2026-08-13 10:21:06 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
+2026-08-13 10:31:57 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-13 10:42:39 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-13 10:42:39 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-13 10:53:20 | WARNING  | SIGS | Senha do usuário id=2 foi redefinida por um administrador.
+2026-08-13 10:53:56 | WARNING  | SIGS | Senha do usuário id=2 foi redefinida por um administrador.
+2026-08-13 10:55:30 | INFO     | SIGS | Usuário 'mariamatos' cadastrado com perfil 'atendente'.
+2026-08-13 10:55:55 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'MariaMatos'.
+2026-08-13 10:55:55 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil atendente, guichê 1).
+2026-08-13 10:56:27 | WARNING  | SIGS | Perfil do usuário id=8 alterado para 'emissor'.
+2026-08-13 10:56:53 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-13 10:57:05 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-13 10:57:26 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-08-13 10:57:26 | INFO     | SIGS | Senha emitida: número 002 (id=2)
+2026-08-13 10:57:39 | INFO     | SIGS | Ticket impresso com sucesso: senha 002 na impressora 'Microsoft Print to PDF'.
+2026-08-13 10:59:25 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-08-13 10:59:25 | INFO     | SIGS | Senha emitida: número 003 (id=3)
+2026-08-13 10:59:50 | INFO     | SIGS | Ticket impresso com sucesso: senha 003 na impressora 'Microsoft Print to PDF'.
+2026-08-13 11:02:18 | INFO     | SIGS | Usuário 'teste03' cadastrado com perfil 'atendente'.
+2026-08-13 11:02:54 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Teste03'.
+2026-08-13 11:02:54 | INFO     | SIGS | Login realizado: 'teste03' (perfil atendente, guichê 1).
+2026-08-13 11:04:30 | INFO     | SIGS | Senha 002 chamada no guichê 'Guichê 01' por 'Teste03'.
+2026-08-13 11:05:01 | INFO     | SIGS | Senha 003 chamada no guichê 'Guichê 01' por 'Teste03'.
+2026-08-13 11:07:28 | INFO     | SIGS | Logout realizado: 'teste03'.
+2026-08-13 11:07:31 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-13 11:08:16 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-13 11:08:17 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
