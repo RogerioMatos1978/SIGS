@@ -46,6 +46,7 @@ class Senha:
     data_hora: str
     guiche: Optional[str] = None
     usuario: Optional[str] = None
+    empresa: Optional[str] = None
 
     def to_dict(self) -> dict:
         """Converte a senha para um dicionário serializável em JSON."""
@@ -62,6 +63,11 @@ class Senha:
             data_hora=linha["data_hora"],
             guiche=linha["guiche"],
             usuario=linha["usuario"],
+            # A coluna "empresa" foi adicionada por migração automática (ver
+            # database._migrar_tabela_senhas_adicionar_empresa); senhas
+            # emitidas antes dessa migração simplesmente terão este campo
+            # como None ("Não informado" nos relatórios).
+            empresa=linha["empresa"] if "empresa" in linha.keys() else None,
         )
 
 
@@ -177,4 +183,35 @@ class ChamadaEvento:
             guiche=linha["guiche"],
             usuario=linha["usuario"],
             data_hora=linha["data_hora"],
+        )
+
+
+@dataclass
+class Empresa:
+    """
+    Representa uma empresa participante do feirão do emprego.
+
+    Cadastrada exclusivamente por um administrador, pela tela "Empresas"
+    (``/admin/empresas``). Uma empresa ATIVA aparece no seletor exibido ao
+    emitir uma senha (ver index.html/index.js); uma empresa desativada some
+    desse seletor, mas o nome permanece gravado (como texto) em todas as
+    senhas já emitidas para ela — desativar uma empresa NUNCA apaga ou
+    altera o histórico de senhas/relatórios já gerados.
+    """
+
+    id: int
+    nome: str
+    ativa: bool
+    data_criacao: str
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @staticmethod
+    def from_row(linha: sqlite3.Row) -> "Empresa":
+        return Empresa(
+            id=linha["id"],
+            nome=linha["nome"],
+            ativa=bool(linha["ativa"]),
+            data_criacao=linha["data_criacao"],
         )

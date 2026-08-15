@@ -235,6 +235,7 @@ class ImpressoraTermica:
         numero: int,
         nome_evento: str,
         caminho_logo: Optional[str] = None,
+        nome_empresa: Optional[str] = None,
     ) -> None:
         """
         Imprime fisicamente o ticket da senha na impressora configurada.
@@ -245,11 +246,17 @@ class ImpressoraTermica:
             [logotipo SENAI, se disponível]
             [nome_evento]
             SENHA 001            <- Arial 65
+            [nome_empresa]       <- empresa selecionada na emissão
             Data
             Hora
             [Saudação]           <- Arial 45
             Bem-vindo ao SENAI.
             ==========================
+
+        ``nome_empresa`` é a empresa do feirão selecionada obrigatoriamente
+        no momento da emissão (ver app.py:api_emitir). Se omitido (ex.:
+        chamada direta desta função fora do fluxo normal da API), a linha
+        simplesmente não é impressa.
 
         Lança ``ErroImpressora`` em caso de qualquer falha de impressão.
         """
@@ -302,6 +309,14 @@ class ImpressoraTermica:
                 )
                 + espacamento
             )
+
+            # Empresa selecionada no momento da emissão (feirão do emprego).
+            if nome_empresa:
+                hdc.SelectObject(fonte_padrao)
+                y += (
+                    self._desenhar_texto_centralizado(hdc, nome_empresa, y, largura_pagina)
+                    + espacamento
+                )
 
             # Data e hora.
             hdc.SelectObject(fonte_padrao)

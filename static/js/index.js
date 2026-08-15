@@ -23,6 +23,8 @@ const elementoFilaTotal = document.getElementById("fila-total");
 const elementoNotificacoes = document.getElementById("area-notificacoes");
 const elementoModalImpressao = document.getElementById("modal-impressao");
 const elementoModalImpressoraSelect = document.getElementById("modal-impressora-select");
+const elementoModalEmpresaSelect = document.getElementById("modal-empresa-select");
+const elementoModalEmpresaAviso = document.getElementById("modal-empresa-aviso");
 
 const TEMPO_ATUALIZACAO_MS = (window.SIGS_CONFIG && window.SIGS_CONFIG.tempoAtualizacaoMs) || 2000;
 
@@ -100,12 +102,14 @@ function vincularClique(idElemento, manipulador) {
  * @param {string} [nomeImpressora] - Impressora escolhida na janela de
  *   impressão (ver abrirModalImpressao). Se vazio/omitido, o servidor usa
  *   a impressora padrão configurada em Configurações.
+ * @param {string} empresaId - Id da empresa selecionada (obrigatório —
+ *   o servidor rejeita a emissão se este campo estiver ausente/inválido).
  */
-async function emitirSenha(nomeImpressora = "") {
+async function emitirSenha(nomeImpressora = "", empresaId = "") {
     try {
         const dados = await chamarApi("/api/emitir", {
             method: "POST",
-            body: JSON.stringify({ impressora: nomeImpressora }),
+            body: JSON.stringify({ impressora: nomeImpressora, empresa_id: empresaId }),
         });
 
         const numero = String(dados.senha.numero).padStart(3, "0");
@@ -122,21 +126,22 @@ async function emitirSenha(nomeImpressora = "") {
 }
 
 /**
- * Abre a janela (modal) de escolha de impressora, exibida sempre que o
- * usuário clica em "Emitir Senha". Busca a lista de impressoras
- * instaladas no Windows via /api/impressoras e popula o seletor,
- * mantendo a opção "Impressora padrão do sistema" sempre disponível.
+ * Abre a janela (modal) de escolha de empresa/impressora, exibida sempre
+ * que o usuário clica em "Emitir Senha". Busca a lista de empresas ATIVAS
+ * via /api/empresas (seleção obrigatória) e a lista de impressoras
+ * instaladas no Windows via /api/impressoras (opcional), populando os
+ * respectivos seletores.
  */
 async function abrirModalImpressao() {
     if (!elementoModalImpressao) {
         // Segurança: se o modal não existir no HTML (perfil sem permissão
-        // de emissão), apenas emite direto com a impressora padrão.
-        await emitirSenha();
+        // de emissão), não há como escolher a empresa — não emite.
         return;
     }
 
-    // Reseta o seletor para apenas a opção padrão enquanto carrega a lista,
-    // evitando mostrar impressoras de uma abertura anterior do modal.
+    // Reseta o seletor de impressora para apenas a opção padrão enquanto
+    // carrega a lista, evitando mostrar impressoras de uma abertura
+    // anterior do modal.
     elementoModalImpressoraSelect.innerHTML = '<option value="">Impressora padrão do sistema</option>';
 
     try {
@@ -153,7 +158,47 @@ async function abrirModalImpressao() {
         console.error("Não foi possível listar impressoras:", erro);
     }
 
+    await carregarEmpresasNoModal();
+
     elementoModalImpressao.classList.remove("modal-oculto");
+}
+
+/**
+ * Busca as empresas ATIVAS via /api/empresas e popula o seletor de
+ * empresa do modal de emissão. Se não houver nenhuma empresa cadastrada
+ * (ou todas estiverem inativas), exibe um aviso orientando a procurar um
+ * administrador, já que a seleção de empresa é obrigatória para emitir.
+ */
+async function carregarEmpresasNoModal() {
+    if (!elementoModalEmpresaSelect) {
+        return;
+    }
+
+    elementoModalEmpresaSelect.innerHTML = '<option value="" disabled selected>Selecione a empresa...</option>';
+    elementoModalEmpresaAviso.textContent = "";
+
+    try {
+        const dados = await chamarApi("/api/empresas");
+        const empresas = dados.empresas || [];
+
+        empresas.forEach((empresa) => {
+            const opcao = document.createElement("option");
+            opcao.value = empresa.id;
+            opcao.textContent = empresa.nome;
+            elementoModalEmpresaSelect.appendChild(opcao);
+        });
+
+        if (empresas.length === 0) {
+            elementoModalEmpresaAviso.textContent =
+                "Nenhuma empresa cadastrada. Peça a um administrador para cadastrar em Administração > Empresas.";
+            elementoModalEmpresaSelect.disabled = true;
+        } else {
+            elementoModalEmpresaSelect.disabled = false;
+        }
+    } catch (erro) {
+        elementoModalEmpresaAviso.textContent = `Não foi possível carregar as empresas: ${erro.message}`;
+        elementoModalEmpresaSelect.disabled = true;
+    }
 }
 
 /** Fecha a janela de escolha de impressora sem emitir nenhuma senha. */
@@ -163,11 +208,22 @@ function fecharModalImpressao() {
     }
 }
 
-/** Confirma a impressora escolhida na janela e emite a senha. */
+/**
+ * Confirma a empresa e a impressora escolhidas na janela e emite a
+ * senha. A empresa é obrigatória: se nenhuma estiver selecionada, a
+ * janela permanece aberta e um aviso é exibido, sem chamar a API.
+ */
 async function confirmarImpressaoEEmitir() {
+    const empresaId = elementoModalEmpresaSelect ? elementoModalEmpresaSelect.value : "";
+
+    if (!empresaId) {
+        elementoModalEmpresaAviso.textContent = "Selecione a empresa antes de emitir a senha.";
+        return;
+    }
+
     const nomeImpressora = elementoModalImpressoraSelect ? elementoModalImpressoraSelect.value : "";
     fecharModalImpressao();
-    await emitirSenha(nomeImpressora);
+    await emitirSenha(nomeImpressora, empresaId);
 }
 
 /**
@@ -355,6 +411,7 @@ function inicializar() {
     vincularClique("btn-configuracoes", () => { window.location.href = "/configuracoes"; });
     vincularClique("btn-relatorios", () => { window.location.href = "/relatorios"; });
     vincularClique("btn-usuarios", () => { window.location.href = "/admin/usuarios"; });
+    vincularClique("btn-empresas", () => { window.location.href = "/admin/empresas"; });
     vincularClique("btn-reiniciar", reiniciarContador);
 
     atualizarFila();

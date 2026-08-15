@@ -675,6 +675,14 @@ input:focus, select:focus {
     margin: 16px 0;
 }
 
+.campo-obrigatorio {
+    color: var(--cor-erro);
+}
+
+#modal-empresa-aviso:empty {
+    display: none;
+}
+
 /* =============================================================
    Rodapé fixo (versionamento do sistema)
    ============================================================= */

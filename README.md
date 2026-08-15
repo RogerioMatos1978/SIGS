@@ -15,7 +15,7 @@ SIGS/
 ├── auth.py                  # Autenticação, sessão de login e atribuição de guichê
 ├── database.py             # Acesso ao SQLite (CRUD, fila FIFO, usuários, relatórios)
 ├── printer.py               # Impressão física do ticket (win32print/win32ui)
-├── models.py                # Modelos de dados (Senha, ChamadaEvento, Usuario)
+├── models.py                # Modelos de dados (Senha, ChamadaEvento, Usuario, Empresa)
 ├── config.py                # Configurações, caminhos, logger e chave de sessão
 ├── criar_admin.py           # Script de linha de comando para criar/resetar o administrador
 ├── requirements.txt
@@ -29,12 +29,14 @@ SIGS/
 │   │   ├── configuracoes.js
 │   │   ├── relatorios.js
 │   │   ├── usuarios.js       # Administração de usuários
+│   │   ├── empresas.js       # Administração de empresas do feirão
 │   │   └── bip.js            # Web Audio API (bip sonoro)
 │   └── img/logo.png          # Logotipo (placeholder — substituir)
 ├── templates/
 │   ├── layout.html
 │   ├── login.html
 │   ├── usuarios.html
+│   ├── empresas.html
 │   ├── index.html
 │   ├── painel.html
 │   ├── configuracoes.html
@@ -179,6 +181,7 @@ outros administradores) pela tela Usuários.
 | Configurações do sistema | ❌ | ❌ | ✅ |
 | Relatórios (CSV/Excel/PDF) | ❌ | ❌ | ✅ |
 | Gerenciar usuários | ❌ | ❌ | ✅ |
+| Gerenciar empresas do feirão | ❌ | ❌ | ✅ |
 | Reiniciar contador de senhas | ❌ | ❌ | ✅ |
 | Resetar senha de outro usuário | ❌ | ❌ | ✅ |
 | Resetar (apagar) todas as senhas emitidas | ❌ | ❌ | ✅ |
@@ -215,6 +218,34 @@ como erro, é uma situação normal de baixa demanda momentânea).
   apaga PERMANENTEMENTE todo o histórico de senhas e chamadas, e também
   reinicia o contador. Use apenas ao iniciar um evento totalmente novo.
 
+### 4.5 Empresas do feirão do emprego
+
+O SIGS permite cadastrar as empresas participantes de cada feirão do
+emprego, exigindo a escolha de uma empresa toda vez que uma senha é
+emitida — o nome da empresa também sai impresso no próprio ticket.
+
+- **Cadastro** (`/admin/empresas`, restrito a administradores): cadastrar
+  uma nova empresa, renomear uma já existente, e ativar/desativar. Apenas
+  empresas **ativas** aparecem no seletor de emissão.
+- **Emissão** (tela principal, perfil "Emissor"): ao clicar em "Emitir
+  Senha", a janela que se abre agora exige a escolha da empresa (campo
+  obrigatório) antes de confirmar a impressão — o servidor rejeita a
+  emissão caso nenhuma empresa válida e ativa seja informada, mesmo que
+  alguém tente contornar o formulário.
+- **Impressão**: o nome da empresa selecionada é impresso logo abaixo do
+  número da senha no próprio ticket (ver `printer.py`).
+- **Relatórios**: a tela de Relatórios ganhou um filtro por empresa
+  (incluindo empresas já desativadas, para não perder o histórico de
+  eventos passados) e uma tabela "Senhas por Empresa" com a contagem de
+  senhas emitidas para cada uma no período selecionado.
+- **Desativar não apaga histórico**: renomear ou desativar uma empresa
+  nunca altera o nome já gravado em senhas emitidas anteriormente — o
+  nome fica congelado no ticket/relatório no momento da emissão.
+
+> Se nenhuma empresa estiver cadastrada (ou todas estiverem inativas), a
+> janela de emissão exibe um aviso orientando a procurar um
+> administrador — não é possível emitir senha sem selecionar uma empresa.
+
 ---
 
 ## 5. Execução
@@ -235,6 +266,7 @@ Antes do primeiro acesso, crie o administrador com `python criar_admin.py`
 - `http://localhost:5000/configuracoes` — Configurações do sistema (admin).
 - `http://localhost:5000/relatorios` — Relatórios (CSV/Excel/PDF) (admin).
 - `http://localhost:5000/admin/usuarios` — Gerenciar usuários (admin).
+- `http://localhost:5000/admin/empresas` — Gerenciar empresas do feirão (admin).
 
 ### 5.2 Modo produção (recomendado)
 
@@ -319,16 +351,19 @@ sem perda de dados e sem deslogar os usuários.
 
 ## 9. Relatórios
 
-A tela de Relatórios permite filtrar por período (data início/fim) e por
-tipo (senhas emitidas ou chamadas realizadas), exportando em três
-formatos:
+A tela de Relatórios permite filtrar por período (data início/fim), por
+tipo (senhas emitidas ou chamadas realizadas) e por empresa do feirão
+(incluindo empresas já desativadas, para consultar eventos passados),
+exportando em três formatos:
 
 - **CSV** — compatível com Excel, Google Sheets, etc.
 - **Excel (.xlsx)** — planilha formatada, pronta para análise.
 - **PDF** — relatório gerencial formatado para impressão/arquivamento.
 
 Também é exibido um resumo com o tempo médio de atendimento (intervalo
-entre a emissão e a primeira chamada de cada senha).
+entre a emissão e a primeira chamada de cada senha) e uma tabela "Senhas
+por Empresa", com a contagem de senhas emitidas para cada empresa dentro
+do período selecionado.
 
 > Importante: o uso de PDF nos relatórios gerenciais é independente da
 > impressão do ticket de senha, que nunca utiliza PDF — o ticket é
@@ -418,12 +453,13 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | `GET /configuracoes` | Admin | Configurações do sistema |
 | `GET /relatorios` | Admin | Geração de relatórios |
 | `GET /admin/usuarios` | Admin | Gerenciamento de usuários e guichês |
+| `GET /admin/empresas` | Admin | Gerenciamento de empresas do feirão |
 
 ### 12.2 Rotas de API (JSON)
 
 | Rota | Acesso | Descrição |
 |---|---|---|
-| `POST /api/emitir` | Login | Emite uma nova senha (grava + imprime) |
+| `POST /api/emitir` | Login | Emite uma nova senha (grava + imprime); exige `empresa_id` no corpo |
 | `POST /api/chamar` | Login | Chama a próxima senha da fila |
 | `POST /api/repetir` | Login | Repete a última chamada |
 | `POST /api/finalizar-atendimento` | Login | Finaliza o atendimento e chama a próxima |
@@ -434,13 +470,18 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | `POST /api/senha/<id>/cancelar` | Login | Cancela uma senha específica |
 | `GET/POST /api/config` | Admin | Lê/atualiza as configurações do sistema |
 | `GET /api/impressoras` | Login | Lista as impressoras instaladas no Windows |
-| `GET /api/relatorios/{csv,excel,pdf,resumo}` | Admin | Exporta/consulta relatórios |
+| `GET /api/empresas` | Login | Lista as empresas ATIVAS (seletor de emissão) |
+| `GET /api/relatorios/{csv,excel,pdf,resumo}` | Admin | Exporta/consulta relatórios (aceitam filtro `empresa`) |
 | `POST /api/admin/usuarios` | Admin | Cria um usuário com perfil escolhido |
 | `POST /api/admin/usuarios/<id>/resetar-senha` | Admin | Reseta a senha de um usuário |
 | `POST /api/admin/usuarios/<id>/perfil` | Admin | Altera o perfil de um usuário |
 | `POST /api/admin/usuarios/<id>/status` | Admin | Ativa/desativa um usuário |
 | `POST /api/admin/reset-senhas-emitidas` | Admin | Apaga todo o histórico de senhas |
 | `GET /api/admin/guiches` | Admin | Lista os guichês atualmente ocupados |
+| `GET /api/admin/empresas` | Admin | Lista TODAS as empresas (ativas e inativas) |
+| `POST /api/admin/empresas` | Admin | Cadastra uma nova empresa |
+| `POST /api/admin/empresas/<id>/renomear` | Admin | Renomeia uma empresa |
+| `POST /api/admin/empresas/<id>/status` | Admin | Ativa/desativa uma empresa |
 
 ### 12.3 Melhorias de usabilidade desta versão
 

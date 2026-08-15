@@ -17,6 +17,7 @@ Rotas principais:
     GET/POST /login             Autenticação de usuários
     POST /logout                Encerra sessão e libera o guichê
     GET  /admin/usuarios        Gerenciamento de usuários [admin]
+    GET  /admin/empresas        Gerenciamento de empresas do feirão [admin]
 
     POST /api/emitir            Emite uma nova senha (grava + imprime)
     POST /api/chamar            Chama a próxima senha da fila (FIFO)
@@ -31,6 +32,7 @@ Rotas principais:
     GET  /api/config            Retorna as configurações atuais (JSON)
     POST /api/config            Atualiza as configurações do sistema
     GET  /api/impressoras       Lista as impressoras instaladas no Windows
+    GET  /api/empresas          Lista as empresas ATIVAS (seletor de emissão)
 
     GET  /api/relatorios/csv        Exporta relatório em CSV
     GET  /api/relatorios/excel      Exporta relatório em Excel (.xlsx)
@@ -284,6 +286,26 @@ def usuarios_tela():
 
 
 # ---------------------------------------------------------------------------
+# Administração de empresas do feirão (apenas administradores)
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/empresas")
+@auth.login_required
+@auth.admin_required
+def empresas_tela():
+    """Tela de gerenciamento das empresas participantes do feirão do
+    emprego: cadastro, renomeação e ativação/desativação. Acesso restrito
+    a administradores. Empresas ativas aparecem no seletor exibido ao
+    emitir uma senha (ver index.html/index.js)."""
+    empresas = database.listar_empresas()
+    return render_template(
+        "empresas.html",
+        config=config_manager.obter_todas(),
+        empresas=empresas,
+    )
+
+
+# ---------------------------------------------------------------------------
 # API - Emissão e chamada de senhas
 # ---------------------------------------------------------------------------
 
@@ -306,16 +328,36 @@ def api_emitir():
     index.js). Se omitido ou vazio, usa a impressora padrão configurada em
     Configurações (ou a impressora padrão do Windows, se nenhuma estiver
     configurada).
+
+    O corpo da requisição DEVE incluir ``{"empresa_id": <int>}``: a
+    seleção da empresa do feirão é obrigatória para emitir uma senha (ver
+    tela "Empresas", /admin/empresas). A empresa é validada no servidor
+    (existe e está ativa) — nunca confiamos apenas na validação do
+    formulário no navegador.
     """
     try:
         dados = request.get_json(silent=True) or {}
         impressora_escolhida = str(dados.get("impressora") or "").strip()
+        empresa_id_bruto = dados.get("empresa_id")
+
+        if empresa_id_bruto in (None, ""):
+            return resposta_erro("Selecione a empresa para emitir a senha.", 400)
+        try:
+            empresa_id = int(empresa_id_bruto)
+        except (TypeError, ValueError):
+            return resposta_erro("Empresa inválida.", 400)
+
+        empresa = database.obter_empresa_por_id(empresa_id)
+        if empresa is None or not empresa.ativa:
+            return resposta_erro(
+                "Empresa inválida ou inativa. Atualize a página e tente novamente.", 400
+            )
 
         usuario_sessao = auth.usuario_logado()
         guiche = f"Guichê {usuario_sessao['guiche']:02d}" if usuario_sessao.get("guiche") else None
         usuario = usuario_sessao.get("nome_completo")
 
-        senha = database.criar_senha(guiche=guiche, usuario=usuario)
+        senha = database.criar_senha(guiche=guiche, usuario=usuario, empresa=empresa.nome)
 
         erro_impressao = None
         try:
@@ -326,6 +368,7 @@ def api_emitir():
                 numero=senha.numero,
                 nome_evento=configuracoes.get("nome_evento", ""),
                 caminho_logo=configuracoes.get("logo_path"),
+                nome_empresa=empresa.nome,
             )
         except ErroImpressora as erro:
             erro_impressao = str(erro)
@@ -537,15 +580,31 @@ def api_impressoras():
     return resposta_sucesso({"impressoras": ImpressoraTermica.listar_impressoras_instaladas()})
 
 
+@app.route("/api/empresas")
+@auth.login_required
+def api_empresas():
+    """
+    Lista as empresas ATIVAS do feirão, usadas para popular o seletor de
+    empresa exibido ao emitir uma senha (ver index.html/index.js).
+
+    Assim como ``/api/impressoras``, é acessível a QUALQUER usuário
+    logado (não apenas administradores), pois é o perfil "emissor" — não
+    o admin — quem efetivamente emite senhas.
+    """
+    return resposta_sucesso({"empresas": database.listar_empresas(somente_ativas=True)})
+
+
 # ---------------------------------------------------------------------------
 # API - Relatórios
 # ---------------------------------------------------------------------------
 
 def _parametros_periodo():
-    """Extrai e retorna os parâmetros de período (inicio/fim) da querystring."""
+    """Extrai e retorna os parâmetros de período (inicio/fim) e o filtro
+    opcional de empresa (nome exato) da querystring."""
     inicio = request.args.get("inicio") or None
     fim = request.args.get("fim") or None
-    return inicio, fim
+    empresa = request.args.get("empresa") or None
+    return inicio, fim, empresa
 
 
 @app.route("/api/relatorios/resumo")
@@ -553,18 +612,22 @@ def _parametros_periodo():
 @auth.admin_required
 def api_relatorios_resumo():
     """Retorna um resumo estatístico (JSON) para exibição na tela de
-    relatórios: total emitidas, total chamadas e tempo médio de espera."""
+    relatórios: total emitidas, total chamadas, tempo médio de espera e a
+    contagem de senhas emitidas por empresa (``por_empresa``), opcional-
+    mente filtrado por uma empresa específica (querystring ``empresa``)."""
     try:
-        inicio, fim = _parametros_periodo()
-        emitidas = database.listar_senhas_periodo(inicio, fim)
-        chamadas = database.listar_chamadas_periodo(inicio, fim)
-        tempo_medio = database.tempo_medio_atendimento(inicio, fim)
+        inicio, fim, empresa = _parametros_periodo()
+        emitidas = database.listar_senhas_periodo(inicio, fim, empresa=empresa)
+        chamadas = database.listar_chamadas_periodo(inicio, fim, empresa=empresa)
+        tempo_medio = database.tempo_medio_atendimento(inicio, fim, empresa=empresa)
+        por_empresa = database.listar_contagem_por_empresa(inicio, fim)
 
         return resposta_sucesso(
             {
                 "total_emitidas": len(emitidas),
                 "total_chamadas": len(chamadas),
                 "tempo_medio": tempo_medio,
+                "por_empresa": por_empresa,
             }
         )
     except Exception as erro:  # pragma: no cover
@@ -578,23 +641,29 @@ def api_relatorios_csv():
     """Gera e retorna um relatório em formato CSV para download."""
     try:
         tipo = request.args.get("tipo", "emitidas")
-        inicio, fim = _parametros_periodo()
+        inicio, fim, empresa = _parametros_periodo()
 
         buffer_texto = io.StringIO()
         escritor = csv.writer(buffer_texto, delimiter=";")
 
         if tipo == "chamadas":
-            escritor.writerow(["ID Evento", "ID Senha", "Número", "Guichê", "Usuário", "Data/Hora"])
-            for item in database.listar_chamadas_periodo(inicio, fim):
+            escritor.writerow(["ID Evento", "ID Senha", "Número", "Empresa", "Guichê", "Usuário", "Data/Hora"])
+            for item in database.listar_chamadas_periodo(inicio, fim, empresa=empresa):
                 escritor.writerow(
-                    [item["id"], item["senha_id"], item["numero"], item["guiche"], item["usuario"], item["data_hora"]]
+                    [
+                        item["id"], item["senha_id"], item["numero"], item.get("empresa") or "-",
+                        item["guiche"], item["usuario"], item["data_hora"],
+                    ]
                 )
             nome_arquivo = "relatorio_chamadas.csv"
         else:
-            escritor.writerow(["ID", "Número", "Status", "Data/Hora", "Guichê", "Usuário"])
-            for item in database.listar_senhas_periodo(inicio, fim):
+            escritor.writerow(["ID", "Número", "Status", "Empresa", "Data/Hora", "Guichê", "Usuário"])
+            for item in database.listar_senhas_periodo(inicio, fim, empresa=empresa):
                 escritor.writerow(
-                    [item["id"], item["numero"], item["status"], item["data_hora"], item["guiche"], item["usuario"]]
+                    [
+                        item["id"], item["numero"], item["status"], item.get("empresa") or "-",
+                        item["data_hora"], item["guiche"], item["usuario"],
+                    ]
                 )
             nome_arquivo = "relatorio_emitidas.csv"
 
@@ -625,27 +694,33 @@ def api_relatorios_excel():
         from openpyxl.styles import Font
 
         tipo = request.args.get("tipo", "emitidas")
-        inicio, fim = _parametros_periodo()
+        inicio, fim, empresa = _parametros_periodo()
 
         pasta = Workbook()
         planilha = pasta.active
 
         if tipo == "chamadas":
             planilha.title = "Chamadas"
-            cabecalho = ["ID Evento", "ID Senha", "Número", "Guichê", "Usuário", "Data/Hora"]
+            cabecalho = ["ID Evento", "ID Senha", "Número", "Empresa", "Guichê", "Usuário", "Data/Hora"]
             planilha.append(cabecalho)
-            for item in database.listar_chamadas_periodo(inicio, fim):
+            for item in database.listar_chamadas_periodo(inicio, fim, empresa=empresa):
                 planilha.append(
-                    [item["id"], item["senha_id"], item["numero"], item["guiche"], item["usuario"], item["data_hora"]]
+                    [
+                        item["id"], item["senha_id"], item["numero"], item.get("empresa") or "-",
+                        item["guiche"], item["usuario"], item["data_hora"],
+                    ]
                 )
             nome_arquivo = "relatorio_chamadas.xlsx"
         else:
             planilha.title = "Emitidas"
-            cabecalho = ["ID", "Número", "Status", "Data/Hora", "Guichê", "Usuário"]
+            cabecalho = ["ID", "Número", "Status", "Empresa", "Data/Hora", "Guichê", "Usuário"]
             planilha.append(cabecalho)
-            for item in database.listar_senhas_periodo(inicio, fim):
+            for item in database.listar_senhas_periodo(inicio, fim, empresa=empresa):
                 planilha.append(
-                    [item["id"], item["numero"], item["status"], item["data_hora"], item["guiche"], item["usuario"]]
+                    [
+                        item["id"], item["numero"], item["status"], item.get("empresa") or "-",
+                        item["data_hora"], item["guiche"], item["usuario"],
+                    ]
                 )
             nome_arquivo = "relatorio_emitidas.xlsx"
 
@@ -688,7 +763,7 @@ def api_relatorios_pdf():
         from reportlab.lib.styles import getSampleStyleSheet
 
         tipo = request.args.get("tipo", "emitidas")
-        inicio, fim = _parametros_periodo()
+        inicio, fim, empresa = _parametros_periodo()
 
         buffer_bytes = io.BytesIO()
         documento = SimpleDocTemplate(buffer_bytes, pagesize=A4)
@@ -700,13 +775,14 @@ def api_relatorios_pdf():
         elementos.append(Spacer(1, 0.5 * cm))
 
         if tipo == "chamadas":
-            dados_tabela = [["ID Evento", "ID Senha", "Número", "Guichê", "Usuário", "Data/Hora"]]
-            for item in database.listar_chamadas_periodo(inicio, fim):
+            dados_tabela = [["ID Evento", "ID Senha", "Número", "Empresa", "Guichê", "Usuário", "Data/Hora"]]
+            for item in database.listar_chamadas_periodo(inicio, fim, empresa=empresa):
                 dados_tabela.append(
                     [
                         str(item["id"]),
                         str(item["senha_id"]),
                         f"{item['numero']:03d}",
+                        item.get("empresa") or "-",
                         item["guiche"] or "-",
                         item["usuario"] or "-",
                         item["data_hora"],
@@ -714,13 +790,14 @@ def api_relatorios_pdf():
                 )
             nome_arquivo = "relatorio_chamadas.pdf"
         else:
-            dados_tabela = [["ID", "Número", "Status", "Data/Hora", "Guichê", "Usuário"]]
-            for item in database.listar_senhas_periodo(inicio, fim):
+            dados_tabela = [["ID", "Número", "Status", "Empresa", "Data/Hora", "Guichê", "Usuário"]]
+            for item in database.listar_senhas_periodo(inicio, fim, empresa=empresa):
                 dados_tabela.append(
                     [
                         str(item["id"]),
                         f"{item['numero']:03d}",
                         item["status"],
+                        item.get("empresa") or "-",
                         item["data_hora"],
                         item["guiche"] or "-",
                         item["usuario"] or "-",
@@ -729,7 +806,7 @@ def api_relatorios_pdf():
             nome_arquivo = "relatorio_emitidas.pdf"
 
         # Inclui o resumo de tempo médio de atendimento ao final do relatório.
-        tempo_medio = database.tempo_medio_atendimento(inicio, fim)
+        tempo_medio = database.tempo_medio_atendimento(inicio, fim, empresa=empresa)
 
         tabela = Table(dados_tabela, repeatRows=1)
         tabela.setStyle(
@@ -902,6 +979,85 @@ def api_admin_reset_senhas_emitidas():
 def api_admin_guiches():
     """Retorna a lista de guichês atualmente ocupados (monitoramento)."""
     return resposta_sucesso({"guiches": database.listar_guiches_ocupados()})
+
+
+# ---------------------------------------------------------------------------
+# API - Administração de empresas do feirão (apenas administradores)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/admin/empresas", methods=["GET"])
+@auth.login_required
+@auth.admin_required
+def api_admin_listar_empresas():
+    """
+    Lista TODAS as empresas (ativas e inativas).
+
+    Usada pelo filtro de empresa da tela de Relatórios: diferente do
+    seletor de emissão (``/api/empresas``, só ativas), o filtro de
+    relatórios precisa incluir empresas já desativadas, já que o
+    histórico de senhas emitidas para elas continua consultável.
+    """
+    return resposta_sucesso({"empresas": database.listar_empresas()})
+
+
+@app.route("/api/admin/empresas", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_criar_empresa():
+    """Cadastra uma nova empresa participante do feirão do emprego."""
+    try:
+        dados = request.get_json(silent=True) or {}
+        nome = str(dados.get("nome") or "").strip()
+
+        if not nome:
+            return resposta_erro("Informe o nome da empresa.", 400)
+
+        empresa = database.criar_empresa(nome)
+        return resposta_sucesso({"empresa": empresa.to_dict()}, 201)
+
+    except ValueError as erro:
+        return resposta_erro(str(erro), 409)
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao cadastrar empresa: {erro}", 500)
+
+
+@app.route("/api/admin/empresas/<int:empresa_id>/renomear", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_renomear_empresa(empresa_id: int):
+    """Renomeia uma empresa já cadastrada. Senhas já emitidas para ela
+    mantêm o nome antigo gravado (sem retroatividade)."""
+    try:
+        dados = request.get_json(silent=True) or {}
+        novo_nome = str(dados.get("nome") or "").strip()
+
+        if database.renomear_empresa(empresa_id, novo_nome):
+            return resposta_sucesso({"mensagem": "Empresa renomeada com sucesso."})
+        return resposta_erro("Empresa não encontrada.", 404)
+
+    except ValueError as erro:
+        return resposta_erro(str(erro), 409)
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao renomear empresa: {erro}", 500)
+
+
+@app.route("/api/admin/empresas/<int:empresa_id>/status", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_status_empresa(empresa_id: int):
+    """Ativa ou desativa uma empresa. Empresas inativas deixam de aparecer
+    no seletor de emissão de senha, mas o histórico de senhas já emitidas
+    para elas permanece intacto para fins de relatório."""
+    try:
+        dados = request.get_json(silent=True) or {}
+        ativa = bool(dados.get("ativa", True))
+
+        if database.definir_status_empresa(empresa_id, ativa):
+            return resposta_sucesso({"mensagem": "Status da empresa atualizado."})
+        return resposta_erro("Empresa não encontrada.", 404)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao atualizar status da empresa: {erro}", 500)
 
 
 # ---------------------------------------------------------------------------

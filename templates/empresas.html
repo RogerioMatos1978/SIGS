@@ -1,0 +1,94 @@
+<!--
+    empresas.html
+    =============
+    Painel de administracao das empresas participantes do feirao do
+    emprego. Acesso restrito a administradores (rota protegida por
+    auth.login_required + auth.admin_required em app.py). Permite
+    cadastrar, renomear e ativar/desativar empresas. Apenas empresas
+    ATIVAS aparecem no seletor exibido ao emitir uma senha (ver
+    index.html/index.js).
+-->
+{% extends "layout.html" %}
+
+{% block titulo %}SIGS - Empresas{% endblock %}
+
+{% block conteudo %}
+<div class="pagina pagina-empresas">
+
+    <header class="cabecalho">
+        <img class="logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo SENAI">
+        <div class="titulo-evento">
+            <h1>Empresas do Feirão</h1>
+            <p>Cadastro das empresas selecionáveis na emissão de senhas</p>
+        </div>
+    </header>
+
+    <main class="conteudo-principal">
+
+        <section class="card card-formulario">
+            <h2>Nova Empresa</h2>
+            <p>
+                Toda empresa cadastrada aqui e marcada como <strong>Ativa</strong>
+                passa a aparecer no seletor exibido ao emitir uma senha.
+                Desativar uma empresa não apaga o histórico de senhas já
+                emitidas para ela.
+            </p>
+            <form id="form-nova-empresa">
+                <div class="campos-identificacao">
+                    <label>
+                        Nome da Empresa
+                        <input type="text" id="nova-empresa-nome" required>
+                    </label>
+                </div>
+                <button type="submit" class="botao botao-primario">➕ Cadastrar Empresa</button>
+                <div id="nova-empresa-mensagem" class="mensagem-status"></div>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>Empresas Cadastradas</h2>
+            <table class="tabela-fila">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Status</th>
+                        <th>Cadastrada em</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="empresas-corpo">
+                    {% for empresa in empresas %}
+                    <tr data-empresa-id="{{ empresa.id }}">
+                        <td class="celula-nome-empresa">{{ empresa.nome }}</td>
+                        <td>
+                            <span class="status-badge-{{ 'ativo' if empresa.ativa else 'inativo' }}">
+                                {{ 'Ativa' if empresa.ativa else 'Inativa' }}
+                            </span>
+                        </td>
+                        <td>{{ empresa.data_criacao }}</td>
+                        <td class="acoes-usuario">
+                            <button class="botao botao-secundario botao-acao-pequeno btn-renomear-empresa" data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}">
+                                ✏️ Renomear
+                            </button>
+                            <button class="botao {{ 'botao-alerta' if empresa.ativa else 'botao-primario' }} botao-acao-pequeno btn-toggle-status-empresa"
+                                    data-empresa-id="{{ empresa.id }}" data-ativa="{{ empresa.ativa | lower }}">
+                                {{ '🚫 Desativar' if empresa.ativa else '✅ Ativar' }}
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4">Nenhuma empresa cadastrada ainda.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <a href="{{ url_for('index') }}" class="botao botao-terciario">← Voltar</a>
+    </main>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/empresas.js') }}"></script>
+{% endblock %}

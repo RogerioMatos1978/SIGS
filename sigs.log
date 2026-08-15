@@ -222,3 +222,24 @@
 2026-08-13 11:07:31 | INFO     | SIGS | Logout realizado: 'mariamatos'.
 2026-08-13 11:08:16 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
 2026-08-13 11:08:17 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-14 08:59:12 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-14 08:59:13 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-14 08:59:29 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
+2026-08-14 09:38:57 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'logo_path', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'cor_principal']
+2026-08-14 09:49:12 | WARNING  | SIGS | Esquema antigo da tabela 'senhas' detectado (sem a coluna 'empresa'). Adicionando automaticamente...
+2026-08-14 09:49:12 | WARNING  | SIGS | Migração concluída: a tabela 'senhas' agora possui a coluna 'empresa'. Senhas emitidas antes desta atualização ficam sem empresa associada (exibidas como 'Não informado' nos relatórios).
+2026-08-14 09:49:12 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-14 09:55:06 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-14 09:55:07 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-14 09:55:22 | INFO     | SIGS | Empresa 'COMIGO' cadastrada (id=1).
+2026-08-14 09:55:29 | INFO     | SIGS | Empresa 'IMPASA' cadastrada (id=2).
+2026-08-14 11:27:08 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-14 11:27:30 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-08-14 11:27:30 | INFO     | SIGS | Senha emitida: número 004 (id=4, empresa='COMIGO')
+2026-08-14 11:27:40 | INFO     | SIGS | Ticket impresso com sucesso: senha 004 na impressora 'Microsoft Print to PDF'.
+2026-08-14 11:28:46 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-08-14 11:28:46 | INFO     | SIGS | Senha emitida: número 005 (id=5, empresa='IMPASA')
+2026-08-14 11:28:55 | INFO     | SIGS | Ticket impresso com sucesso: senha 005 na impressora 'Microsoft Print to PDF'.
+2026-08-14 11:29:43 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-14 12:44:03 | WARNING  | SIGS | Senha id=5 cancelada.
+2026-08-14 12:44:05 | WARNING  | SIGS | Senha id=4 cancelada.

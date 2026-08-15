@@ -22,7 +22,7 @@ de strings, prevenindo SQL Injection.
 Tabelas criadas:
 
     senhas
-        id, numero, status, data_hora, guiche, usuario
+        id, numero, status, data_hora, guiche, usuario, empresa
 
     eventos_chamada
         id, senha_id, numero, guiche, usuario, data_hora
@@ -37,6 +37,12 @@ Tabelas criadas:
 
     guiches_ocupados
         guiche, usuario_id, usuario_nome, ocupado_desde
+
+    empresas
+        id, nome, ativa, data_criacao
+        (empresas participantes do feirão do emprego; o nome é gravado
+        como texto na própria senha no momento da emissão — ver
+        criar_empresa/listar_empresas mais abaixo)
 """
 
 import sqlite3
@@ -46,7 +52,7 @@ from datetime import datetime
 from typing import Dict, Generator, List, Optional
 
 from config import DATABASE_DIR, DATABASE_PATH, config_manager, logger
-from models import ChamadaEvento, PerfilUsuario, Senha, StatusSenha, Usuario
+from models import ChamadaEvento, Empresa, PerfilUsuario, Senha, StatusSenha, Usuario
 
 # Lock utilizado para proteger operações que precisam ser atômicas mesmo
 # quando o servidor Flask é executado em modo threaded=True (várias
@@ -170,12 +176,28 @@ def inicializar_banco() -> None:
             """
         )
 
+        # Empresas participantes do feirão do emprego. Cadastradas apenas
+        # por um administrador (tela /admin/empresas); selecionadas
+        # obrigatoriamente no momento da emissão de cada senha (ver
+        # api_emitir em app.py) e impressas no próprio ticket.
+        conexao.execute(
+            """
+            CREATE TABLE IF NOT EXISTS empresas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL UNIQUE,
+                ativa INTEGER NOT NULL DEFAULT 1,
+                data_criacao TEXT NOT NULL
+            )
+            """
+        )
+
         # Índices para acelerar as consultas mais frequentes.
         conexao.execute("CREATE INDEX IF NOT EXISTS idx_senhas_status ON senhas (status)")
         conexao.execute(
             "CREATE INDEX IF NOT EXISTS idx_eventos_data ON eventos_chamada (data_hora)"
         )
         conexao.execute("CREATE INDEX IF NOT EXISTS idx_usuarios_login ON usuarios (login)")
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_empresas_ativa ON empresas (ativa)")
 
         conexao.commit()
 
@@ -193,6 +215,10 @@ def inicializar_banco() -> None:
         # a migração (já removido) em vez de "usuarios". Ver docstring de
         # ``_reparar_guiches_ocupados`` para detalhes.
         _reparar_guiches_ocupados(conexao)
+
+        # Adiciona a coluna "empresa" à tabela "senhas" em bancos de dados
+        # criados antes da funcionalidade de empresas do feirão existir.
+        _migrar_tabela_senhas_adicionar_empresa(conexao)
 
     logger.info("Banco de dados inicializado em: %s", DATABASE_PATH)
 
@@ -337,6 +363,43 @@ def _reparar_guiches_ocupados(conexao: sqlite3.Connection) -> None:
     logger.warning("Tabela 'guiches_ocupados' recriada com sucesso.")
 
 
+def _migrar_tabela_senhas_adicionar_empresa(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona a coluna ``empresa`` (TEXT, opcional) à tabela ``senhas`` em
+    bancos de dados criados antes da funcionalidade de "Empresas do
+    Feirão" existir.
+
+    Diferente da migração de ``usuarios`` (que precisa recriar a tabela
+    por causa da cláusula CHECK antiga), esta é uma simples adição de
+    coluna: o SQLite suporta ``ALTER TABLE ... ADD COLUMN`` de forma
+    direta e segura quando a nova coluna aceita valores nulos, preservando
+    todas as senhas já emitidas (que simplesmente ficam com ``empresa =
+    NULL``, exibido como "Não informado" nos relatórios).
+
+    Não faz nada se a coluna já existir (portanto é seguro chamar esta
+    função toda vez que o sistema inicia).
+    """
+    colunas = conexao.execute("PRAGMA table_info(senhas)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "empresa" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    logger.warning(
+        "Esquema antigo da tabela 'senhas' detectado (sem a coluna "
+        "'empresa'). Adicionando automaticamente..."
+    )
+
+    conexao.execute("ALTER TABLE senhas ADD COLUMN empresa TEXT")
+    conexao.commit()
+
+    logger.warning(
+        "Migração concluída: a tabela 'senhas' agora possui a coluna "
+        "'empresa'. Senhas emitidas antes desta atualização ficam sem "
+        "empresa associada (exibidas como 'Não informado' nos relatórios)."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Utilitários internos
 # ---------------------------------------------------------------------------
@@ -377,7 +440,11 @@ def registrar_log(nivel: str, mensagem: str) -> None:
 # Emissão de senhas
 # ---------------------------------------------------------------------------
 
-def criar_senha(guiche: Optional[str] = None, usuario: Optional[str] = None) -> Senha:
+def criar_senha(
+    guiche: Optional[str] = None,
+    usuario: Optional[str] = None,
+    empresa: Optional[str] = None,
+) -> Senha:
     """
     Cria (emite) uma nova senha.
 
@@ -385,6 +452,12 @@ def criar_senha(guiche: Optional[str] = None, usuario: Optional[str] = None) -> 
     configuração ``contador_atual`` (tabela ``configuracoes``), protegida
     por um lock em memória para evitar que duas requisições simultâneas
     gerem o mesmo número.
+
+    ``empresa`` é o NOME da empresa do feirão selecionada no momento da
+    emissão (gravado como texto, no mesmo espírito de ``guiche`` e
+    ``usuario`` — ver módulo ``models.Empresa``). A validação de que a
+    empresa existe e está ativa é responsabilidade da camada de rotas
+    (``app.py:api_emitir``), não desta função.
 
     Retorna a instância de ``Senha`` recém-criada.
     """
@@ -397,15 +470,17 @@ def criar_senha(guiche: Optional[str] = None, usuario: Optional[str] = None) -> 
         with get_connection() as conexao:
             cursor = conexao.execute(
                 """
-                INSERT INTO senhas (numero, status, data_hora, guiche, usuario)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO senhas (numero, status, data_hora, guiche, usuario, empresa)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (novo_numero, StatusSenha.EMITIDA, data_hora, guiche, usuario),
+                (novo_numero, StatusSenha.EMITIDA, data_hora, guiche, usuario, empresa),
             )
             conexao.commit()
             senha_id = cursor.lastrowid
 
-    registrar_log("INFO", f"Senha emitida: número {novo_numero:03d} (id={senha_id})")
+    registrar_log(
+        "INFO", f"Senha emitida: número {novo_numero:03d} (id={senha_id}, empresa='{empresa}')"
+    )
 
     return Senha(
         id=senha_id,
@@ -414,6 +489,7 @@ def criar_senha(guiche: Optional[str] = None, usuario: Optional[str] = None) -> 
         data_hora=data_hora,
         guiche=guiche,
         usuario=usuario,
+        empresa=empresa,
     )
 
 
@@ -703,10 +779,12 @@ def listar_senhas_periodo(
     inicio: Optional[str] = None,
     fim: Optional[str] = None,
     status: Optional[str] = None,
+    empresa: Optional[str] = None,
 ) -> List[Dict]:
     """
     Retorna as senhas emitidas dentro de um período (datas no formato
-    'YYYY-MM-DD'), opcionalmente filtradas por status. Utilizado pela
+    'YYYY-MM-DD'), opcionalmente filtradas por status e/ou por empresa
+    (nome exato, conforme cadastrado em "Empresas"). Utilizado pela
     geração de relatórios (CSV, Excel, PDF).
     """
     condicoes = []
@@ -721,6 +799,9 @@ def listar_senhas_periodo(
     if status:
         condicoes.append("status = ?")
         parametros.append(status)
+    if empresa:
+        condicoes.append("empresa = ?")
+        parametros.append(empresa)
 
     where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
 
@@ -733,8 +814,59 @@ def listar_senhas_periodo(
     return [Senha.from_row(linha).to_dict() for linha in linhas]
 
 
-def listar_chamadas_periodo(inicio: Optional[str] = None, fim: Optional[str] = None) -> List[Dict]:
-    """Retorna todos os eventos de chamada realizados dentro de um período."""
+def listar_chamadas_periodo(
+    inicio: Optional[str] = None,
+    fim: Optional[str] = None,
+    empresa: Optional[str] = None,
+) -> List[Dict]:
+    """
+    Retorna todos os eventos de chamada realizados dentro de um período,
+    opcionalmente filtrados pela empresa da senha chamada (obtida via
+    JOIN com ``senhas``, já que ``eventos_chamada`` não duplica esse
+    dado).
+    """
+    condicoes = []
+    parametros: List = []
+
+    if inicio:
+        condicoes.append("date(e.data_hora) >= date(?)")
+        parametros.append(inicio)
+    if fim:
+        condicoes.append("date(e.data_hora) <= date(?)")
+        parametros.append(fim)
+    if empresa:
+        condicoes.append("s.empresa = ?")
+        parametros.append(empresa)
+
+    where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
+
+    with get_connection() as conexao:
+        linhas = conexao.execute(
+            f"""
+            SELECT e.*, s.empresa AS empresa
+            FROM eventos_chamada e
+            JOIN senhas s ON s.id = e.senha_id
+            {where}
+            ORDER BY e.id ASC
+            """,
+            parametros,
+        ).fetchall()
+
+    resultado = []
+    for linha in linhas:
+        evento = ChamadaEvento.from_row(linha).to_dict()
+        evento["empresa"] = linha["empresa"]
+        resultado.append(evento)
+    return resultado
+
+
+def listar_contagem_por_empresa(inicio: Optional[str] = None, fim: Optional[str] = None) -> List[Dict]:
+    """
+    Retorna a quantidade de senhas emitidas por empresa dentro de um
+    período, ordenada da mais requisitada para a menos requisitada.
+    Senhas sem empresa associada (emitidas antes desta funcionalidade
+    existir) são agrupadas sob o rótulo "Não informado".
+    """
     condicoes = []
     parametros: List = []
 
@@ -749,18 +881,28 @@ def listar_chamadas_periodo(inicio: Optional[str] = None, fim: Optional[str] = N
 
     with get_connection() as conexao:
         linhas = conexao.execute(
-            f"SELECT * FROM eventos_chamada {where} ORDER BY id ASC",
+            f"""
+            SELECT COALESCE(empresa, 'Não informado') AS empresa, COUNT(*) AS total
+            FROM senhas
+            {where}
+            GROUP BY COALESCE(empresa, 'Não informado')
+            ORDER BY total DESC, empresa ASC
+            """,
             parametros,
         ).fetchall()
 
-    return [ChamadaEvento.from_row(linha).to_dict() for linha in linhas]
+    return [{"empresa": linha["empresa"], "total": linha["total"]} for linha in linhas]
 
 
-def tempo_medio_atendimento(inicio: Optional[str] = None, fim: Optional[str] = None) -> Dict:
+def tempo_medio_atendimento(
+    inicio: Optional[str] = None,
+    fim: Optional[str] = None,
+    empresa: Optional[str] = None,
+) -> Dict:
     """
     Calcula o tempo médio de espera entre a emissão da senha e a sua
     primeira chamada, em segundos, para as senhas emitidas dentro do
-    período informado.
+    período informado (opcionalmente filtradas por empresa).
 
     Retorna um dicionário com o tempo médio (em segundos e formatado como
     "MM:SS"), além da quantidade de senhas consideradas no cálculo.
@@ -774,6 +916,9 @@ def tempo_medio_atendimento(inicio: Optional[str] = None, fim: Optional[str] = N
     if fim:
         condicoes.append("date(s.data_hora) <= date(?)")
         parametros.append(fim)
+    if empresa:
+        condicoes.append("s.empresa = ?")
+        parametros.append(empresa)
 
     where = " AND ".join(condicoes)
 
@@ -1089,3 +1234,126 @@ def listar_guiches_ocupados() -> List[Dict]:
             "SELECT * FROM guiches_ocupados ORDER BY guiche ASC"
         ).fetchall()
     return [dict(linha) for linha in linhas]
+
+
+# ---------------------------------------------------------------------------
+# Empresas do feirão do emprego
+# ---------------------------------------------------------------------------
+#
+# Cadastro simples (nome + status ativa/inativa), gerenciado exclusivamente
+# por administradores pela tela "Empresas" (/admin/empresas). O nome da
+# empresa selecionada é gravado como TEXTO na própria senha (coluna
+# "empresa" de "senhas"), seguindo o mesmo padrão já usado para "guiche" e
+# "usuario" nesta tabela — ou seja, sem FOREIGN KEY. Essa escolha é
+# proposital: renomear ou desativar uma empresa nunca deve alterar o nome
+# gravado em senhas já emitidas, preservando o histórico exato de cada
+# atendimento para fins de relatório.
+
+def criar_empresa(nome: str) -> Empresa:
+    """
+    Cadastra uma nova empresa participante do feirão. O nome é
+    normalizado (espaços nas pontas removidos) e deve ser único.
+    """
+    nome_normalizado = (nome or "").strip()
+    if not nome_normalizado:
+        raise ValueError("Informe o nome da empresa.")
+
+    data_criacao = _agora_iso()
+
+    with get_connection() as conexao:
+        try:
+            cursor = conexao.execute(
+                "INSERT INTO empresas (nome, ativa, data_criacao) VALUES (?, 1, ?)",
+                (nome_normalizado, data_criacao),
+            )
+            conexao.commit()
+        except sqlite3.IntegrityError as erro:
+            if "UNIQUE" in str(erro).upper():
+                raise ValueError(
+                    f"Já existe uma empresa cadastrada com o nome '{nome_normalizado}'."
+                ) from erro
+            raise ValueError(f"Não foi possível cadastrar a empresa: {erro}") from erro
+
+        empresa_id = cursor.lastrowid
+
+    registrar_log("INFO", f"Empresa '{nome_normalizado}' cadastrada (id={empresa_id}).")
+
+    return Empresa(id=empresa_id, nome=nome_normalizado, ativa=True, data_criacao=data_criacao)
+
+
+def listar_empresas(somente_ativas: bool = False) -> List[Dict]:
+    """
+    Retorna as empresas cadastradas, ordenadas por nome.
+
+    ``somente_ativas=True`` é usado para popular o seletor exibido na
+    emissão de senha (index.html/index.js) — empresas desativadas não
+    devem mais receber novas senhas. A tela de administração e o filtro
+    de relatórios, por outro lado, precisam ver TODAS as empresas
+    (inclusive inativas), pois relatórios de eventos passados continuam
+    consultáveis mesmo após a empresa ser desativada.
+    """
+    consulta = "SELECT * FROM empresas"
+    if somente_ativas:
+        consulta += " WHERE ativa = 1"
+    consulta += " ORDER BY nome ASC"
+
+    with get_connection() as conexao:
+        linhas = conexao.execute(consulta).fetchall()
+
+    return [Empresa.from_row(linha).to_dict() for linha in linhas]
+
+
+def obter_empresa_por_id(empresa_id: int) -> Optional[Empresa]:
+    """Busca uma empresa pelo id. Usado para validar (existência e status
+    ativo) a empresa escolhida no momento da emissão de uma senha."""
+    with get_connection() as conexao:
+        linha = conexao.execute(
+            "SELECT * FROM empresas WHERE id = ?", (empresa_id,)
+        ).fetchone()
+    return Empresa.from_row(linha) if linha else None
+
+
+def renomear_empresa(empresa_id: int, novo_nome: str) -> bool:
+    """Altera o nome de uma empresa já cadastrada. Senhas já emitidas
+    mantêm o nome antigo gravado (sem retroatividade), preservando o
+    histórico exato de cada atendimento."""
+    novo_nome_normalizado = (novo_nome or "").strip()
+    if not novo_nome_normalizado:
+        raise ValueError("Informe o novo nome da empresa.")
+
+    with get_connection() as conexao:
+        try:
+            cursor = conexao.execute(
+                "UPDATE empresas SET nome = ? WHERE id = ?",
+                (novo_nome_normalizado, empresa_id),
+            )
+            conexao.commit()
+        except sqlite3.IntegrityError as erro:
+            if "UNIQUE" in str(erro).upper():
+                raise ValueError(
+                    f"Já existe uma empresa cadastrada com o nome '{novo_nome_normalizado}'."
+                ) from erro
+            raise ValueError(f"Não foi possível renomear a empresa: {erro}") from erro
+
+        alterou = cursor.rowcount > 0
+
+    if alterou:
+        registrar_log("INFO", f"Empresa id={empresa_id} renomeada para '{novo_nome_normalizado}'.")
+    return alterou
+
+
+def definir_status_empresa(empresa_id: int, ativa: bool) -> bool:
+    """Ativa ou desativa uma empresa (sem excluir o cadastro). Empresas
+    inativas somem do seletor de emissão de senha, mas o histórico de
+    senhas já emitidas para elas permanece intacto."""
+    with get_connection() as conexao:
+        cursor = conexao.execute(
+            "UPDATE empresas SET ativa = ? WHERE id = ?", (1 if ativa else 0, empresa_id)
+        )
+        conexao.commit()
+        alterou = cursor.rowcount > 0
+
+    if alterou:
+        estado = "ativada" if ativa else "desativada"
+        registrar_log("WARNING", f"Empresa id={empresa_id} {estado}.")
+    return alterou

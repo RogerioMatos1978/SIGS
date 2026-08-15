@@ -40,6 +40,12 @@
                         <option value="chamadas">Chamadas Realizadas</option>
                     </select>
                 </label>
+                <label>
+                    Empresa
+                    <select id="filtro-empresa">
+                        <option value="">Todas as empresas</option>
+                    </select>
+                </label>
             </div>
             <button id="btn-atualizar-resumo" class="botao botao-primario">🔎 Atualizar Resumo</button>
         </section>
@@ -60,6 +66,21 @@
                     <span class="resumo-label">Tempo Médio de Atendimento</span>
                 </div>
             </div>
+        </section>
+
+        <section class="card card-resumo-empresas">
+            <h2>Senhas por Empresa</h2>
+            <table class="tabela-fila">
+                <thead>
+                    <tr>
+                        <th>Empresa</th>
+                        <th>Senhas Emitidas</th>
+                    </tr>
+                </thead>
+                <tbody id="resumo-empresas-corpo">
+                    <tr><td colspan="2">Carregando...</td></tr>
+                </tbody>
+            </table>
         </section>
 
         <section class="card card-downloads">

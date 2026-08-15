@@ -109,6 +109,9 @@
             <button id="btn-usuarios" class="botao botao-terciario botao-grande">
                 👤 Usuários
             </button>
+            <button id="btn-empresas" class="botao botao-terciario botao-grande">
+                🏢 Empresas
+            </button>
             <button id="btn-reiniciar" class="botao botao-alerta botao-grande">
                 ♻️ Reiniciar Contador
             </button>
@@ -140,7 +143,14 @@
          (configurada em Configurações, acessível somente a admins). -->
     <div id="modal-impressao" class="modal-overlay modal-oculto">
         <div class="modal-caixa">
-            <h2>Escolher Impressora</h2>
+            <h2>Emitir Senha</h2>
+            <label>
+                Empresa <span class="campo-obrigatorio">*</span>
+                <select id="modal-empresa-select" required>
+                    <option value="" disabled selected>Selecione a empresa...</option>
+                </select>
+            </label>
+            <div id="modal-empresa-aviso" class="mensagem-status erro"></div>
             <p>Selecione a impressora para imprimir este ticket:</p>
             <label>
                 Impressora
