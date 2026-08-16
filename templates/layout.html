@@ -25,10 +25,23 @@
               injetar_usuario_logado em app.py, so para um recrutador
               logado com empresa vinculada): usa a cor DA EMPRESA dele —
               assim a tela principal de um recrutador "veste" a cor da
-              empresa em que esta logado automaticamente. -->
+              empresa em que esta logado automaticamente.
+
+         "--cor-principal-clara" (usada pelos botoes .botao-secundario,
+         como "Repetir Chamada"/"Abrir Painel"/"Painel Geral"/"Testar Bip")
+         SO e sobrescrita quando ha uma cor de empresa aplicavel (mesmas
+         duas excecoes acima) — nesse caso, e calculada automaticamente
+         como uma versao mais clara de "--cor-principal" via color-mix(),
+         para que TODOS os botoes da tela (primarios e secundarios) sigam
+         a identidade da empresa, nao so os primarios. Fora desse
+         contexto, a variavel simplesmente NAO e declarada aqui, deixando
+         o valor fixo definido em style.css (#1F5FA8) valer normalmente. -->
     <style>
         :root {
             --cor-principal: {% if empresa is defined and empresa and empresa.cor_principal %}{{ empresa.cor_principal }}{% elif identidade_empresa and identidade_empresa.cor %}{{ identidade_empresa.cor }}{% else %}{{ config.cor_principal if config else '#003C71' }}{% endif %};
+            {% if (empresa is defined and empresa and empresa.cor_principal) or (identidade_empresa and identidade_empresa.cor) %}
+            --cor-principal-clara: color-mix(in srgb, var(--cor-principal) 70%, white);
+            {% endif %}
         }
     </style>
 

@@ -350,3 +350,16 @@
 2026-08-16 14:43:46 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
 2026-08-16 14:48:05 | INFO     | SIGS | Senha 001 chamada no guichê 'Sala 01 — Cereal Ouro' por 'Teste01'.
 2026-08-16 14:48:11 | INFO     | SIGS | Senha id=10 finalizada.
+2026-08-16 15:09:16 | INFO     | SIGS | Senha emitida: número 001 (id=11, empresa='COMIGO')
+2026-08-16 15:09:20 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
+2026-08-16 15:09:33 | INFO     | SIGS | Senha emitida: número 001 (id=12, empresa='IMPASA')
+2026-08-16 15:09:38 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
+2026-08-16 15:10:02 | INFO     | SIGS | Senha 001 chamada no guichê 'Sala 01 — IMPASA' por 'Teste03'.
+2026-08-16 15:10:05 | INFO     | SIGS | Senha 001 chamada no guichê 'Sala 01 — COMIGO' por 'Teste02'.
+2026-08-16 15:52:08 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 15:53:45 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 15:53:55 | INFO     | SIGS | Login realizado: 'teste03' (perfil recrutador, guichê 1).
+2026-08-16 15:54:07 | INFO     | SIGS | Logout realizado: 'teste03'.
+2026-08-16 15:54:17 | INFO     | SIGS | Login realizado: 'teste01' (perfil recrutador, guichê 1).
+2026-08-16 15:54:48 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 15:54:53 | INFO     | SIGS | Repetição de chamada da senha 001.
