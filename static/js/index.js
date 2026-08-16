@@ -382,7 +382,7 @@ function renderizarFila(fila, total) {
     elementoFilaTotal.textContent = total;
 
     if (!fila || fila.length === 0) {
-        elementoFilaCorpo.innerHTML = '<tr><td colspan="3">Nenhuma senha aguardando.</td></tr>';
+        elementoFilaCorpo.innerHTML = '<tr><td colspan="4">Nenhuma senha aguardando.</td></tr>';
         return;
     }
 
@@ -392,6 +392,9 @@ function renderizarFila(fila, total) {
 
         const celulaNumero = document.createElement("td");
         celulaNumero.textContent = String(senha.numero).padStart(3, "0");
+
+        const celulaEmpresa = document.createElement("td");
+        celulaEmpresa.textContent = senha.empresa || "—";
 
         const celulaData = document.createElement("td");
         celulaData.textContent = senha.data_hora;
@@ -406,6 +409,7 @@ function renderizarFila(fila, total) {
         celulaAcoes.appendChild(botaoCancelar);
 
         linha.appendChild(celulaNumero);
+        linha.appendChild(celulaEmpresa);
         linha.appendChild(celulaData);
         linha.appendChild(celulaAcoes);
 
