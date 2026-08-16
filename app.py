@@ -40,7 +40,8 @@ Rotas principais:
     GET  /api/relatorios/resumo     Retorna estatísticas resumidas (JSON)
 
 Execução:
-    python app.py
+    Desenvolvimento -> python dev.py
+    Produção (rede local) -> python wsgi.py
 """
 
 import csv
@@ -1141,12 +1142,14 @@ def erro_403(_erro):
 
 
 # ---------------------------------------------------------------------------
-# Execução direta (desenvolvimento)
+# Execução
 # ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    # host="0.0.0.0" permite o acesso do painel a partir de outros
-    # dispositivos na mesma rede (ex.: TV/monitor conectado via navegador).
-    # Em produção, considere usar um servidor WSGI dedicado (waitress no
-    # Windows), conforme documentado no README.md.
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+#
+# Este arquivo NÃO deve mais ser executado diretamente (`python app.py`).
+# Use um dos dois pontos de entrada dedicados, na raiz do projeto:
+#
+#     python dev.py    -> desenvolvimento (debug + reload automático)
+#     python wsgi.py   -> produção na rede local (servidor waitress)
+#
+# Eles apenas importam o `app` definido acima e o servem de formas
+# diferentes; a aplicação em si continua inteira neste arquivo.

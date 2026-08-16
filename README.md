@@ -12,6 +12,8 @@ com impressão direta de tickets via bibliotecas nativas do Windows
 ```
 SIGS/
 ├── app.py                 # Rotas Flask (camada web/API)
+├── wsgi.py                  # Ponto de entrada de PRODUÇÃO (waitress, rede local)
+├── dev.py                   # Ponto de entrada de DESENVOLVIMENTO (Flask debug/reload)
 ├── auth.py                  # Autenticação, sessão de login e atribuição de guichê
 ├── database.py             # Acesso ao SQLite (CRUD, fila FIFO, usuários, relatórios)
 ├── printer.py               # Impressão física do ticket (win32print/win32ui)
@@ -254,8 +256,13 @@ emitida — o nome da empresa também sai impresso no próprio ticket.
 
 ```bat
 venv\Scripts\activate
-python app.py
+python dev.py
 ```
+
+`dev.py` usa o servidor embutido do Flask com `debug=True` e reinício
+automático a cada alteração salva em um arquivo `.py` — ideal para testar
+mudanças no código. Fica acessível apenas em `localhost` (não é exposto à
+rede).
 
 Antes do primeiro acesso, crie o administrador com `python criar_admin.py`
 (ver seção 4.4). Com o servidor no ar, acesse:
@@ -270,17 +277,27 @@ Antes do primeiro acesso, crie o administrador com `python criar_admin.py`
 
 ### 5.2 Modo produção (recomendado)
 
-Em produção, utilize um servidor WSGI dedicado em vez do servidor de
-desenvolvimento do Flask. O pacote `waitress` (incluído no
-`requirements.txt`) é uma boa opção para Windows:
+Em produção, utilize `wsgi.py`, que serve a aplicação com o servidor WSGI
+`waitress` (incluído no `requirements.txt`) em vez do servidor de
+desenvolvimento do Flask — mais estável para ficar no ar o dia inteiro
+atendendo vários dispositivos na rede local:
 
 ```bat
-waitress-serve --host=0.0.0.0 --port=5000 app:app
+venv\Scripts\activate
+python wsgi.py
 ```
 
+Isso equivale a rodar `waitress-serve --host=0.0.0.0 --port=5000 app:app`,
+mas sem precisar digitar o comando completo toda vez.
+
 Para que o sistema inicie automaticamente com o Windows, crie uma tarefa
-agendada (Agendador de Tarefas do Windows) que execute o comando acima na
-inicialização da máquina.
+agendada (Agendador de Tarefas do Windows) que execute:
+
+```bat
+<caminho-do-venv>\Scripts\python.exe <caminho-do-projeto>\wsgi.py
+```
+
+na inicialização da máquina.
 
 ---
 
@@ -328,14 +345,14 @@ usuários, erros de impressão), útil para auditoria e diagnóstico.
 Como o banco de dados (`senhas.db`) e a chave de sessão (`secret.key`)
 ficam isolados (o primeiro na pasta `database/`, o segundo na raiz do
 projeto), basta substituir os demais arquivos do projeto (`app.py`,
-`auth.py`, `database.py`, `printer.py`, `models.py`, `config.py`,
-`criar_admin.py`, `templates/`, `static/`) por uma versão mais nova,
-mantendo `database/` e `secret.key` intactos, para atualizar o sistema
-sem perda de dados e sem deslogar os usuários.
+`wsgi.py`, `dev.py`, `auth.py`, `database.py`, `printer.py`, `models.py`,
+`config.py`, `criar_admin.py`, `templates/`, `static/`) por uma versão
+mais nova, mantendo `database/` e `secret.key` intactos, para atualizar o
+sistema sem perda de dados e sem deslogar os usuários.
 
 > **Depois de atualizar os arquivos, dois passos são obrigatórios para as
 > mudanças valerem:**
-> 1. Pare o servidor (`Ctrl+C` no terminal onde `python app.py` está
+> 1. Pare o servidor (`Ctrl+C` no terminal onde `wsgi.py`/`dev.py` está
 >    rodando) e inicie de novo. Alterações em arquivos `.py` só têm
 >    efeito depois que o processo Python é reiniciado.
 > 2. Dê um "hard refresh" no navegador (`Ctrl+F5` ou `Ctrl+Shift+R`) em
@@ -566,7 +583,7 @@ guichê, painel público responsivo):
 | Logotipo não aparece no ticket | Caminho do logotipo incorreto | Verifique o campo "Caminho do Logotipo" em Configurações |
 | Esqueci a senha do administrador | — | Rode `python criar_admin.py` na pasta do projeto (ver seção 12.3) para redefinir a senha e garantir o perfil administrador |
 | `/health` retorna erro 500 | Problema de arquivo/permissão em `database/senhas.db` | Confirme que a pasta `database/` existe e que o processo tem permissão de escrita nela |
-| `database is locked` | Duas instâncias do app.py rodando ao mesmo tempo, ou antivírus bloqueando o arquivo | Feche instâncias duplicadas de `python app.py`; adicione uma exceção ao antivírus para a pasta `database/` se persistir |
+| `database is locked` | Duas instâncias rodando ao mesmo tempo (`dev.py`/`wsgi.py`), ou antivírus bloqueando o arquivo | Feche instâncias duplicadas; adicione uma exceção ao antivírus para a pasta `database/` se persistir |
 
 ---
 
