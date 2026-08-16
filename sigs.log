@@ -246,3 +246,10 @@
 2026-08-15 07:28:12 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
 2026-08-15 07:28:13 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
 2026-08-15 07:31:12 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
+2026-08-16 11:31:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 11:31:23 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 11:31:49 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 11:32:35 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
+2026-08-16 11:33:29 | WARNING  | SIGS | Senha do usuário id=1 foi redefinida por um administrador.
+2026-08-16 11:33:54 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 11:36:06 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'logo_path', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'cor_principal']

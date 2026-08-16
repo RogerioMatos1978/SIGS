@@ -1149,4 +1149,4 @@ if __name__ == "__main__":
     # dispositivos na mesma rede (ex.: TV/monitor conectado via navegador).
     # Em produção, considere usar um servidor WSGI dedicado (waitress no
     # Windows), conforme documentado no README.md.
-    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
