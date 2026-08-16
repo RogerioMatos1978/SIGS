@@ -50,3 +50,22 @@
 2026-08-16 20:07:43 | INFO     | SIGS | Repetição de chamada da senha 004.
 2026-08-16 20:07:44 | INFO     | SIGS | Senha id=4 finalizada.
 2026-08-16 20:07:45 | INFO     | SIGS | Senha id=3 finalizada.
+2026-08-16 20:19:29 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 20:19:31 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 20:21:13 | INFO     | SIGS | Senha emitida: número 005 (id=5, empresa='COMIGO')
+2026-08-16 20:21:18 | INFO     | SIGS | Ticket impresso com sucesso: senha 005 na impressora 'Microsoft Print to PDF'.
+2026-08-16 20:21:24 | INFO     | SIGS | Senha emitida: número 006 (id=6, empresa='COMIGO')
+2026-08-16 20:21:30 | INFO     | SIGS | Ticket impresso com sucesso: senha 006 na impressora 'Microsoft Print to PDF'.
+2026-08-16 20:21:39 | INFO     | SIGS | Senha 005 chamada no guichê 'Mesa 01 — COMIGO' por 'Recrutador COMIGO'.
+2026-08-16 20:21:40 | INFO     | SIGS | Senha 006 chamada no guichê 'Mesa 02 — COMIGO' por 'Recrutador COMIGO 2'.
+2026-08-16 20:22:28 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 20:22:32 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 20:23:05 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 20:23:06 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 20:23:06 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 20:23:08 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 20:23:59 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 20:24:01 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 20:24:02 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 20:24:02 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 20:24:03 | INFO     | SIGS | Repetição de chamada da senha 006.

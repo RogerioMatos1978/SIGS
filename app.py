@@ -668,23 +668,37 @@ def api_chamar():
 @auth.login_required
 def api_repetir():
     """
-    Repete a última chamada realizada (nova animação/bip no painel).
+    Repete a última chamada realizada NO PRÓPRIO guichê/mesa do usuário
+    logado (nova animação/bip no painel).
 
-    Para o perfil "recrutador", repete apenas a última chamada DA SUA
-    PRÓPRIA empresa (nunca a última chamada geral, que pode pertencer a
-    outra empresa) — ver ``database.repetir_ultima_chamada``.
+    Importante: o escopo é o guichê/mesa exato da sessão (ver
+    ``_guiche_formatado``), não apenas a empresa — várias pessoas podem
+    atender na MESMA empresa em mesas diferentes (ver seção 4.6 do
+    README), então repetir na Mesa 02 nunca deve reanunciar por engano a
+    última chamada da Mesa 01 (de outro recrutador da mesma empresa). Ver
+    ``database.repetir_ultima_chamada``.
     """
     try:
         usuario_sessao = auth.usuario_logado()
-        empresa_id_filtro = (
-            usuario_sessao.get("empresa_id")
-            if usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
-            else None
-        )
+        eh_recrutador = usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
 
-        resultado = database.repetir_ultima_chamada(empresa_id=empresa_id_filtro)
+        guiche_formatado = _guiche_formatado(usuario_sessao)
+        if not guiche_formatado:
+            mensagem = (
+                "Você não possui uma mesa atribuída no momento."
+                if eh_recrutador
+                else "Você não possui um guichê atribuído no momento."
+            )
+            return resposta_erro(mensagem, 409)
+
+        resultado = database.repetir_ultima_chamada(guiche=guiche_formatado)
         if resultado is None:
-            return resposta_erro("Nenhuma chamada foi realizada ainda.", 404)
+            mensagem = (
+                "Você ainda não chamou nenhuma senha nesta mesa."
+                if eh_recrutador
+                else "Você ainda não chamou nenhuma senha neste guichê."
+            )
+            return resposta_erro(mensagem, 404)
 
         return resposta_sucesso({"chamada": resultado})
 

@@ -322,6 +322,14 @@ na mesma sala, cada um em sua própria mesa numerada. Um recrutador só
 pode chamar, repetir chamada, finalizar ou cancelar senhas da SUA
 empresa; tentar gerenciar uma senha de outra empresa retorna erro 403.
 
+> **"Repetir Chamada" é sempre por MESA, não por empresa.** Com vários
+> recrutadores atendendo na mesma empresa, "Repetir Chamada" reanuncia a
+> última senha chamada NAQUELA mesa especificamente — nunca a última
+> chamada de outra mesa da mesma empresa. Assim, o recrutador da Mesa 02
+> nunca repete por engano uma senha que foi chamada pela Mesa 01. O mesmo
+> vale para o atendente (fila geral): repete sempre a última chamada do
+> PRÓPRIO guichê.
+
 ### 4.7 Identidade visual por empresa (logo + cor)
 
 Cada empresa pode ter seu PRÓPRIO logo e cor de destaque, aplicados
@@ -661,7 +669,7 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 |---|---|---|
 | `POST /api/emitir` | Login | Emite uma nova senha (grava + imprime); exige `empresa_id` no corpo |
 | `POST /api/chamar` | Login | Chama a próxima senha da fila (escopo automático por empresa p/ recrutador) |
-| `POST /api/repetir` | Login | Repete a última chamada (idem) |
+| `POST /api/repetir` | Login | Repete a última chamada do PRÓPRIO guichê/mesa do usuário logado |
 | `POST /api/finalizar-atendimento` | Login | Finaliza o atendimento e chama a próxima (idem) |
 | `POST /api/reiniciar` | Admin | Reinicia o contador de senhas de TODAS as empresas |
 | `GET /api/painel/status` | Público | Dados consumidos pelo painel geral (polling) |

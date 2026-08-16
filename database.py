@@ -344,10 +344,13 @@ def inicializar_banco() -> None:
         # Índices usados pelas consultas mais frequentes dos painéis
         # públicos (pollados a cada poucos segundos por cada painel
         # aberto): fila/chamada atual filtradas por empresa+status, e o
-        # JOIN eventos_chamada -> senhas usado por obter_chamada_atual/
-        # repetir_ultima_chamada.
+        # JOIN eventos_chamada -> senhas usado por obter_chamada_atual.
         conexao.execute("CREATE INDEX IF NOT EXISTS idx_senhas_empresa_status ON senhas (empresa_id, status)")
         conexao.execute("CREATE INDEX IF NOT EXISTS idx_eventos_senha_id ON eventos_chamada (senha_id)")
+        # Usado por repetir_ultima_chamada para achar rapidamente a última
+        # chamada de UM guichê/mesa específico (texto formatado, ex.:
+        # "Mesa 01 — Empresa A"), sem varrer a tabela inteira.
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_eventos_guiche ON eventos_chamada (guiche, id)")
         conexao.commit()
 
     logger.info("Banco de dados inicializado em: %s", DATABASE_PATH)
@@ -1072,32 +1075,35 @@ def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) 
     }
 
 
-def repetir_ultima_chamada(empresa_id: Optional[int] = None) -> Optional[Dict]:
+def repetir_ultima_chamada(guiche: Optional[str] = None) -> Optional[Dict]:
     """
-    Repete a última senha chamada, gerando um NOVO evento de chamada com o
-    mesmo número/guichê/usuário. Isso permite que o painel detecte a
-    mudança (novo id de evento) e dispare novamente a animação e o bip,
-    sem alterar a posição da fila nem duplicar a senha na tabela
-    ``senhas``.
+    Repete a última senha chamada NAQUELE guichê/mesa específico, gerando
+    um NOVO evento de chamada com o mesmo número/guichê/usuário. Isso
+    permite que o painel detecte a mudança (novo id de evento) e dispare
+    novamente a animação e o bip, sem alterar a posição da fila nem
+    duplicar a senha na tabela ``senhas``.
 
-    ``empresa_id`` restringe a busca à última chamada de uma empresa
-    específica (via JOIN com ``senhas``) — usado pelo perfil
-    "recrutador", que só pode repetir chamadas da sua própria empresa.
+    ``guiche`` é o texto EXATO já formatado (ex.: ``"Mesa 01 — Empresa A"``
+    para recrutador, ``"Guichê 01"`` para atendente — ver
+    ``app.py:_guiche_formatado``), correspondente ao guichê/mesa do
+    usuário que está chamando a repetição. Restringir por esse texto (e
+    não apenas pela empresa) é essencial quando várias pessoas atendem na
+    MESMA empresa em mesas diferentes: sem isso, repetir na Mesa 02
+    poderia acabar reanunciando por engano a última chamada da Mesa 01
+    (de outro recrutador da mesma empresa), em vez da chamada feita
+    DAQUELA mesa. Se omitido (``None``), cai no comportamento antigo de
+    considerar a última chamada do sistema inteiro — mantido apenas como
+    salvaguarda, já que todo perfil com acesso a este botão sempre possui
+    um guichê/mesa atribuído no momento (ver ``app.py:api_repetir``).
 
-    Retorna ``None`` se ainda não houve nenhuma chamada (na empresa
-    informada, quando aplicável).
+    Retorna ``None`` se ainda não houve nenhuma chamada (naquele
+    guichê/mesa, quando informado).
     """
     with get_connection() as conexao:
-        if empresa_id:
+        if guiche:
             ultimo = conexao.execute(
-                """
-                SELECT e.* FROM eventos_chamada e
-                JOIN senhas s ON s.id = e.senha_id
-                WHERE s.empresa_id = ?
-                ORDER BY e.id DESC
-                LIMIT 1
-                """,
-                (empresa_id,),
+                "SELECT * FROM eventos_chamada WHERE guiche = ? ORDER BY id DESC LIMIT 1",
+                (guiche,),
             ).fetchone()
         else:
             ultimo = conexao.execute(
