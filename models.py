@@ -126,7 +126,7 @@ class PerfilUsuario:
             Vinculado a UMA empresa específica do feirão (campo
             ``Usuario.empresa_id``, definido pelo administrador em
             "Gerenciar Usuários"). Ao logar, assume automaticamente uma
-            sala/guichê disponível DENTRO da fila da sua própria empresa
+            mesa/guichê disponível DENTRO da fila da sua própria empresa
             (pool independente da fila geral do Atendente — ver
             ``database.ocupar_proximo_guiche_empresa_disponivel``) e só
             chama, repete chamada e finaliza (dá baixa) senhas emitidas

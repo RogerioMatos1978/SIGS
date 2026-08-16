@@ -96,6 +96,21 @@ function dispararAnimacaoEChamada() {
     tocarBip();
 }
 
+/**
+ * Extrai apenas o "Mesa NN" do texto completo gravado em ``senha.guiche``
+ * (ex.: "Mesa 01 — Empresa A") — o nome da empresa é descartado aqui
+ * porque este painel já é o de UMA única empresa, então repeti-lo em
+ * cada linha da lista seria redundante. Retorna ``null`` se a senha
+ * ainda não foi chamada (``guiche`` só é preenchido no momento da
+ * chamada — ver ``database.chamar_proxima``).
+ */
+function extrairMesa(guiche) {
+    if (!guiche) {
+        return null;
+    }
+    return guiche.split("—")[0].trim();
+}
+
 /** Atualiza a lista das últimas senhas emitidas desta empresa. */
 function atualizarListaEmitidas(lista) {
     elementoListaEmitidas.innerHTML = "";
@@ -110,13 +125,21 @@ function atualizarListaEmitidas(lista) {
 
         const numero = document.createElement("span");
         numero.textContent = `Senha ${String(senha.numero).padStart(3, "0")}`;
+        item.appendChild(numero);
+
+        const mesa = extrairMesa(senha.guiche);
+        if (mesa) {
+            const elementoMesa = document.createElement("span");
+            elementoMesa.className = "painel-guiche-info";
+            elementoMesa.textContent = mesa;
+            item.appendChild(elementoMesa);
+        }
 
         const status = document.createElement("span");
         status.className = "status-badge";
         status.textContent = ROTULOS_STATUS[senha.status] || senha.status;
-
-        item.appendChild(numero);
         item.appendChild(status);
+
         elementoListaEmitidas.appendChild(item);
     });
 }

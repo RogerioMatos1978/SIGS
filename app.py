@@ -17,7 +17,7 @@ Rotas principais:
     GET  /configuracoes         Tela de configurações do sistema [admin]
     GET  /relatorios            Tela de geração de relatórios [admin]
     GET/POST /login             Autenticação de usuários
-    POST /logout                Encerra sessão e libera o guichê/sala
+    POST /logout                Encerra sessão e libera o guichê/mesa
     GET  /admin/usuarios        Gerenciamento de usuários [admin]
     GET  /admin/empresas        Gerenciamento de empresas do feirão [admin]
 
@@ -196,19 +196,20 @@ def resposta_sucesso(dados: dict, codigo_http: int = 200):
 
 def _guiche_formatado(usuario_sessao: dict) -> Optional[str]:
     """
-    Formata o guichê/sala do usuário logado como texto pronto para gravar
+    Formata o guichê/mesa do usuário logado como texto pronto para gravar
     em ``senhas.guiche`` e exibir no painel, ou ``None`` se o usuário não
-    ocupa guichê/sala algum no momento.
+    ocupa guichê/mesa algum no momento.
 
     Dois formatos, conforme o perfil:
         - "atendente": ``"Guichê 01"`` (pool geral).
-        - "recrutador": ``"Sala 01 — <Nome da Empresa>"`` (pool por
-          empresa) — o nome da empresa é embutido no próprio texto para
-          diferenciar visualmente das salas de outras empresas nos
-          relatórios (a coluna "Empresa" também já cobre isso, mas o
-          texto do guichê fica ambíguo sem essa distinção, já que a
-          numeração 1..N se repete de forma independente em cada
-          empresa).
+        - "recrutador": ``"Mesa 01 — <Nome da Empresa>"`` (pool por
+          empresa — vários recrutadores da MESMA empresa atendem em uma
+          única sala, cada um em sua própria mesa numerada) — o nome da
+          empresa é embutido no próprio texto para diferenciar
+          visualmente das mesas de outras empresas nos relatórios (a
+          coluna "Empresa" também já cobre isso, mas o texto do guichê
+          fica ambíguo sem essa distinção, já que a numeração 1..N se
+          repete de forma independente em cada empresa).
 
     Centralizar essa formatação evita repetir a lógica em cada rota que
     precisa dela (``/api/chamar`` e ``/api/finalizar-atendimento``),
@@ -219,7 +220,7 @@ def _guiche_formatado(usuario_sessao: dict) -> Optional[str]:
         return None
     if usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR:
         empresa_nome = usuario_sessao.get("empresa_nome") or "Empresa não identificada"
-        return f"Sala {guiche:02d} — {empresa_nome}"
+        return f"Mesa {guiche:02d} — {empresa_nome}"
     return f"Guichê {guiche:02d}"
 
 
@@ -629,7 +630,7 @@ def api_chamar():
 
         if not usuario_sessao.get("guiche"):
             mensagem = (
-                "Você não possui uma sala atribuída no momento (todas ocupadas "
+                "Você não possui uma mesa atribuída no momento (todas ocupadas "
                 "nesta empresa). Faça logout e login novamente ou contate um "
                 "administrador."
                 if eh_recrutador
@@ -707,8 +708,8 @@ def api_finalizar_atendimento():
 
         if not usuario_sessao.get("guiche"):
             mensagem = (
-                "Você não possui uma sala atribuída no momento. Apenas usuários "
-                "com perfil recrutador e sala ativa podem finalizar atendimentos."
+                "Você não possui uma mesa atribuída no momento. Apenas usuários "
+                "com perfil recrutador e mesa ativa podem finalizar atendimentos."
                 if eh_recrutador
                 else "Você não possui um guichê atribuído no momento. Apenas "
                 "usuários com perfil atendente e guichê ativo podem finalizar "
@@ -1515,7 +1516,7 @@ def api_admin_definir_status(usuario_id: int):
 
         if database.definir_status_usuario(usuario_id, ativo):
             if not ativo:
-                # Libera imediatamente o guichê/sala do usuário desativado
+                # Libera imediatamente o guichê/mesa do usuário desativado
                 # (um dos dois DELETE é sempre um no-op, dependendo do
                 # perfil — ver auth.encerrar_sessao para o mesmo padrão).
                 database.liberar_guiche(usuario_id)

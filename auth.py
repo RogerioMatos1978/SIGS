@@ -213,12 +213,12 @@ def iniciar_sessao(usuario) -> None:
 
     Usuários com perfil "atendente" assumem automaticamente um guichê da
     fila GERAL de atendimento. Usuários com perfil "recrutador" assumem
-    automaticamente uma sala/guichê dentro do pool DA SUA PRÓPRIA empresa
+    automaticamente uma mesa/guichê dentro do pool DA SUA PRÓPRIA empresa
     (``usuario.empresa_id``, definido pelo administrador em "Gerenciar
     Usuários") — os dois pools são independentes entre si (ver
     ``database.ocupar_proximo_guiche_disponivel`` vs.
     ``database.ocupar_proximo_guiche_empresa_disponivel``). Administradores
-    e emissores de senha NÃO ocupam guichê/sala, pois não realizam
+    e emissores de senha NÃO ocupam guichê/mesa, pois não realizam
     chamadas de atendimento (o administrador gerencia o sistema; o emissor
     apenas emite senhas em um totem).
     """
@@ -273,7 +273,7 @@ def iniciar_sessao(usuario) -> None:
 
                 if guiche is None:
                     logger.warning(
-                        "Recrutador '%s' logou, mas não há salas disponíveis para "
+                        "Recrutador '%s' logou, mas não há mesas disponíveis para "
                         "a empresa '%s' (limite: %s).",
                         usuario.login,
                         empresa_nome,
@@ -288,7 +288,7 @@ def iniciar_sessao(usuario) -> None:
 
 
 def encerrar_sessao() -> None:
-    """Libera o guichê/sala ocupado (em qualquer um dos dois pools — geral
+    """Libera o guichê/mesa ocupado (em qualquer um dos dois pools — geral
     ou por empresa, um dos DELETE é sempre um no-op) e remove todos os
     dados da sessão atual."""
     usuario_id = session.get(CHAVE_SESSAO_USUARIO_ID)

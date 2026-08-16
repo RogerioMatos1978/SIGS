@@ -44,9 +44,9 @@ Tabelas criadas:
 
     guiches_empresa_ocupados
         empresa_id, guiche, usuario_id, usuario_nome, ocupado_desde
-        (pool de salas/guichês POR EMPRESA, usado pelo perfil
+        (pool de mesas/guichês POR EMPRESA, usado pelo perfil
         "recrutador" — independente do pool geral acima; dois recrutadores
-        de empresas diferentes podem ocupar o mesmo número de sala sem
+        de empresas diferentes podem ocupar o mesmo número de mesa sem
         conflito, pois a chave primária é o par (empresa_id, guiche))
 
     empresas
@@ -242,11 +242,11 @@ def inicializar_banco() -> None:
             """
         )
 
-        # Ocupação de guichês (salas) POR EMPRESA: pool independente do
+        # Ocupação de guichês (mesas) POR EMPRESA: pool independente do
         # geral acima, usado pelo perfil "recrutador". A chave primária é o
         # par (empresa_id, guiche), permitindo que a mesma numeração de
-        # sala seja reutilizada por empresas diferentes simultaneamente
-        # (ex.: "Sala 01" da Empresa A e "Sala 01" da Empresa B não
+        # mesa seja reutilizada por empresas diferentes simultaneamente
+        # (ex.: "Mesa 01" da Empresa A e "Mesa 01" da Empresa B não
         # conflitam entre si). A linha é removida quando o recrutador
         # efetua logout.
         conexao.execute(
@@ -1809,7 +1809,7 @@ def definir_empresa_usuario(usuario_id: int, empresa_id: Optional[int]) -> bool:
 
     Não força o perfil do usuário a ser "recrutador": é possível vincular
     uma empresa a qualquer usuário (o vínculo só tem EFEITO prático —
-    ocupar uma sala ao logar — para quem tem perfil "recrutador", ver
+    ocupar uma mesa ao logar — para quem tem perfil "recrutador", ver
     ``auth.iniciar_sessao``), mas isso é intencional: permite ao
     administrador pré-configurar a empresa antes de trocar o perfil, sem
     depender da ordem das duas ações.
@@ -1959,18 +1959,18 @@ def listar_guiches_ocupados() -> List[Dict]:
 
 
 # ---------------------------------------------------------------------------
-# Ocupação de guichês (salas) POR EMPRESA — perfil "recrutador"
+# Ocupação de guichês (mesas) POR EMPRESA — perfil "recrutador"
 # ---------------------------------------------------------------------------
 #
 # Pool independente do pool geral acima (usado pelo "atendente"): a mesma
-# numeração de sala pode ser ocupada simultaneamente por recrutadores de
+# numeração de mesa pode ser ocupada simultaneamente por recrutadores de
 # empresas diferentes, pois a chave primária de ``guiches_empresa_ocupados``
 # é o par (empresa_id, guiche) — ver docstring da tabela em
 # ``inicializar_banco``.
 
 def obter_guiche_empresa_do_usuario(usuario_id: int) -> Optional[int]:
-    """Retorna o número da sala atualmente ocupada por um recrutador, ou
-    ``None`` caso ele não esteja ocupando nenhuma sala no momento."""
+    """Retorna o número da mesa atualmente ocupada por um recrutador, ou
+    ``None`` caso ele não esteja ocupando nenhuma mesa no momento."""
     with get_connection() as conexao:
         linha = conexao.execute(
             "SELECT guiche FROM guiches_empresa_ocupados WHERE usuario_id = ?", (usuario_id,)
@@ -1982,15 +1982,15 @@ def ocupar_proximo_guiche_empresa_disponivel(
     empresa_id: int, usuario_id: int, usuario_nome: str, qtd_guiches: int
 ) -> Optional[int]:
     """
-    Atribui automaticamente ao recrutador a primeira sala disponível
+    Atribui automaticamente ao recrutador a primeira mesa disponível
     (entre 1 e ``qtd_guiches``) DENTRO da empresa informada — mesma lógica
     de ``ocupar_proximo_guiche_disponivel``, mas com o pool restrito a
     ``empresa_id`` em vez de global.
 
-    Se o usuário já estiver ocupando uma sala (nesta ou em outra empresa
+    Se o usuário já estiver ocupando uma mesa (nesta ou em outra empresa
     — não deveria acontecer em uso normal, mas a busca já é por
-    ``usuario_id`` sem filtrar empresa), retorna a mesma sala (idempotente).
-    Retorna ``None`` se não houver nenhuma sala livre nesta empresa.
+    ``usuario_id`` sem filtrar empresa), retorna a mesma mesa (idempotente).
+    Retorna ``None`` se não houver nenhuma mesa livre nesta empresa.
     """
     with _lock:
         guiche_atual = obter_guiche_empresa_do_usuario(usuario_id)
@@ -2025,22 +2025,22 @@ def ocupar_proximo_guiche_empresa_disponivel(
 
     registrar_log(
         "INFO",
-        f"Sala {guiche_livre} (empresa id={empresa_id}) atribuída automaticamente a '{usuario_nome}'.",
+        f"Mesa {guiche_livre} (empresa id={empresa_id}) atribuída automaticamente a '{usuario_nome}'.",
     )
     return guiche_livre
 
 
 def liberar_guiche_empresa(usuario_id: int) -> None:
-    """Libera a sala ocupada por um recrutador (chamado no logout, e
+    """Libera a mesa ocupada por um recrutador (chamado no logout, e
     também ao desativar o usuário — ver app.py:api_admin_definir_status).
-    Não faz nada (sem erro) se o usuário não ocupava nenhuma sala."""
+    Não faz nada (sem erro) se o usuário não ocupava nenhuma mesa."""
     with get_connection() as conexao:
         conexao.execute("DELETE FROM guiches_empresa_ocupados WHERE usuario_id = ?", (usuario_id,))
         conexao.commit()
 
 
 def listar_guiches_empresa_ocupados() -> List[Dict]:
-    """Retorna a lista de salas (guichês por empresa) atualmente ocupadas
+    """Retorna a lista de mesas (guichês por empresa) atualmente ocupadas
     por recrutadores, já com o nome da empresa (via JOIN), útil para a
     tela de administração de usuários."""
     with get_connection() as conexao:

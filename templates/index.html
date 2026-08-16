@@ -68,12 +68,12 @@
                     <span class="identificacao-valor">{{ usuario_logado.empresa_nome or 'Nenhuma empresa vinculada' }}</span>
                 </div>
                 <div class="identificacao-item">
-                    <span class="identificacao-label">Sala</span>
+                    <span class="identificacao-label">Mesa</span>
                     <span class="identificacao-valor">
                         {% if usuario_logado.guiche %}
                             {{ '%02d' | format(usuario_logado.guiche) }}
                         {% else %}
-                            Nenhuma sala livre
+                            Nenhuma mesa livre
                         {% endif %}
                     </span>
                 </div>
@@ -85,9 +85,9 @@
             </p>
             {% elif not usuario_logado.guiche %}
             <p class="mensagem-status erro">
-                Todas as salas desta empresa estão ocupadas no momento. Peça a um
-                administrador para aumentar a quantidade de salas por empresa em
-                Configurações, ou aguarde a liberação de uma sala.
+                Todas as mesas desta empresa estão ocupadas no momento. Peça a um
+                administrador para aumentar a quantidade de mesas por empresa em
+                Configurações, ou aguarde a liberação de uma mesa.
             </p>
             {% endif %}
             {% if empresa_recrutador and empresa_recrutador.atendimento_finalizado_em %}
@@ -241,7 +241,16 @@
         tempoAtualizacaoMs: {{ config.tempo_atualizacao_ms | default(2000) }},
         // Para o recrutador, "Abrir Painel" leva direto ao painel da SUA
         // empresa (não ao painel geral) — ver templates/painel_empresa.html.
-        painelUrl: {% if usuario_logado.perfil == 'recrutador' and usuario_logado.empresa_id %}"{{ url_for('painel_empresa', empresa_id=usuario_logado.empresa_id) }}"{% else %}"{{ url_for('painel') }}"{% endif %}
+        painelUrl: {% if usuario_logado.perfil == 'recrutador' and usuario_logado.empresa_id %}"{{ url_for('painel_empresa', empresa_id=usuario_logado.empresa_id) }}"{% else %}"{{ url_for('painel') }}"{% endif %},
+        // Mesmo endpoint consultado pelo painel público correspondente (ver
+        // painelUrl acima), usado por index.js para popular a caixa "Última
+        // Senha Chamada" já ao ABRIR a tela (sem isso, ela só se atualiza
+        // depois do primeiro clique em Chamar/Repetir/Finalizar nesta
+        // aba — ficando em branco mesmo que já exista uma chamada em
+        // andamento, por exemplo logo após um F5 na página).
+        {% if usuario_logado.perfil in ('atendente', 'recrutador') %}
+        statusUrl: {% if usuario_logado.perfil == 'recrutador' and usuario_logado.empresa_id %}"{{ url_for('api_painel_empresa_status', empresa_id=usuario_logado.empresa_id) }}"{% else %}"{{ url_for('api_painel_status') }}"{% endif %}
+        {% endif %}
     };
 </script>
 <script src="{{ url_for('static', filename='js/bip.js') }}"></script>

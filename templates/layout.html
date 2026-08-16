@@ -74,7 +74,7 @@
             </span>
             {% if usuario_logado.guiche %}
                 <span class="barra-usuario-guiche">
-                    {% if usuario_logado.perfil == 'recrutador' %}Sala{% else %}Guichê{% endif %}
+                    {% if usuario_logado.perfil == 'recrutador' %}Mesa{% else %}Guichê{% endif %}
                     {{ '%02d' | format(usuario_logado.guiche) }}
                 </span>
             {% endif %}

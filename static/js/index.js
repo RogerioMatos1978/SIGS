@@ -363,6 +363,37 @@ function atualizarDestaqueSenha(chamada) {
     elementoSenhaInfo.textContent = `${chamada.guiche} — ${chamada.usuario} (${chamada.data_hora})`;
 }
 
+/**
+ * Busca a chamada atual já ao abrir a tela (mesmo endpoint usado pelo
+ * painel público correspondente — ver window.SIGS_CONFIG.statusUrl,
+ * calculado no servidor em index.html) e popula a caixa "Última Senha
+ * Chamada" imediatamente, ANTES de qualquer clique em Chamar/Repetir/
+ * Finalizar nesta aba.
+ *
+ * Sem isso, a caixa ficava com o texto estático "Nenhuma chamada
+ * realizada." (definido no HTML) mesmo quando já existia uma chamada em
+ * andamento — por exemplo, logo depois de um F5 na página, ou ao logar
+ * novamente após a sessão expirar — só voltando a refletir a realidade
+ * depois da primeira ação manual. "Repetir Chamada" sempre funcionou
+ * corretamente (ver repetirChamada), mas o estado inicial da tela não
+ * refletia a última chamada já existente.
+ */
+async function carregarChamadaAtualInicial() {
+    const url = window.SIGS_CONFIG && window.SIGS_CONFIG.statusUrl;
+    if (!url || !elementoSenhaDestaque) {
+        return;
+    }
+
+    try {
+        const dados = await chamarApi(url);
+        atualizarDestaqueSenha(dados.chamada_atual);
+    } catch (erro) {
+        // Falha aqui não é crítica (a caixa simplesmente permanece com o
+        // texto padrão) — não interrompe o carregamento do resto da tela.
+        console.error("Não foi possível carregar a chamada atual:", erro);
+    }
+}
+
 // -----------------------------------------------------------------------
 // Fila de espera
 // -----------------------------------------------------------------------
@@ -462,6 +493,7 @@ function inicializar() {
     vincularClique("btn-empresas", () => { window.location.href = "/admin/empresas"; });
     vincularClique("btn-reiniciar", reiniciarContador);
 
+    carregarChamadaAtualInicial();
     atualizarFila();
     setInterval(atualizarFila, TEMPO_ATUALIZACAO_MS);
 }

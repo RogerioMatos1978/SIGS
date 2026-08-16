@@ -13,7 +13,7 @@ O que este script APAGA:
       static/img/empresas/).
     - Todos os usuários que NÃO forem administrador (atendente, emissor,
       recrutador).
-    - Todos os guichês/salas atualmente ocupados.
+    - Todos os guichês/mesas atualmente ocupados.
     - Todo o histórico de logs técnicos (tabela "logs" e o arquivo
       sigs.log).
     - Todas as Configurações do sistema, que voltam ao valor padrão de
@@ -86,7 +86,7 @@ def _mostrar_resumo_antes(conexao) -> list:
     print(f"  - {qtd_nao_admin} usuário(s) que NÃO são administrador (atendente/emissor/recrutador)")
     print(f"  - {qtd_logs} registro(s) de log técnico (tabela 'logs' + arquivo sigs.log)")
     print("  - Todas as Configurações do sistema (voltam ao padrão de fábrica)")
-    print("  - Todos os guichês/salas atualmente ocupados")
+    print("  - Todos os guichês/mesas atualmente ocupados")
 
     print("\nSerão MANTIDOS:")
     if admins:

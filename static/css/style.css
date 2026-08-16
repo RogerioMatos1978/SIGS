@@ -467,6 +467,13 @@ input:focus, select:focus {
     background: rgba(255, 255, 255, 0.15);
 }
 
+/* Mostra qual mesa chamou a senha (só aparece depois que ela é
+   chamada — ver extrairMesa em painel_empresa.js). */
+.painel-lista li .painel-guiche-info {
+    font-size: 0.95rem;
+    opacity: 0.85;
+}
+
 /* -------------------- Painel Geral (resumo do feirão) -------------------- */
 
 .painel-geral-corpo {

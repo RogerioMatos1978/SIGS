@@ -89,7 +89,7 @@ CONFIGURACOES_PADRAO: Dict[str, str] = {
                                         # (cada empresa tem seu próprio contador agora,
                                         # ver empresas.contador_atual em database.py)
     "qtd_guiches": "5",                 # quantidade de guichês de atendimento disponíveis
-    "qtd_guiches_por_empresa": "3",     # quantidade de salas/guichês por empresa (recrutadores)
+    "qtd_guiches_por_empresa": "3",     # quantidade de mesas/guichês por empresa (recrutadores)
     "frase_menu": "",                   # frase livre exibida no menu de todas as telas internas
 }
 

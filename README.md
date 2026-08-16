@@ -131,7 +131,7 @@ Na tela de Configurações também é possível ajustar:
 - Quantidade de senhas exibidas no painel (histórico).
 - Tempo de atualização do painel (em milissegundos).
 - Quantidade de guichês de atendimento disponíveis, fila geral (ver seção 4.4).
-- Quantidade de salas por empresa, usadas pelos recrutadores (ver seção 4.6).
+- Quantidade de mesas por empresa, usadas pelos recrutadores (ver seção 4.6).
 - Cor principal do sistema (paleta visual).
 - Frase do Menu: um texto livre (opcional) exibido em uma faixa logo
   abaixo do menu superior, em TODAS as telas internas do sistema (tela
@@ -183,7 +183,7 @@ outros administradores) pela tela Usuários.
   evento; as senhas que ele emite alimentam a fila consumida pelos
   atendentes e recrutadores.
 - **Recrutador** — vinculado a UMA empresa específica pelo administrador
-  (ver seção 4.6). Ao logar, assume automaticamente uma sala dentro da
+  (ver seção 4.6). Ao logar, assume automaticamente uma mesa dentro da
   fila DAQUELA empresa (pool independente da fila geral do atendente) e
   só chama, repete chamada e finaliza (dá baixa) senhas emitidas para
   essa empresa.
@@ -193,7 +193,7 @@ outros administradores) pela tela Usuários.
 | Emitir senha | ❌ | ✅ | ❌ | ❌ |
 | Chamar / Repetir / Finalizar atendimento | ✅ (fila geral) | ❌ | ✅ (só da própria empresa) | ❌ |
 | Abrir painel / Painel Geral / Testar bip | ✅ | ✅ | ✅ | ✅ |
-| Ocupa guichê/sala automaticamente | ✅ | ❌ | ✅ | ❌ |
+| Ocupa guichê/mesa automaticamente | ✅ | ❌ | ✅ | ❌ |
 | Configurações do sistema | ❌ | ❌ | ❌ | ✅ |
 | Relatórios (CSV/Excel/PDF) | ❌ | ❌ | ✅ (só da própria empresa) | ✅ (todas, com filtro) |
 | Finalizar atendimento do dia (própria empresa) | ❌ | ❌ | ✅ | ❌ |
@@ -213,10 +213,10 @@ para o próximo login. Se todos os guichês estiverem ocupados, a tela
 principal avisa o atendente e ele não conseguirá chamar senhas até que um
 guichê seja liberado (ou até um administrador aumentar a quantidade de
 guichês em Configurações). O perfil **recrutador** segue a mesma lógica,
-mas em um pool de "salas" separado POR EMPRESA — ver seção 4.6.
+mas em um pool de "mesas" separado POR EMPRESA — ver seção 4.6.
 
 **Finalizar Atendimento:** o botão "Finalizar Atendimento" (visível para
-atendentes e recrutadores) marca a senha em atendimento no guichê/sala
+atendentes e recrutadores) marca a senha em atendimento no guichê/mesa
 como finalizada e, na mesma ação, já chama automaticamente a próxima
 senha da fila — não é necessário clicar em "Chamar Próxima" separadamente
 depois de atender um cliente. Se não houver mais senhas aguardando, o
@@ -281,8 +281,10 @@ emitida — o nome da empresa também sai impresso no próprio ticket.
 
 Além da fila geral (atendentes) e do painel público único, o SIGS
 oferece uma fila e um painel **independentes para cada empresa** —
-pensado para feirões em que cada empresa entrevista em sua própria sala,
-com seu próprio recrutador chamando as senhas.
+pensado para feirões em que cada empresa entrevista em sua própria sala
+(uma única sala física, compartilhada por todos os recrutadores daquela
+empresa), com cada recrutador atendendo em sua própria mesa dentro dessa
+sala e chamando as senhas de sua vez.
 
 **Vincular um recrutador a uma empresa** (`/admin/usuarios`, restrito a
 administradores):
@@ -310,14 +312,15 @@ aguardando, em atendimento, atendidas e canceladas — e uma tabela com o
 mesmo detalhamento por empresa. Acessível pelo botão "📺 Painel Geral" na
 tela principal (visível para qualquer perfil logado).
 
-**Salas (guichês por empresa):** ao logar, um recrutador assume
-automaticamente a primeira sala disponível (entre 1 e a quantidade
-configurada em "Quantidade de Salas por Empresa", seção 4.3) **dentro da
-sua própria empresa** — a numeração de salas é independente entre
-empresas (a "Sala 01" da Empresa A e a "Sala 01" da Empresa B não
-conflitam). Um recrutador só pode chamar, repetir chamada, finalizar ou
-cancelar senhas da SUA empresa; tentar gerenciar uma senha de outra
-empresa retorna erro 403.
+**Mesas (guichês por empresa):** ao logar, um recrutador assume
+automaticamente a primeira mesa disponível (entre 1 e a quantidade
+configurada em "Quantidade de Mesas por Empresa", seção 4.3) **dentro da
+sua própria empresa** — a numeração de mesas é independente entre
+empresas (a "Mesa 01" da Empresa A e a "Mesa 01" da Empresa B não
+conflitam). Vários recrutadores da MESMA empresa atendem simultaneamente
+na mesma sala, cada um em sua própria mesa numerada. Um recrutador só
+pode chamar, repetir chamada, finalizar ou cancelar senhas da SUA
+empresa; tentar gerenciar uma senha de outra empresa retorna erro 403.
 
 ### 4.7 Identidade visual por empresa (logo + cor)
 
@@ -622,7 +625,7 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
   dashboards externos.
 - **Login / Controle de usuários**: já implementado (`auth.py` +
   tabela `usuarios`), com perfis admin/atendente/emissor/recrutador,
-  guichê/sala automática e reset de senha/contador/histórico pelo
+  guichê/mesa automática e reset de senha/contador/histórico pelo
   administrador.
 - **LDAP / Active Directory**: a autenticação local (`auth.py`) pode ser
   estendida para validar contra um servidor LDAP/AD antes (ou em vez) de

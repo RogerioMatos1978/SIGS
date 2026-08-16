@@ -1,400 +1,52 @@
-2026-07-16 17:03:31 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-16 17:03:31 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-16 17:56:58 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-16 17:56:58 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-16 17:57:23 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-07-16 17:57:23 | INFO     | SIGS | Senha emitida: número 001 (id=1)
-2026-07-16 17:57:56 | INFO     | SIGS | Senha 001 chamada no guichê 'Guichê 01' por 'Atendente'.
-2026-07-16 17:58:19 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-16 17:58:27 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-16 17:58:30 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-16 17:58:31 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-16 17:58:33 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-16 17:58:35 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-16 17:58:37 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-16 17:58:41 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-07-16 17:58:41 | INFO     | SIGS | Senha emitida: número 002 (id=2)
-2026-07-16 17:59:07 | INFO     | SIGS | Senha 002 chamada no guichê 'Guichê 02' por 'Rogerio Matos'.
-2026-07-16 17:59:55 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-07-16 17:59:55 | WARNING  | SIGS | Contador de senhas reiniciado manualmente.
-2026-07-16 18:00:11 | INFO     | SIGS | Repetição de chamada da senha 002.
-2026-07-16 18:00:18 | ERROR    | SIGS | Não há senhas aguardando chamada.
-2026-07-16 18:00:20 | ERROR    | SIGS | Não há senhas aguardando chamada.
-2026-07-16 18:00:20 | ERROR    | SIGS | Não há senhas aguardando chamada.
-2026-07-17 11:02:58 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 11:02:59 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 11:54:00 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 11:54:01 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 11:54:26 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-07-17 11:54:26 | INFO     | SIGS | Senha emitida: número 001 (id=3)
-2026-07-17 11:57:22 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-07-17 11:57:22 | WARNING  | SIGS | Contador de senhas reiniciado manualmente.
-2026-07-17 12:00:33 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 12:00:33 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 12:03:49 | INFO     | SIGS | Nova chave secreta de sessão gerada em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\secret.key
-2026-07-17 12:03:49 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 12:03:50 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 12:28:26 | INFO     | SIGS | Usuário 'rogeriomatos' cadastrado com perfil 'admin'.
-2026-07-17 12:28:26 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
-2026-07-17 12:28:26 | INFO     | SIGS | Login realizado: 'rogeriomatos' (guichê 1).
-2026-07-17 12:29:18 | INFO     | SIGS | Usuário 'Maria' cadastrado com perfil 'atendente'.
-2026-07-17 12:30:35 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-07-17 12:30:43 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Maria'.
-2026-07-17 12:30:43 | INFO     | SIGS | Login realizado: 'Maria' (guichê 1).
-2026-07-17 12:30:53 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-07-17 12:30:53 | INFO     | SIGS | Senha emitida: número 001 (id=4)
-2026-07-17 12:30:56 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora '\\10.21.154.22\MONO'.
-2026-07-17 12:31:22 | INFO     | SIGS | Senha 001 chamada no guichê 'Guichê 01' por 'Maria'.
-2026-07-17 12:31:28 | INFO     | SIGS | Senha 001 chamada no guichê 'Guichê 01' por 'Maria'.
-2026-07-17 12:31:28 | ERROR    | SIGS | Não há senhas aguardando chamada.
-2026-07-17 12:32:09 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-17 12:34:40 | INFO     | SIGS | Logout realizado: 'Maria'.
-2026-07-17 12:34:50 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
-2026-07-17 12:34:50 | INFO     | SIGS | Login realizado: 'rogeriomatos' (guichê 1).
-2026-07-17 12:35:20 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-07-17 12:35:20 | WARNING  | SIGS | TODAS as senhas emitidas e eventos de chamada foram apagados por um administrador.
-2026-07-17 12:36:03 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-07-17 12:37:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 12:37:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 12:37:41 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
-2026-07-17 12:37:41 | INFO     | SIGS | Login realizado: 'rogeriomatos' (guichê 1).
-2026-07-17 12:50:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 12:51:13 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 12:51:13 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 12:51:55 | ERROR    | SIGS | Já existe um usuário com o login 'rogerio'.
-2026-07-17 12:52:20 | ERROR    | SIGS | Já existe um usuário com o login 'rogeriom'.
-2026-07-17 12:52:27 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-07-17 12:52:49 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-07-17 12:53:13 | INFO     | SIGS | Usuário 'rogeriom' cadastrado com perfil 'atendente'.
-2026-07-17 12:53:19 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-07-17 12:53:24 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio Matos'.
-2026-07-17 12:53:24 | INFO     | SIGS | Login realizado: 'rogeriom' (perfil atendente, guichê 1).
-2026-07-17 12:53:44 | INFO     | SIGS | Logout realizado: 'rogeriom'.
-2026-07-17 12:53:52 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-07-17 12:54:00 | ERROR    | SIGS | Erro ao atualizar perfil: CHECK constraint failed: perfil IN ('admin', 'atendente')
-2026-07-17 12:54:26 | ERROR    | SIGS | Já existe um usuário com o login 'alicya'.
-2026-07-17 13:09:10 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 13:09:11 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 13:09:34 | INFO     | SIGS | Usuário 'alicya' cadastrado com perfil 'atendente'.
-2026-07-17 13:10:02 | ERROR    | SIGS | Já existe um usuário com o login 'teste01'.
-2026-07-17 13:10:15 | INFO     | SIGS | Usuário 'teste01' cadastrado com perfil 'atendente'.
-2026-07-17 13:10:33 | ERROR    | SIGS | Já existe um usuário com o login 'teste02'.
-2026-07-17 13:21:36 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 13:21:36 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 13:22:11 | ERROR    | SIGS | Já existe um usuário com o login 'teste02'.
-2026-07-17 13:22:49 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-07-17 13:23:15 | ERROR    | SIGS | Já existe um usuário com o login 'teste02'.
-2026-07-17 13:23:37 | ERROR    | SIGS | Erro ao atualizar perfil: CHECK constraint failed: perfil IN ('admin', 'atendente')
-2026-07-17 13:34:41 | WARNING  | SIGS | Esquema antigo da tabela 'usuarios' detectado (restrição CHECK de perfil). Migrando automaticamente para permitir o perfil 'emissor'...
-2026-07-17 13:34:41 | WARNING  | SIGS | Migração concluída: a tabela 'usuarios' agora aceita o perfil 'emissor' sem necessidade de recriar o banco de dados.
-2026-07-17 13:34:41 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 13:34:42 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 13:35:40 | WARNING  | SIGS | Perfil do usuário id=5 alterado para 'emissor'.
-2026-07-17 13:36:20 | INFO     | SIGS | Usuário 'teste02' cadastrado com perfil 'atendente'.
-2026-07-17 13:36:27 | WARNING  | SIGS | Perfil do usuário id=6 alterado para 'emissor'.
-2026-07-17 13:43:22 | WARNING  | SIGS | Referência quebrada detectada na tabela 'guiches_ocupados' (apontava para uma tabela temporária de migração já removida). Recriando a tabela do zero...
-2026-07-17 13:43:22 | WARNING  | SIGS | Tabela 'guiches_ocupados' recriada com sucesso.
-2026-07-17 13:43:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 13:43:23 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-07-17 13:43:32 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-07-17 13:43:38 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-07-17 13:43:54 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-07-17 13:44:02 | INFO     | SIGS | Login realizado: 'teste02' (perfil emissor, guichê None).
-2026-07-17 13:44:19 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-07-17 13:44:19 | INFO     | SIGS | Senha emitida: número 001 (id=1)
-2026-07-17 13:44:35 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
-2026-07-17 13:45:22 | INFO     | SIGS | Logout realizado: 'teste02'.
-2026-07-17 13:45:30 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio Matos'.
-2026-07-17 13:45:30 | INFO     | SIGS | Login realizado: 'rogeriom' (perfil atendente, guichê 1).
-2026-07-17 13:45:45 | INFO     | SIGS | Senha 001 chamada no guichê 'Guichê 01' por 'Rogerio Matos'.
-2026-07-17 13:46:34 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-17 13:46:37 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-17 13:46:39 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-07-17 13:46:43 | INFO     | SIGS | Senha id=1 finalizada.
-2026-07-17 13:46:59 | INFO     | SIGS | Logout realizado: 'rogeriom'.
-2026-08-13 08:08:17 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-13 08:08:18 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-13 08:11:58 | INFO     | SIGS | Usuário 'rsmatos' cadastrado com perfil 'atendente'.
-2026-08-13 08:11:58 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Rogerio da Silva Matos'.
-2026-08-13 08:11:58 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil atendente, guichê 1).
-2026-08-13 08:12:47 | INFO     | SIGS | Logout realizado: 'rsmatos'.
-2026-08-13 09:20:39 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): connection to server at "localhost" (::1), port 5432 failed: server closed the connection unexpectedly
-	This probably means the server terminated abnormally
-	before or while processing the request.
-
-2026-08-13 09:20:41 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:20:43 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:20:45 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:20:47 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:20:49 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:20:51 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:20:54 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:20:56 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:20:58 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:20:58 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
-2026-08-13 09:44:40 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:42 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:45 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:47 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:49 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:51 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:53 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:55 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:57 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:59 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:44:59 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
-2026-08-13 09:53:15 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:17 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:19 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:21 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:23 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:25 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:27 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:29 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:32 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:34 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): 'utf-8' codec can't decode byte 0xe7 in position 78: invalid continuation byte
-2026-08-13 09:53:34 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
-2026-08-13 09:57:36 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:38 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:41 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:43 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:45 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:47 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:49 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:51 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:53 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:55 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 09:57:55 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
-2026-08-13 10:01:07 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:09 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:12 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:14 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:16 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:18 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:20 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:22 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:24 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:26 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:01:26 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
-2026-08-13 10:03:13 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 1/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:15 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 2/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:17 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 3/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:19 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 4/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:21 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 5/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:23 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 6/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:25 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 7/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:28 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 8/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:30 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 9/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:32 | WARNING  | SIGS | Falha ao conectar ao PostgreSQL (tentativa 10/10): connection to server at "localhost" (::1), port 5432 failed: FATAL:  autenticação do tipo senha falhou para o usuário "sigs"
-2026-08-13 10:03:32 | ERROR    | SIGS | Não foi possível conectar ao PostgreSQL após 10 tentativas (host=localhost, porta=5432, banco=sigs).
-2026-08-13 10:16:57 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-13 10:17:26 | WARNING  | SIGS | Senha do usuário id=7 foi redefinida por um administrador.
-2026-08-13 10:17:26 | WARNING  | SIGS | Perfil do usuário id=7 alterado para 'admin'.
-2026-08-13 10:17:37 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-13 10:17:38 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-13 10:17:49 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
-2026-08-13 10:18:43 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'logo_path', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'cor_principal']
-2026-08-13 10:20:17 | INFO     | SIGS | Logout realizado: 'rsmatos'.
-2026-08-13 10:21:06 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
-2026-08-13 10:31:57 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-13 10:42:39 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-13 10:42:39 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-13 10:53:20 | WARNING  | SIGS | Senha do usuário id=2 foi redefinida por um administrador.
-2026-08-13 10:53:56 | WARNING  | SIGS | Senha do usuário id=2 foi redefinida por um administrador.
-2026-08-13 10:55:30 | INFO     | SIGS | Usuário 'mariamatos' cadastrado com perfil 'atendente'.
-2026-08-13 10:55:55 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'MariaMatos'.
-2026-08-13 10:55:55 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil atendente, guichê 1).
-2026-08-13 10:56:27 | WARNING  | SIGS | Perfil do usuário id=8 alterado para 'emissor'.
-2026-08-13 10:56:53 | INFO     | SIGS | Logout realizado: 'mariamatos'.
-2026-08-13 10:57:05 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
-2026-08-13 10:57:26 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-08-13 10:57:26 | INFO     | SIGS | Senha emitida: número 002 (id=2)
-2026-08-13 10:57:39 | INFO     | SIGS | Ticket impresso com sucesso: senha 002 na impressora 'Microsoft Print to PDF'.
-2026-08-13 10:59:25 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-08-13 10:59:25 | INFO     | SIGS | Senha emitida: número 003 (id=3)
-2026-08-13 10:59:50 | INFO     | SIGS | Ticket impresso com sucesso: senha 003 na impressora 'Microsoft Print to PDF'.
-2026-08-13 11:02:18 | INFO     | SIGS | Usuário 'teste03' cadastrado com perfil 'atendente'.
-2026-08-13 11:02:54 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Teste03'.
-2026-08-13 11:02:54 | INFO     | SIGS | Login realizado: 'teste03' (perfil atendente, guichê 1).
-2026-08-13 11:04:30 | INFO     | SIGS | Senha 002 chamada no guichê 'Guichê 01' por 'Teste03'.
-2026-08-13 11:05:01 | INFO     | SIGS | Senha 003 chamada no guichê 'Guichê 01' por 'Teste03'.
-2026-08-13 11:07:28 | INFO     | SIGS | Logout realizado: 'teste03'.
-2026-08-13 11:07:31 | INFO     | SIGS | Logout realizado: 'mariamatos'.
-2026-08-13 11:08:16 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-13 11:08:17 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-14 08:59:12 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-14 08:59:13 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-14 08:59:29 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
-2026-08-14 09:38:57 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'logo_path', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'cor_principal']
-2026-08-14 09:49:12 | WARNING  | SIGS | Esquema antigo da tabela 'senhas' detectado (sem a coluna 'empresa'). Adicionando automaticamente...
-2026-08-14 09:49:12 | WARNING  | SIGS | Migração concluída: a tabela 'senhas' agora possui a coluna 'empresa'. Senhas emitidas antes desta atualização ficam sem empresa associada (exibidas como 'Não informado' nos relatórios).
-2026-08-14 09:49:12 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-14 09:55:06 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-14 09:55:07 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
-2026-08-14 09:55:22 | INFO     | SIGS | Empresa 'COMIGO' cadastrada (id=1).
-2026-08-14 09:55:29 | INFO     | SIGS | Empresa 'IMPASA' cadastrada (id=2).
-2026-08-14 11:27:08 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
-2026-08-14 11:27:30 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-08-14 11:27:30 | INFO     | SIGS | Senha emitida: número 004 (id=4, empresa='COMIGO')
-2026-08-14 11:27:40 | INFO     | SIGS | Ticket impresso com sucesso: senha 004 na impressora 'Microsoft Print to PDF'.
-2026-08-14 11:28:46 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-08-14 11:28:46 | INFO     | SIGS | Senha emitida: número 005 (id=5, empresa='IMPASA')
-2026-08-14 11:28:55 | INFO     | SIGS | Ticket impresso com sucesso: senha 005 na impressora 'Microsoft Print to PDF'.
-2026-08-14 11:29:43 | INFO     | SIGS | Logout realizado: 'mariamatos'.
-2026-08-14 12:44:03 | WARNING  | SIGS | Senha id=5 cancelada.
-2026-08-14 12:44:05 | WARNING  | SIGS | Senha id=4 cancelada.
-2026-08-15 07:28:12 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-15 07:28:13 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-15 07:31:12 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
-2026-08-16 11:31:22 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 11:31:23 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 11:31:49 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 11:32:35 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
-2026-08-16 11:33:29 | WARNING  | SIGS | Senha do usuário id=1 foi redefinida por um administrador.
-2026-08-16 11:33:54 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-08-16 11:36:06 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'logo_path', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'cor_principal']
-2026-08-16 12:01:07 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 12:01:40 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-08-16 12:01:55 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-08-16 12:05:02 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Teste03'.
-2026-08-16 12:05:02 | INFO     | SIGS | Login realizado: 'teste03' (perfil atendente, guichê 1).
-2026-08-16 12:05:39 | ERROR    | SIGS | Não há senhas aguardando chamada.
-2026-08-16 12:05:44 | INFO     | SIGS | Repetição de chamada da senha 003.
-2026-08-16 12:06:10 | WARNING  | SIGS | Senha do usuário id=8 foi redefinida por um administrador.
-2026-08-16 12:18:08 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 12:20:02 | WARNING  | SIGS | Senha do usuário id=8 foi redefinida por um administrador.
-2026-08-16 12:20:37 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
-2026-08-16 12:20:57 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-08-16 12:20:57 | INFO     | SIGS | Senha emitida: número 006 (id=6, empresa='COMIGO')
-2026-08-16 12:21:06 | INFO     | SIGS | Ticket impresso com sucesso: senha 006 na impressora 'Microsoft Print to PDF'.
-2026-08-16 13:06:09 | WARNING  | SIGS | Esquema antigo da tabela 'usuarios' detectado (sem a coluna 'empresa_id'). Adicionando automaticamente...
-2026-08-16 13:06:09 | WARNING  | SIGS | Migração concluída: a tabela 'usuarios' agora possui a coluna 'empresa_id', usada para vincular um usuário 'recrutador' à sua empresa.
-2026-08-16 13:06:09 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 13:09:36 | WARNING  | SIGS | Perfil do usuário id=6 alterado para 'recrutador'.
-2026-08-16 13:09:38 | WARNING  | SIGS | Empresa do usuário id=6 definida para empresa_id=1.
-2026-08-16 13:09:47 | WARNING  | SIGS | Senha do usuário id=6 foi redefinida por um administrador.
-2026-08-16 13:10:11 | INFO     | SIGS | Logout realizado: 'rsmatos'.
-2026-08-16 13:10:19 | INFO     | SIGS | Sala 1 (empresa id=1) atribuída automaticamente a 'Teste02'.
-2026-08-16 13:10:19 | INFO     | SIGS | Login realizado: 'teste02' (perfil recrutador, guichê 1).
-2026-08-16 13:10:53 | INFO     | SIGS | Senha 006 chamada no guichê 'Sala 01 — COMIGO' por 'Teste02'.
-2026-08-16 13:11:55 | INFO     | SIGS | Repetição de chamada da senha 006.
-2026-08-16 13:14:39 | INFO     | SIGS | Logout realizado: 'teste02'.
-2026-08-16 13:15:08 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-08-16 13:36:11 | WARNING  | SIGS | Esquema antigo da tabela 'empresas' detectado (sem as colunas de identidade visual). Adicionando automaticamente...
-2026-08-16 13:36:11 | WARNING  | SIGS | Migração concluída: a tabela 'empresas' agora possui as colunas 'logo_path' e 'cor_principal'.
-2026-08-16 13:36:11 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 13:39:58 | INFO     | SIGS | Logo da empresa id=1 atualizado (cor extraída automaticamente: #ABC4A5).
-2026-08-16 13:40:49 | INFO     | SIGS | Logo da empresa id=2 atualizado (cor extraída automaticamente: #C3CAD6).
-2026-08-16 13:43:49 | INFO     | SIGS | Logout realizado: 'mariamatos'.
-2026-08-16 13:45:06 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-08-16 13:45:19 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
-2026-08-16 13:45:35 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-08-16 13:45:35 | INFO     | SIGS | Senha emitida: número 007 (id=7, empresa='COMIGO')
-2026-08-16 13:45:43 | INFO     | SIGS | Ticket impresso com sucesso: senha 007 na impressora 'Microsoft Print to PDF'.
-2026-08-16 13:47:10 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-08-16 13:48:12 | WARNING  | SIGS | Perfil do usuário id=9 alterado para 'recrutador'.
-2026-08-16 13:48:13 | WARNING  | SIGS | Empresa do usuário id=9 definida para empresa_id=2.
-2026-08-16 13:48:38 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-08-16 13:48:53 | INFO     | SIGS | Sala 1 (empresa id=1) atribuída automaticamente a 'Teste02'.
-2026-08-16 13:48:53 | INFO     | SIGS | Login realizado: 'teste02' (perfil recrutador, guichê 1).
-2026-08-16 13:49:34 | INFO     | SIGS | Repetição de chamada da senha 006.
-2026-08-16 13:49:35 | INFO     | SIGS | Repetição de chamada da senha 006.
-2026-08-16 13:49:37 | INFO     | SIGS | Repetição de chamada da senha 006.
-2026-08-16 13:49:38 | INFO     | SIGS | Repetição de chamada da senha 006.
-2026-08-16 13:49:45 | INFO     | SIGS | Senha id=6 finalizada.
-2026-08-16 13:49:45 | INFO     | SIGS | Senha 007 chamada no guichê 'Sala 01 — COMIGO' por 'Teste02'.
-2026-08-16 13:49:56 | ERROR    | SIGS | Não há senhas aguardando chamada.
-2026-08-16 13:50:13 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-08-16 13:50:21 | INFO     | SIGS | Sala 1 (empresa id=2) atribuída automaticamente a 'Teste03'.
-2026-08-16 13:50:21 | INFO     | SIGS | Login realizado: 'teste03' (perfil recrutador, guichê 1).
-2026-08-16 13:51:03 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-08-16 13:51:03 | INFO     | SIGS | Senha emitida: número 008 (id=8, empresa='IMPASA')
-2026-08-16 13:51:09 | INFO     | SIGS | Ticket impresso com sucesso: senha 008 na impressora 'Microsoft Print to PDF'.
-2026-08-16 13:51:24 | INFO     | SIGS | Senha id=7 finalizada.
-2026-08-16 13:52:10 | INFO     | SIGS | Senha 008 chamada no guichê 'Sala 01 — IMPASA' por 'Teste03'.
-2026-08-16 13:52:17 | INFO     | SIGS | Repetição de chamada da senha 008.
-2026-08-16 13:52:19 | INFO     | SIGS | Repetição de chamada da senha 008.
-2026-08-16 13:52:22 | INFO     | SIGS | Repetição de chamada da senha 008.
-2026-08-16 13:52:26 | INFO     | SIGS | Repetição de chamada da senha 007.
-2026-08-16 13:52:29 | INFO     | SIGS | Senha id=8 finalizada.
-2026-08-16 14:03:09 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 14:03:33 | INFO     | SIGS | Logout realizado: 'mariamatos'.
-2026-08-16 14:03:46 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-08-16 14:04:41 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 14:05:26 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-08-16 14:05:36 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
-2026-08-16 14:06:09 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'logo_path', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
-2026-08-16 14:11:23 | INFO     | SIGS | Empresa 'Cereal Ouro' cadastrada (id=3).
-2026-08-16 14:11:32 | INFO     | SIGS | Logo da empresa id=3 atualizado (cor extraída automaticamente: #1C2414).
-2026-08-16 14:12:36 | INFO     | SIGS | Logout realizado: 'rsmatos'.
-2026-08-16 14:12:48 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
-2026-08-16 14:12:56 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
-2026-08-16 14:12:56 | INFO     | SIGS | Senha emitida: número 009 (id=9, empresa='Cereal Ouro')
-2026-08-16 14:13:01 | INFO     | SIGS | Ticket impresso com sucesso: senha 009 na impressora 'Microsoft Print to PDF'.
-2026-08-16 14:13:16 | INFO     | SIGS | Logout realizado: 'mariamatos'.
-2026-08-16 14:13:26 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-08-16 14:13:38 | WARNING  | SIGS | Perfil do usuário id=5 alterado para 'recrutador'.
-2026-08-16 14:13:40 | WARNING  | SIGS | Empresa do usuário id=5 definida para empresa_id=3.
-2026-08-16 14:13:49 | WARNING  | SIGS | Senha do usuário id=5 foi redefinida por um administrador.
-2026-08-16 14:13:55 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-08-16 14:14:11 | INFO     | SIGS | Sala 1 (empresa id=3) atribuída automaticamente a 'Teste01'.
-2026-08-16 14:14:11 | INFO     | SIGS | Login realizado: 'teste01' (perfil recrutador, guichê 1).
-2026-08-16 14:14:33 | INFO     | SIGS | Senha 009 chamada no guichê 'Sala 01 — Cereal Ouro' por 'Teste01'.
-2026-08-16 14:36:55 | WARNING  | SIGS | Esquema antigo da tabela 'empresas' detectado (sem a coluna 'contador_atual'). Adicionando automaticamente...
-2026-08-16 14:36:55 | WARNING  | SIGS | Migração concluída: a tabela 'empresas' agora possui a coluna 'contador_atual' — cada empresa passa a ter sua própria sequência de numeração de senhas.
-2026-08-16 14:36:55 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 14:41:54 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-08-16 14:42:16 | INFO     | SIGS | Senha id=9 finalizada.
-2026-08-16 14:43:21 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
-2026-08-16 14:43:34 | INFO     | SIGS | Senha emitida: número 001 (id=10, empresa='Cereal Ouro')
-2026-08-16 14:43:46 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
-2026-08-16 14:48:05 | INFO     | SIGS | Senha 001 chamada no guichê 'Sala 01 — Cereal Ouro' por 'Teste01'.
-2026-08-16 14:48:11 | INFO     | SIGS | Senha id=10 finalizada.
-2026-08-16 15:09:16 | INFO     | SIGS | Senha emitida: número 001 (id=11, empresa='COMIGO')
-2026-08-16 15:09:20 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
-2026-08-16 15:09:33 | INFO     | SIGS | Senha emitida: número 001 (id=12, empresa='IMPASA')
-2026-08-16 15:09:38 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
-2026-08-16 15:10:02 | INFO     | SIGS | Senha 001 chamada no guichê 'Sala 01 — IMPASA' por 'Teste03'.
-2026-08-16 15:10:05 | INFO     | SIGS | Senha 001 chamada no guichê 'Sala 01 — COMIGO' por 'Teste02'.
-2026-08-16 15:52:08 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 15:53:45 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-08-16 15:53:55 | INFO     | SIGS | Login realizado: 'teste03' (perfil recrutador, guichê 1).
-2026-08-16 15:54:07 | INFO     | SIGS | Logout realizado: 'teste03'.
-2026-08-16 15:54:17 | INFO     | SIGS | Login realizado: 'teste01' (perfil recrutador, guichê 1).
-2026-08-16 15:54:48 | ERROR    | SIGS | Não há senhas aguardando chamada.
-2026-08-16 15:54:53 | INFO     | SIGS | Repetição de chamada da senha 001.
-2026-08-16 16:32:27 | WARNING  | SIGS | Esquema antigo da tabela 'senhas' detectado (sem a coluna 'empresa_id'). Adicionando automaticamente...
-2026-08-16 16:32:27 | WARNING  | SIGS | Migração concluída: a tabela 'senhas' agora possui a coluna 'empresa_id' (referência estável, usada para escopo de fila e permissões por empresa). Backfill best-effort aplicado a partir do nome já gravado em 'empresa'.
-2026-08-16 16:32:27 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 16:38:22 | INFO     | SIGS | Logout realizado: 'teste02'.
-2026-08-16 16:38:43 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-08-16 16:39:01 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
-2026-08-16 16:40:57 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
-2026-08-16 16:41:21 | INFO     | SIGS | Logout realizado: 'teste03'.
-2026-08-16 16:41:31 | INFO     | SIGS | Sala 1 (empresa id=2) atribuída automaticamente a 'Teste03'.
-2026-08-16 16:41:31 | INFO     | SIGS | Login realizado: 'teste03' (perfil recrutador, guichê 1).
-2026-08-16 16:41:47 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
-2026-08-16 16:41:57 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
-2026-08-16 16:43:11 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
-2026-08-16 16:43:12 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
-2026-08-16 16:43:17 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
-2026-08-16 17:48:04 | WARNING  | SIGS | Esquema antigo da tabela 'senhas' detectado (sem as colunas de marcos de tempo). Adicionando automaticamente...
-2026-08-16 17:48:04 | WARNING  | SIGS | Migração concluída: a tabela 'senhas' agora possui as colunas 'hora_chamada' e 'hora_finalizada', usadas para calcular o tempo de atendimento nos relatórios.
-2026-08-16 17:48:04 | WARNING  | SIGS | Esquema antigo da tabela 'empresas' detectado (sem a coluna 'atendimento_finalizado_em'). Adicionando automaticamente...
-2026-08-16 17:48:04 | WARNING  | SIGS | Migração concluída: a tabela 'empresas' agora possui a coluna 'atendimento_finalizado_em', usada para encerrar o atendimento do dia por empresa.
-2026-08-16 17:48:04 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
-2026-08-16 17:49:49 | ERROR    | SIGS | Não há senhas aguardando chamada.
-2026-08-16 17:50:09 | INFO     | SIGS | Logout realizado: 'teste03'.
-2026-08-16 17:50:24 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
-2026-08-16 17:54:43 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-08-16 17:54:56 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
-2026-08-16 17:55:05 | INFO     | SIGS | Senha emitida: número 002 (id=13, empresa='COMIGO')
-2026-08-16 17:55:12 | INFO     | SIGS | Ticket impresso com sucesso: senha 002 na impressora 'Microsoft Print to PDF'.
-2026-08-16 17:56:00 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
-2026-08-16 17:56:49 | INFO     | SIGS | Login realizado: 'teste01' (perfil recrutador, guichê 1).
-2026-08-16 17:57:35 | INFO     | SIGS | Sala 1 (empresa id=1) atribuída automaticamente a 'Teste02'.
-2026-08-16 17:57:35 | INFO     | SIGS | Login realizado: 'teste02' (perfil recrutador, guichê 1).
-2026-08-16 17:57:56 | INFO     | SIGS | Senha 002 chamada no guichê 'Sala 01 — COMIGO' por 'Teste02'.
-2026-08-16 17:58:16 | INFO     | SIGS | Senha id=13 finalizada.
-2026-08-16 17:58:47 | INFO     | SIGS | Logout realizado: 'teste02'.
-2026-08-16 17:58:49 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-16 18:56:03 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 18:56:15 | INFO     | SIGS | Logout realizado: 'teste01'.
+2026-08-16 18:56:25 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 18:57:00 | INFO     | SIGS | Empresa 'COMIGO' cadastrada (id=1).
+2026-08-16 18:57:12 | INFO     | SIGS | Logo da empresa id=1 atualizado (cor extraída automaticamente: #ABC4A5).
+2026-08-16 18:58:19 | INFO     | SIGS | Usuário 'mariamatos' cadastrado com perfil 'atendente'.
+2026-08-16 18:58:46 | INFO     | SIGS | Usuário 'comigo' cadastrado com perfil 'recrutador'.
+2026-08-16 18:58:58 | INFO     | SIGS | Logout realizado: 'teste02'.
+2026-08-16 18:59:07 | INFO     | SIGS | Sala 1 (empresa id=1) atribuída automaticamente a 'Recrutador COMIGO'.
+2026-08-16 18:59:07 | INFO     | SIGS | Login realizado: 'comigo' (perfil recrutador, guichê 1).
+2026-08-16 18:59:52 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Maria Matos'.
+2026-08-16 18:59:52 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil atendente, guichê 1).
+2026-08-16 19:00:15 | WARNING  | SIGS | Perfil do usuário id=10 alterado para 'emissor'.
+2026-08-16 19:00:16 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-16 19:00:43 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-16 19:00:53 | INFO     | SIGS | Senha emitida: número 001 (id=1, empresa='COMIGO')
+2026-08-16 19:00:58 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
+2026-08-16 19:02:47 | INFO     | SIGS | Senha 001 chamada no guichê 'Sala 01 — COMIGO' por 'Recrutador COMIGO'.
+2026-08-16 19:03:17 | INFO     | SIGS | Usuário 'comigo2' cadastrado com perfil 'atendente'.
+2026-08-16 19:03:43 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Recrutador COMIGO 2'.
+2026-08-16 19:03:43 | INFO     | SIGS | Login realizado: 'comigo2' (perfil atendente, guichê 1).
+2026-08-16 19:03:54 | INFO     | SIGS | Senha emitida: número 002 (id=2, empresa='COMIGO')
+2026-08-16 19:03:59 | INFO     | SIGS | Ticket impresso com sucesso: senha 002 na impressora 'Microsoft Print to PDF'.
+2026-08-16 19:04:04 | INFO     | SIGS | Senha 002 chamada no guichê 'Guichê 01' por 'Recrutador COMIGO 2'.
+2026-08-16 19:04:53 | WARNING  | SIGS | Perfil do usuário id=12 alterado para 'recrutador'.
+2026-08-16 19:04:53 | INFO     | SIGS | Logout realizado: 'comigo2'.
+2026-08-16 19:05:09 | WARNING  | SIGS | Usuário 'comigo2' tem perfil recrutador, mas não está vinculado a nenhuma empresa. Peça a um administrador para vincular uma empresa em Gerenciar Usuários.
+2026-08-16 19:05:09 | INFO     | SIGS | Login realizado: 'comigo2' (perfil recrutador, guichê None).
+2026-08-16 19:05:18 | WARNING  | SIGS | Empresa do usuário id=12 definida para empresa_id=1.
+2026-08-16 19:05:19 | INFO     | SIGS | Logout realizado: 'comigo2'.
+2026-08-16 19:05:29 | INFO     | SIGS | Sala 2 (empresa id=1) atribuída automaticamente a 'Recrutador COMIGO 2'.
+2026-08-16 19:05:29 | INFO     | SIGS | Login realizado: 'comigo2' (perfil recrutador, guichê 2).
+2026-08-16 19:08:12 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 19:08:18 | INFO     | SIGS | Senha id=1 finalizada.
+2026-08-16 19:08:20 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 19:08:22 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 19:13:26 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 19:14:08 | INFO     | SIGS | Senha emitida: número 003 (id=3, empresa='COMIGO')
+2026-08-16 19:14:15 | INFO     | SIGS | Ticket impresso com sucesso: senha 003 na impressora 'Microsoft Print to PDF'.
+2026-08-16 19:14:39 | INFO     | SIGS | Senha emitida: número 004 (id=4, empresa='COMIGO')
+2026-08-16 19:14:45 | INFO     | SIGS | Ticket impresso com sucesso: senha 004 na impressora 'Microsoft Print to PDF'.
+2026-08-16 19:14:53 | INFO     | SIGS | Senha 003 chamada no guichê 'Mesa 01 — COMIGO' por 'Recrutador COMIGO'.
+2026-08-16 19:14:54 | INFO     | SIGS | Senha 004 chamada no guichê 'Mesa 02 — COMIGO' por 'Recrutador COMIGO 2'.
+2026-08-16 20:03:56 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 20:04:18 | INFO     | SIGS | Repetição de chamada da senha 004.
+2026-08-16 20:04:26 | INFO     | SIGS | Repetição de chamada da senha 004.
+2026-08-16 20:04:36 | INFO     | SIGS | Repetição de chamada da senha 004.
+2026-08-16 20:04:38 | INFO     | SIGS | Repetição de chamada da senha 004.
+2026-08-16 20:07:41 | INFO     | SIGS | Repetição de chamada da senha 004.
+2026-08-16 20:07:43 | INFO     | SIGS | Repetição de chamada da senha 004.
+2026-08-16 20:07:44 | INFO     | SIGS | Senha id=4 finalizada.
+2026-08-16 20:07:45 | INFO     | SIGS | Senha id=3 finalizada.
