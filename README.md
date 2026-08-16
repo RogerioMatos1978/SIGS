@@ -20,6 +20,7 @@ SIGS/
 ├── models.py                # Modelos de dados (Senha, ChamadaEvento, Usuario, Empresa)
 ├── config.py                # Configurações, caminhos, logger e chave de sessão
 ├── criar_admin.py           # Script de linha de comando para criar/resetar o administrador
+├── resetar_sistema.py        # Script de linha de comando para zerar o sistema (mantém só os admins)
 ├── requirements.txt
 ├── README.md
 ├── secret.key                # Chave de sessão (gerada automaticamente, não versionar)
@@ -725,6 +726,22 @@ seguintes pontos de atrito:
   ninguém com acesso à tela Usuários. O script pede login, nome completo
   e senha (a senha não aparece na tela) e não exige nenhuma configuração
   adicional (usa o mesmo `database/senhas.db` do sistema).
+- **`resetar_sistema.py`**: script de linha de comando para "zerar" o
+  sistema entre um evento e outro, mantendo apenas os usuários
+  Administrador. Apaga todas as senhas, chamadas, empresas (e seus
+  logos), usuários não-administradores, logs técnicos, e restaura as
+  Configurações para o padrão de fábrica. Antes de apagar qualquer coisa,
+  mostra na tela exatamente o que será removido/mantido e exige que você
+  digite a frase `APAGAR TUDO` para confirmar — nada é apagado sem essa
+  confirmação explícita. Uso:
+
+  ```bat
+  venv\Scripts\activate
+  python resetar_sistema.py
+  ```
+
+  > **Faça um backup de `database/senhas.db` antes de rodar este
+  > script** (ver seção 7) — a operação não pode ser desfeita.
 
 ---
 
