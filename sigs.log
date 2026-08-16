@@ -253,3 +253,12 @@
 2026-08-16 11:33:29 | WARNING  | SIGS | Senha do usuário id=1 foi redefinida por um administrador.
 2026-08-16 11:33:54 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
 2026-08-16 11:36:06 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'logo_path', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'cor_principal']
+2026-08-16 12:01:07 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 12:01:40 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 12:01:55 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 12:05:02 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Teste03'.
+2026-08-16 12:05:02 | INFO     | SIGS | Login realizado: 'teste03' (perfil atendente, guichê 1).
+2026-08-16 12:05:39 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 12:05:44 | INFO     | SIGS | Repetição de chamada da senha 003.
+2026-08-16 12:06:10 | WARNING  | SIGS | Senha do usuário id=8 foi redefinida por um administrador.
+2026-08-16 12:18:08 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
