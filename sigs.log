@@ -243,3 +243,6 @@
 2026-08-14 11:29:43 | INFO     | SIGS | Logout realizado: 'mariamatos'.
 2026-08-14 12:44:03 | WARNING  | SIGS | Senha id=5 cancelada.
 2026-08-14 12:44:05 | WARNING  | SIGS | Senha id=4 cancelada.
+2026-08-15 07:28:12 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-15 07:28:13 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-15 07:31:12 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
