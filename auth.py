@@ -26,8 +26,10 @@ Regras de negócio implementadas aqui:
       na primeira requisição seguinte à desativação.
 """
 
+import threading
+import time
 from functools import wraps
-from typing import Optional
+from typing import Dict, Optional
 
 from flask import flash, jsonify, redirect, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -65,6 +67,90 @@ def verificar_senha(senha_hash: str, senha_texto_puro: str) -> bool:
     return check_password_hash(senha_hash, senha_texto_puro)
 
 
+# Hash "fantasma" (de uma senha que não existe) usado em ``autenticar``
+# quando o login informado não corresponde a nenhum usuário. Sem isso, um
+# login inexistente responderia mais rápido que um login existente com
+# senha errada (pois puluar a chamada de verificar_senha economiza o
+# tempo de CPU do PBKDF2), permitindo a um atacante descobrir quais
+# logins existem no sistema só cronometrando as respostas ("timing
+# attack" de enumeração de usuário). Comparar sempre contra um hash —
+# real ou fantasma — mantém o tempo de resposta consistente nos dois
+# casos.
+_HASH_FANTASMA = generate_password_hash("sigs-hash-fantasma-login-inexistente")
+
+
+# ---------------------------------------------------------------------------
+# Limite de tentativas de login (proteção contra força bruta)
+# ---------------------------------------------------------------------------
+#
+# Estado guardado em memória (não no banco de dados): é informação
+# puramente transitória, reiniciada a cada vez que o servidor reinicia —
+# o suficiente para o objetivo aqui, que é atrapalhar um script tentando
+# adivinhar senhas por tentativa e erro, não uma auditoria permanente.
+# Protegido por um lock porque o waitress atende requisições em várias
+# threads simultâneas (ver wsgi.py).
+
+LIMITE_TENTATIVAS_LOGIN = 5
+JANELA_TENTATIVAS_SEGUNDOS = 5 * 60   # tentativas fora desta janela "prescrevem"
+BLOQUEIO_SEGUNDOS = 5 * 60            # tempo bloqueado após atingir o limite
+
+_lock_tentativas_login = threading.Lock()
+# login normalizado -> {"falhas": int, "ultima_falha": float (time.time())}
+_tentativas_login: Dict[str, dict] = {}
+
+
+def segundos_login_bloqueado(login: str) -> Optional[int]:
+    """
+    Retorna quantos segundos ainda faltam para este login poder tentar
+    novamente, ou ``None`` se ele não está bloqueado no momento.
+    """
+    chave = (login or "").strip().lower()
+    if not chave:
+        return None
+
+    agora = time.time()
+    with _lock_tentativas_login:
+        registro = _tentativas_login.get(chave)
+        if registro is None:
+            return None
+
+        # Tentativas antigas (fora da janela) não contam mais — o login
+        # não está mais "sob suspeita".
+        if agora - registro["ultima_falha"] > JANELA_TENTATIVAS_SEGUNDOS:
+            del _tentativas_login[chave]
+            return None
+
+        if registro["falhas"] < LIMITE_TENTATIVAS_LOGIN:
+            return None
+
+        restante = BLOQUEIO_SEGUNDOS - (agora - registro["ultima_falha"])
+        return int(restante) if restante > 0 else None
+
+
+def registrar_tentativa_falha(login: str) -> None:
+    """Contabiliza mais uma tentativa de login malsucedida para este login."""
+    chave = (login or "").strip().lower()
+    if not chave:
+        return
+
+    agora = time.time()
+    with _lock_tentativas_login:
+        registro = _tentativas_login.get(chave)
+        if registro is None or agora - registro["ultima_falha"] > JANELA_TENTATIVAS_SEGUNDOS:
+            _tentativas_login[chave] = {"falhas": 1, "ultima_falha": agora}
+        else:
+            registro["falhas"] += 1
+            registro["ultima_falha"] = agora
+
+
+def limpar_tentativas_login(login: str) -> None:
+    """Zera o contador de tentativas malsucedidas (chamado após um login
+    bem-sucedido)."""
+    chave = (login or "").strip().lower()
+    with _lock_tentativas_login:
+        _tentativas_login.pop(chave, None)
+
+
 def validar_forca_senha(senha: str) -> Optional[str]:
     """
     Valida requisitos mínimos de senha. Retorna uma mensagem de erro (str)
@@ -86,16 +172,38 @@ def autenticar(login: str, senha: str):
     Retorna uma tupla ``(usuario, mensagem_erro)``: em caso de sucesso,
     ``usuario`` é a instância de ``models.Usuario`` e ``mensagem_erro`` é
     ``None``; em caso de falha, ``usuario`` é ``None`` e ``mensagem_erro``
-    contém o motivo (credenciais inválidas ou usuário desativado).
+    contém o motivo (credenciais inválidas, usuário desativado, ou login
+    temporariamente bloqueado por excesso de tentativas — ver
+    ``segundos_login_bloqueado``).
     """
-    usuario = database.obter_usuario_por_login((login or "").strip())
+    login_normalizado = (login or "").strip()
 
-    if usuario is None or not verificar_senha(usuario.senha_hash, senha or ""):
+    restante = segundos_login_bloqueado(login_normalizado)
+    if restante is not None:
+        minutos = max(1, restante // 60 + (1 if restante % 60 else 0))
+        return None, (
+            f"Muitas tentativas de login incorretas para este usuário. "
+            f"Tente novamente em cerca de {minutos} minuto(s)."
+        )
+
+    usuario = database.obter_usuario_por_login(login_normalizado)
+
+    # Comparamos SEMPRE contra um hash (real ou "fantasma"), mesmo quando
+    # o login não existe, para não vazar essa informação por timing (ver
+    # _HASH_FANTASMA).
+    hash_para_comparar = usuario.senha_hash if usuario is not None else _HASH_FANTASMA
+    senha_confere = verificar_senha(hash_para_comparar, senha or "")
+
+    if usuario is None or not senha_confere:
+        registrar_tentativa_falha(login_normalizado)
         return None, "Login ou senha inválidos."
 
     if not usuario.ativo:
+        # Senha estava correta — não é uma tentativa de "adivinhação",
+        # então não soma ao contador de força bruta.
         return None, "Este usuário está desativado. Procure um administrador do sistema."
 
+    limpar_tentativas_login(login_normalizado)
     return usuario, None
 
 
@@ -238,10 +346,26 @@ def login_required(funcao_view):
     """
     Decorator que exige uma sessão de login válida para acessar a rota.
 
-    Também revalida, a cada requisição, se o usuário continua cadastrado
-    e ativo no banco de dados — garantindo que uma desativação feita por
-    um administrador tenha efeito imediato, mesmo que a sessão/cookie do
-    usuário desativado ainda seja tecnicamente válida.
+    Também revalida, a CADA requisição, três coisas contra o banco de
+    dados (nunca confiando apenas no que foi gravado na sessão no momento
+    do login):
+
+        1. O usuário ainda existe e continua ativo — garante que uma
+           desativação feita por um administrador tenha efeito imediato.
+        2. O PERFIL do usuário não mudou — sem isso, um admin rebaixado
+           para atendente (ou vice-versa) continuaria com o acesso
+           antigo até o cookie de sessão expirar (até 12h, ver
+           app.permanent_session_lifetime), mesmo já sem permissão no
+           banco.
+        3. Para o perfil "recrutador", a EMPRESA vinculada não mudou —
+           sem isso, um recrutador reatribuído a outra empresa por um
+           administrador continuaria enxergando/gerenciando a fila da
+           empresa ANTIGA (guardada na sessão) até deslogar.
+
+    Qualquer uma dessas três checagens falhando encerra a sessão
+    imediatamente e exige novo login — o mesmo tratamento já dado à
+    desativação de usuário, só que agora cobrindo também mudança de
+    perfil/empresa, não apenas o campo "ativo".
     """
 
     @wraps(funcao_view)
@@ -260,6 +384,19 @@ def login_required(funcao_view):
             if _requisicao_eh_api():
                 return jsonify({"sucesso": False, "erro": "Usuário desativado ou removido."}), 403
             flash("Seu usuário foi desativado ou removido. Procure um administrador.", "erro")
+            return redirect(url_for("login_tela"))
+
+        perfil_mudou = usuario.perfil != session.get(CHAVE_SESSAO_PERFIL)
+        empresa_mudou = (
+            usuario.perfil == PerfilUsuario.RECRUTADOR
+            and usuario.empresa_id != session.get(CHAVE_SESSAO_EMPRESA_ID)
+        )
+        if perfil_mudou or empresa_mudou:
+            encerrar_sessao()
+            mensagem = "Seu acesso foi atualizado por um administrador. Faça login novamente."
+            if _requisicao_eh_api():
+                return jsonify({"sucesso": False, "erro": mensagem}), 401
+            flash(mensagem, "erro")
             return redirect(url_for("login_tela"))
 
         return funcao_view(*args, **kwargs)

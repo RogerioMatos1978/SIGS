@@ -81,6 +81,30 @@ app.secret_key = obter_secret_key()
 # atendimento inteiro sem exigir novo login no meio do expediente).
 app.permanent_session_lifetime = timedelta(hours=12)
 
+# Reforço de segurança do cookie de sessão (defesa em profundidade contra
+# CSRF, já que o sistema não usa tokens CSRF separados):
+#   - SESSION_COOKIE_SAMESITE = "Lax": o navegador só envia o cookie de
+#     sessão em navegações de nível superior (clicar num link) ou nas
+#     próprias requisições do site; formulários/scripts de OUTRO site não
+#     conseguem "andar" com a sessão do usuário. Os navegadores modernos
+#     já aplicam "Lax" como padrão quando o atributo não é definido, mas
+#     declarar explicitamente evita depender desse comportamento padrão
+#     (nem todo navegador/webview usado em totens segue o mesmo padrão).
+#   - SESSION_COOKIE_HTTPONLY = True: impede que o cookie de sessão seja
+#     lido via JavaScript (document.cookie), mitigando o impacto de um
+#     eventual XSS. Já é o padrão do Flask, mas fica explícito aqui.
+#   - SESSION_COOKIE_SECURE não é ativado: o SIGS roda em HTTP simples na
+#     rede local (sem HTTPS/certificado) — marcar o cookie como "Secure"
+#     faria o navegador simplesmente parar de enviá-lo, quebrando o login.
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+
+# Limite de tamanho do corpo de uma requisição (protege contra upload
+# excessivamente grande no campo de logo da empresa — ver
+# api_admin_upload_logo_empresa — que carrega o arquivo inteiro na
+# memória via Pillow para extrair a cor predominante).
+app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 8 MB
+
 # Desativa o cache de arquivos estáticos (CSS/JS/imagens) no navegador.
 # Sem isso, o navegador pode continuar usando uma cópia antiga de
 # static/js/*.js mesmo após o arquivo ser atualizado no servidor, exigindo
@@ -142,9 +166,25 @@ def injetar_usuario_logado():
 # ---------------------------------------------------------------------------
 
 def resposta_erro(mensagem: str, codigo_http: int = 400):
-    """Padroniza o formato de resposta de erro da API (JSON)."""
+    """
+    Padroniza o formato de resposta de erro da API (JSON).
+
+    A mensagem completa (que em vários pontos do código embute o texto
+    cru de uma exceção Python, ex.: ``f"Erro ao emitir senha: {erro}"``)
+    é SEMPRE registrada no log para diagnóstico. Mas para códigos 5xx
+    (falhas internas inesperadas — banco de dados, impressora, etc.), o
+    que volta para o CLIENTE é uma mensagem genérica: o texto de uma
+    exceção pode revelar detalhes internos (caminhos de arquivo, nomes de
+    tabela/coluna, driver do banco) que não servem para o usuário e não
+    deveriam ser expostos por uma API, mesmo numa rede local. Para
+    códigos 4xx (validação de entrada, permissão, "não encontrado"), a
+    mensagem é escrita deliberadamente pelo próprio código da rota (não é
+    o texto de uma exceção) e continua sendo devolvida normalmente — é
+    exatamente o que orienta o usuário a corrigir o problema.
+    """
     logger.error(mensagem)
-    return jsonify({"sucesso": False, "erro": mensagem}), codigo_http
+    mensagem_publica = "Ocorreu um erro interno. Tente novamente; se persistir, procure um administrador." if codigo_http >= 500 else mensagem
+    return jsonify({"sucesso": False, "erro": mensagem_publica}), codigo_http
 
 
 def resposta_sucesso(dados: dict, codigo_http: int = 200):
@@ -199,6 +239,12 @@ def _pode_gerenciar_senha(usuario_sessao: dict, senha_id: int) -> bool:
     própria rota (``finalizar_senha``/``cancelar_senha``) responder com o
     404 apropriado, em vez desta função inventar uma resposta de
     permissão para um recurso inexistente.
+
+    A comparação é feita por ``empresa_id`` (referência estável), NUNCA
+    pelo nome da empresa: comparar por nome permitiria que, após uma
+    empresa ser renomeada, um cadastro diferente que reaproveitasse esse
+    nome antigo passasse a "herdar" permissão sobre senhas que nunca
+    foram dele — ver ``database._migrar_tabela_senhas_adicionar_empresa_id``.
     """
     if usuario_sessao.get("perfil") != PerfilUsuario.RECRUTADOR:
         return True
@@ -207,7 +253,7 @@ def _pode_gerenciar_senha(usuario_sessao: dict, senha_id: int) -> bool:
     if senha is None:
         return True
 
-    return senha.empresa == usuario_sessao.get("empresa_nome")
+    return senha.empresa_id == usuario_sessao.get("empresa_id")
 
 
 # ---------------------------------------------------------------------------
@@ -556,9 +602,9 @@ def api_chamar():
 
         guiche = _guiche_formatado(usuario_sessao)
         usuario = usuario_sessao.get("nome_completo")
-        empresa_filtro = usuario_sessao.get("empresa_nome") if eh_recrutador else None
+        empresa_id_filtro = usuario_sessao.get("empresa_id") if eh_recrutador else None
 
-        resultado = database.chamar_proxima(guiche=guiche, usuario=usuario, empresa=empresa_filtro)
+        resultado = database.chamar_proxima(guiche=guiche, usuario=usuario, empresa_id=empresa_id_filtro)
         if resultado is None:
             return resposta_erro("Não há senhas aguardando chamada.", 404)
 
@@ -580,13 +626,13 @@ def api_repetir():
     """
     try:
         usuario_sessao = auth.usuario_logado()
-        empresa_filtro = (
-            usuario_sessao.get("empresa_nome")
+        empresa_id_filtro = (
+            usuario_sessao.get("empresa_id")
             if usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
             else None
         )
 
-        resultado = database.repetir_ultima_chamada(empresa=empresa_filtro)
+        resultado = database.repetir_ultima_chamada(empresa_id=empresa_id_filtro)
         if resultado is None:
             return resposta_erro("Nenhuma chamada foi realizada ainda.", 404)
 
@@ -623,10 +669,10 @@ def api_finalizar_atendimento():
 
         guiche = _guiche_formatado(usuario_sessao)
         usuario = usuario_sessao.get("nome_completo")
-        empresa_filtro = usuario_sessao.get("empresa_nome") if eh_recrutador else None
+        empresa_id_filtro = usuario_sessao.get("empresa_id") if eh_recrutador else None
 
         resultado = database.finalizar_atendimento_e_chamar_proxima(
-            guiche=guiche, usuario=usuario, empresa=empresa_filtro
+            guiche=guiche, usuario=usuario, empresa_id=empresa_id_filtro
         )
 
         resposta = {
@@ -675,14 +721,14 @@ def api_fila():
     """
     try:
         usuario_sessao = auth.usuario_logado()
-        empresa_filtro = (
-            usuario_sessao.get("empresa_nome")
+        empresa_id_filtro = (
+            usuario_sessao.get("empresa_id")
             if usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
             else None
         )
 
-        fila = database.listar_fila_atual(empresa=empresa_filtro)
-        total = database.contar_aguardando(empresa=empresa_filtro)
+        fila = database.listar_fila_atual(empresa_id=empresa_id_filtro)
+        total = database.contar_aguardando(empresa_id=empresa_id_filtro)
         return resposta_sucesso({"fila": fila, "total_aguardando": total})
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao consultar fila: {erro}", 500)
@@ -724,8 +770,7 @@ def api_painel_status():
     dados necessários para atualização (sem recarregar a página inteira).
     """
     try:
-        configuracoes = config_manager.obter_todas()
-        qtd_exibidas = configuracoes.get("qtd_senhas_exibidas", 10)
+        qtd_exibidas = config_manager.obter("qtd_senhas_exibidas", 10)
 
         agora = datetime.now()
 
@@ -735,7 +780,6 @@ def api_painel_status():
                 "ultimas_emitidas": database.listar_ultimas_emitidas(qtd_exibidas),
                 "data": agora.strftime("%d/%m/%Y"),
                 "hora": agora.strftime("%H:%M:%S"),
-                "config": configuracoes,
             }
         )
     except Exception as erro:  # pragma: no cover
@@ -749,27 +793,25 @@ def api_painel_empresa_status(empresa_id: int):
     (``/painel/empresa/<id>``). Mesmo formato de ``/api/painel/status``,
     mas com a chamada atual e as últimas emitidas restritas àquela
     empresa (ver ``database.obter_chamada_atual``/``listar_ultimas_emitidas``
-    com o parâmetro ``empresa``).
+    com o parâmetro ``empresa_id``).
     """
     empresa = database.obter_empresa_por_id(empresa_id)
     if empresa is None:
         return resposta_erro("Empresa não encontrada.", 404)
 
     try:
-        configuracoes = config_manager.obter_todas()
-        qtd_exibidas = configuracoes.get("qtd_senhas_exibidas", 10)
+        qtd_exibidas = config_manager.obter("qtd_senhas_exibidas", 10)
 
         agora = datetime.now()
 
         return resposta_sucesso(
             {
                 "empresa": empresa.to_dict(),
-                "chamada_atual": database.obter_chamada_atual(empresa=empresa.nome),
-                "ultimas_emitidas": database.listar_ultimas_emitidas(qtd_exibidas, empresa=empresa.nome),
-                "total_aguardando": database.contar_aguardando(empresa=empresa.nome),
+                "chamada_atual": database.obter_chamada_atual(empresa_id=empresa.id),
+                "ultimas_emitidas": database.listar_ultimas_emitidas(qtd_exibidas, empresa_id=empresa.id),
+                "total_aguardando": database.contar_aguardando(empresa_id=empresa.id),
                 "data": agora.strftime("%d/%m/%Y"),
                 "hora": agora.strftime("%H:%M:%S"),
-                "config": configuracoes,
             }
         )
     except Exception as erro:  # pragma: no cover
@@ -792,7 +834,6 @@ def api_painel_geral_status():
                 "resumo": database.resumo_geral_senhas(),
                 "data": agora.strftime("%d/%m/%Y"),
                 "hora": agora.strftime("%H:%M:%S"),
-                "config": config_manager.obter_todas(),
             }
         )
     except Exception as erro:  # pragma: no cover
@@ -862,6 +903,32 @@ def api_empresas():
 # API - Relatórios
 # ---------------------------------------------------------------------------
 
+# Caracteres que o Excel/LibreOffice interpretam como início de fórmula
+# quando são o PRIMEIRO caractere de uma célula.
+_CARACTERES_FORMULA_PERIGOSOS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitizar_celula_planilha(valor):
+    """
+    Neutraliza um possível "CSV/Excel formula injection": se ``valor``
+    (texto vindo do banco, como nome de empresa ou de usuário — ambos
+    cadastrados livremente por um administrador) começar com um
+    caractere que o Excel/LibreOffice interpretam como início de fórmula,
+    prefixa com um apóstrofo. O apóstrofo faz o programa de planilha
+    tratar a célula como TEXTO literal (não aparece visualmente depois de
+    aberta), sem executar nada.
+
+    Sem isso, um nome cadastrado sem má intenção (ex.: uma empresa
+    chamada "-1 a 5 funcionários") já produziria uma célula quebrada ao
+    abrir no Excel; em caso malicioso, uma fórmula (ex.: iniciando com
+    "=") poderia rodar comandos ou vazar dados ao abrir a planilha
+    exportada — daí sanitizar sempre, não só em cenários intencionais.
+    """
+    if isinstance(valor, str) and valor[:1] in _CARACTERES_FORMULA_PERIGOSOS:
+        return "'" + valor
+    return valor
+
+
 def _parametros_periodo():
     """Extrai e retorna os parâmetros de período (inicio/fim) e o filtro
     opcional de empresa (nome exato) da querystring."""
@@ -915,8 +982,9 @@ def api_relatorios_csv():
             for item in database.listar_chamadas_periodo(inicio, fim, empresa=empresa):
                 escritor.writerow(
                     [
-                        item["id"], item["senha_id"], item["numero"], item.get("empresa") or "-",
-                        item["guiche"], item["usuario"], item["data_hora"],
+                        item["id"], item["senha_id"], item["numero"],
+                        _sanitizar_celula_planilha(item.get("empresa") or "-"),
+                        item["guiche"], _sanitizar_celula_planilha(item["usuario"]), item["data_hora"],
                     ]
                 )
             nome_arquivo = "relatorio_chamadas.csv"
@@ -925,8 +993,9 @@ def api_relatorios_csv():
             for item in database.listar_senhas_periodo(inicio, fim, empresa=empresa):
                 escritor.writerow(
                     [
-                        item["id"], item["numero"], item["status"], item.get("empresa") or "-",
-                        item["data_hora"], item["guiche"], item["usuario"],
+                        item["id"], item["numero"], item["status"],
+                        _sanitizar_celula_planilha(item.get("empresa") or "-"),
+                        item["data_hora"], item["guiche"], _sanitizar_celula_planilha(item["usuario"]),
                     ]
                 )
             nome_arquivo = "relatorio_emitidas.csv"
@@ -970,8 +1039,9 @@ def api_relatorios_excel():
             for item in database.listar_chamadas_periodo(inicio, fim, empresa=empresa):
                 planilha.append(
                     [
-                        item["id"], item["senha_id"], item["numero"], item.get("empresa") or "-",
-                        item["guiche"], item["usuario"], item["data_hora"],
+                        item["id"], item["senha_id"], item["numero"],
+                        _sanitizar_celula_planilha(item.get("empresa") or "-"),
+                        item["guiche"], _sanitizar_celula_planilha(item["usuario"]), item["data_hora"],
                     ]
                 )
             nome_arquivo = "relatorio_chamadas.xlsx"
@@ -982,8 +1052,9 @@ def api_relatorios_excel():
             for item in database.listar_senhas_periodo(inicio, fim, empresa=empresa):
                 planilha.append(
                     [
-                        item["id"], item["numero"], item["status"], item.get("empresa") or "-",
-                        item["data_hora"], item["guiche"], item["usuario"],
+                        item["id"], item["numero"], item["status"],
+                        _sanitizar_celula_planilha(item.get("empresa") or "-"),
+                        item["data_hora"], item["guiche"], _sanitizar_celula_planilha(item["usuario"]),
                     ]
                 )
             nome_arquivo = "relatorio_emitidas.xlsx"

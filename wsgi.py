@@ -32,4 +32,17 @@ from waitress import serve
 from app import app
 
 if __name__ == "__main__":
-    serve(app, host="0.0.0.0", port=5000, threads=8)
+    # Dimensionamento de "threads": cada painel público aberto (geral,
+    # POR EMPRESA e resumo) e cada tela operacional logada faz polling
+    # HTTP a cada poucos segundos (padrão 2s, configurável em
+    # Configurações). Como cada empresa cadastrada agora tem seu próprio
+    # painel (ver seção 4.6 do README), o número de conexões concorrentes
+    # cresce com a quantidade de empresas do feirão — um valor fixo baixo
+    # de threads, dimensionado para quando só existia UM painel, vira
+    # gargalo (requisições esperando thread livre) num feirão com muitas
+    # empresas. Regra prática: threads >= (2 x nº de empresas cadastradas)
+    # + alguma folga para as telas de atendente/admin; 24 cobre
+    # confortavelmente até ~10 empresas com folga para uso normal do
+    # totem. Se o feirão tiver muito mais empresas que isso, aumente este
+    # número (ou rode com waitress atrás de um proxy, se necessário).
+    serve(app, host="0.0.0.0", port=5000, threads=24)

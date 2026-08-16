@@ -47,6 +47,7 @@ class Senha:
     guiche: Optional[str] = None
     usuario: Optional[str] = None
     empresa: Optional[str] = None
+    empresa_id: Optional[int] = None
 
     def to_dict(self) -> dict:
         """Converte a senha para um dicionário serializável em JSON."""
@@ -68,6 +69,14 @@ class Senha:
             # emitidas antes dessa migração simplesmente terão este campo
             # como None ("Não informado" nos relatórios).
             empresa=linha["empresa"] if "empresa" in linha.keys() else None,
+            # "empresa_id" (ver database._migrar_tabela_senhas_adicionar_empresa_id)
+            # é a referência ESTÁVEL usada para filtrar fila/permissões por
+            # empresa (ver app.py:_pode_gerenciar_senha) — "empresa" (acima)
+            # é só o nome congelado no momento da emissão, usado apenas para
+            # EXIBIÇÃO/relatórios, nunca para controle de acesso, pois o
+            # nome de uma empresa pode ser reaproveitado depois de uma
+            # renomeação.
+            empresa_id=linha["empresa_id"] if "empresa_id" in linha.keys() else None,
         )
 
 
