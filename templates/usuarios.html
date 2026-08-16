@@ -31,7 +31,9 @@
                 Todo novo usuário é criado como Atendente ou Administrador.
                 Para tornar alguém <strong>Emissor de Senhas</strong>, crie o
                 usuário abaixo e depois mude o perfil dele para "Emissor" no
-                seletor da tabela "Usuários Cadastrados".
+                seletor da tabela "Usuários Cadastrados". Para criar um
+                <strong>Recrutador</strong>, selecione o perfil abaixo e
+                escolha a empresa à qual ele fica vinculado.
             </p>
             <form id="form-novo-usuario">
                 <div class="campos-identificacao">
@@ -54,10 +56,22 @@
                              usuário nasce Atendente ou Administrador. Para
                              tornar alguém Emissor, o administrador promove o
                              usuário já cadastrado usando o seletor de perfil
-                             na tabela "Usuários Cadastrados" abaixo. -->
+                             na tabela "Usuários Cadastrados" abaixo. O perfil
+                             "Recrutador" É oferecido aqui porque exige a
+                             escolha imediata da empresa (campo abaixo). -->
                         <select id="novo-perfil">
                             <option value="atendente" selected>Atendente (chama e finaliza atendimentos)</option>
+                            <option value="recrutador">Recrutador (chama e finaliza por empresa)</option>
                             <option value="admin">Administrador (sem guichê)</option>
+                        </select>
+                    </label>
+                    <label id="campo-novo-empresa" style="display: none;">
+                        Empresa do Recrutador <span class="campo-obrigatorio">*</span>
+                        <select id="novo-empresa-id">
+                            <option value="" disabled selected>Selecione a empresa...</option>
+                            {% for empresa in empresas %}
+                            <option value="{{ empresa.id }}">{{ empresa.nome }}</option>
+                            {% endfor %}
                         </select>
                     </label>
                 </div>
@@ -74,6 +88,7 @@
                         <th>Nome</th>
                         <th>Login</th>
                         <th>Perfil</th>
+                        <th>Empresa (Recrutador)</th>
                         <th>Status</th>
                         <th>Último Login</th>
                         <th>Ações</th>
@@ -88,7 +103,17 @@
                             <select class="select-perfil" data-usuario-id="{{ usuario.id }}">
                                 <option value="atendente" {% if usuario.perfil == 'atendente' %}selected{% endif %}>Atendente</option>
                                 <option value="emissor" {% if usuario.perfil == 'emissor' %}selected{% endif %}>Emissor</option>
+                                <option value="recrutador" {% if usuario.perfil == 'recrutador' %}selected{% endif %}>Recrutador</option>
                                 <option value="admin" {% if usuario.perfil == 'admin' %}selected{% endif %}>Administrador</option>
+                            </select>
+                        </td>
+                        <td>
+                            <select class="select-empresa-recrutador" data-usuario-id="{{ usuario.id }}"
+                                    {{ '' if usuario.perfil == 'recrutador' else 'disabled' }}>
+                                <option value="">Nenhuma empresa</option>
+                                {% for empresa in empresas %}
+                                <option value="{{ empresa.id }}" {% if usuario.empresa_id == empresa.id %}selected{% endif %}>{{ empresa.nome }}</option>
+                                {% endfor %}
                             </select>
                         </td>
                         <td>
@@ -113,7 +138,7 @@
         </section>
 
         <section class="card">
-            <h2>Guichês Ocupados Agora</h2>
+            <h2>Guichês Ocupados Agora (Fila Geral)</h2>
             <table class="tabela-fila">
                 <thead>
                     <tr>
@@ -131,6 +156,32 @@
                     </tr>
                     {% else %}
                     <tr><td colspan="3">Nenhum guichê ocupado no momento.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="card">
+            <h2>Salas de Recrutadores Ocupadas</h2>
+            <table class="tabela-fila">
+                <thead>
+                    <tr>
+                        <th>Empresa</th>
+                        <th>Sala</th>
+                        <th>Usuário</th>
+                        <th>Ocupada Desde</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ocupacao in guiches_empresa_ocupados %}
+                    <tr>
+                        <td>{{ ocupacao.empresa_nome }}</td>
+                        <td>{{ '%02d' | format(ocupacao.guiche) }}</td>
+                        <td>{{ ocupacao.usuario_nome }}</td>
+                        <td>{{ ocupacao.ocupado_desde }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4">Nenhuma sala de recrutador ocupada no momento.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

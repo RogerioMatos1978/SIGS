@@ -78,7 +78,7 @@ class PerfilUsuario:
     mesmo motivo de ``StatusSenha``: compatibilidade direta com o valor
     armazenado como texto no SQLite.
 
-    Três perfis, com responsabilidades bem separadas:
+    Quatro perfis, com responsabilidades bem separadas:
 
         ADMIN
             Acesso administrativo total (Configurações, Relatórios,
@@ -91,23 +91,35 @@ class PerfilUsuario:
             Perfil "padrão" sugerido ao administrador ao cadastrar um
             novo usuário pela tela "Gerenciar Usuários" (não há
             autocadastro público). Ao logar, assume automaticamente um
-            guichê de atendimento disponível e é responsável por chamar,
-            repetir chamada e finalizar o atendimento das senhas — a
-            finalização já dispara automaticamente a chamada da próxima
-            senha da fila.
+            guichê de atendimento disponível (fila GERAL, compartilhada
+            entre todas as empresas) e é responsável por chamar, repetir
+            chamada e finalizar o atendimento das senhas — a finalização
+            já dispara automaticamente a chamada da próxima senha da
+            fila.
         EMISSOR
             Perfil restrito, criado apenas por um administrador pela
             tela de Gerenciar Usuários, destinado a operar um totem de
             emissão de senhas (por exemplo, na entrada do evento). Só
             emite senhas — essas senhas alimentam a fila consumida pelos
-            usuários "atendente". Não ocupa guichê e não chama senhas.
+            usuários "atendente" e "recrutador". Não ocupa guichê e não
+            chama senhas.
+        RECRUTADOR
+            Vinculado a UMA empresa específica do feirão (campo
+            ``Usuario.empresa_id``, definido pelo administrador em
+            "Gerenciar Usuários"). Ao logar, assume automaticamente uma
+            sala/guichê disponível DENTRO da fila da sua própria empresa
+            (pool independente da fila geral do Atendente — ver
+            ``database.ocupar_proximo_guiche_empresa_disponivel``) e só
+            chama, repete chamada e finaliza (dá baixa) senhas emitidas
+            para essa empresa.
     """
 
     ADMIN = "admin"
     ATENDENTE = "atendente"
     EMISSOR = "emissor"
+    RECRUTADOR = "recrutador"
 
-    TODOS = (ADMIN, ATENDENTE, EMISSOR)
+    TODOS = (ADMIN, ATENDENTE, EMISSOR, RECRUTADOR)
 
 
 @dataclass
@@ -120,6 +132,14 @@ class Usuario:
     ``auth.py``). O método ``to_dict_publico`` deve ser utilizado sempre
     que os dados do usuário forem enviados ao navegador (API/JSON), pois
     remove o hash da senha da resposta.
+
+    ``empresa_id`` só é relevante para o perfil "recrutador": é o id da
+    empresa (tabela ``empresas``) à qual este usuário está vinculado.
+    Para os demais perfis, permanece ``None``. Diferente do campo
+    ``empresa`` de ``Senha`` (que grava o NOME como texto congelado no
+    momento do evento), aqui usamos o ID com referência viva à empresa,
+    pois o vínculo do recrutador deve sempre refletir o cadastro atual
+    (inclusive se a empresa for renomeada).
     """
 
     id: int
@@ -130,6 +150,7 @@ class Usuario:
     ativo: bool
     data_criacao: str
     ultimo_login: Optional[str] = None
+    empresa_id: Optional[int] = None
 
     def to_dict_publico(self) -> dict:
         """Retorna os dados do usuário SEM o hash de senha, seguro para
@@ -149,6 +170,11 @@ class Usuario:
             ativo=bool(linha["ativo"]),
             data_criacao=linha["data_criacao"],
             ultimo_login=linha["ultimo_login"],
+            # A coluna "empresa_id" foi adicionada por migração automática
+            # (ver database._migrar_tabela_usuarios_adicionar_empresa_id);
+            # usuários de bancos antigos simplesmente ficam sem empresa
+            # vinculada (correto, pois não eram recrutadores).
+            empresa_id=linha["empresa_id"] if "empresa_id" in linha.keys() else None,
         )
 
 
@@ -197,12 +223,44 @@ class Empresa:
     desse seletor, mas o nome permanece gravado (como texto) em todas as
     senhas já emitidas para ela — desativar uma empresa NUNCA apaga ou
     altera o histórico de senhas/relatórios já gerados.
+
+    ``logo_path`` e ``cor_principal`` formam a identidade visual da
+    empresa (ambos opcionais — ``None`` até que um administrador faça o
+    upload de um logo pela tela Empresas):
+
+        logo_path
+            Caminho do arquivo de logo RELATIVO À PASTA ``static/`` (ex.:
+            ``"img/empresas/3.png"``), pronto para uso direto em
+            ``url_for('static', filename=empresa.logo_path)``. Diferente
+            de ``config.LOGO_PADRAO`` (que é relativo à raiz do projeto,
+            usado por ``printer.py`` para abrir o arquivo diretamente com
+            PIL) — os dois NÃO são intercambiáveis.
+        cor_principal
+            Cor hexadecimal (``"#RRGGBB"``) usada como ``--cor-principal``
+            (ver layout.html) sempre que a página estiver no contexto
+            desta empresa — painel público da empresa
+            (``/painel/empresa/<id>``) ou tela principal de um recrutador
+            vinculado a ela. É PREENCHIDA AUTOMATICAMENTE ao enviar um
+            logo (extraída da imagem, ver
+            ``app.py:_extrair_cor_predominante``), mas pode ser
+            sobrescrita manualmente a qualquer momento (ver
+            ``definir_cor_empresa``).
+
+    ``contador_atual`` guarda o ÚLTIMO número de senha emitido PARA ESTA
+    empresa — cada empresa tem sua própria sequência independente de
+    numeração (001, 002, 003...), controlada por ``database.criar_senha``.
+    Não confundir com a antiga configuração global ``contador_atual`` da
+    tabela ``configuracoes`` (usada antes de cada empresa ter sua própria
+    sequência), que não é mais lida.
     """
 
     id: int
     nome: str
     ativa: bool
     data_criacao: str
+    logo_path: Optional[str] = None
+    cor_principal: Optional[str] = None
+    contador_atual: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -214,4 +272,13 @@ class Empresa:
             nome=linha["nome"],
             ativa=bool(linha["ativa"]),
             data_criacao=linha["data_criacao"],
+            # As colunas abaixo foram adicionadas por migração automática
+            # (ver database._migrar_tabela_empresas_adicionar_identidade_visual
+            # e database._migrar_tabela_empresas_adicionar_contador);
+            # empresas de bancos antigos simplesmente ficam sem identidade
+            # visual própria (usam o logo/cor padrão do sistema) e com
+            # contador zerado até a próxima migração/emissão.
+            logo_path=linha["logo_path"] if "logo_path" in linha.keys() else None,
+            cor_principal=linha["cor_principal"] if "cor_principal" in linha.keys() else None,
+            contador_atual=linha["contador_atual"] if "contador_atual" in linha.keys() else 0,
         )

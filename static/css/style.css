@@ -36,28 +36,30 @@ body {
 }
 
 /* -------------------- Layout genérico de página -------------------- */
+/* Padding reduzido ao mínimo confortável (era 40px/48px) — layout mais
+   compacto tanto no desktop quanto, principalmente, no celular. */
 .pagina {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 40px 48px;
+    padding: 20px 24px;
     /* Espaço reservado para o rodapé fixo (ver .rodape-sigs), evitando
        que o conteúdo final da página fique escondido atrás dele. */
-    padding-bottom: 88px;
+    padding-bottom: 72px;
 }
 
 .cabecalho {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 16px;
     background: var(--cor-branco);
     border-radius: var(--raio-borda);
     box-shadow: var(--sombra-padrao);
-    padding: 28px 36px;
-    margin-bottom: 28px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
 }
 
 .cabecalho .logo {
-    height: 64px;
+    height: 56px;
     width: auto;
     object-fit: contain;
 }
@@ -77,7 +79,7 @@ body {
 .conteudo-principal {
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    gap: 18px;
 }
 
 /* -------------------- Cards -------------------- */
@@ -85,7 +87,7 @@ body {
     background: var(--cor-branco);
     border-radius: var(--raio-borda);
     box-shadow: var(--sombra-padrao);
-    padding: 32px 36px;
+    padding: 18px 20px;
 }
 
 .card h2 {
@@ -93,13 +95,13 @@ body {
     color: var(--cor-principal);
     font-size: 1.3rem;
     border-bottom: 2px solid var(--cor-cinza-borda);
-    padding-bottom: 10px;
+    padding-bottom: 8px;
 }
 
 .campos-identificacao {
     display: flex;
     flex-wrap: wrap;
-    gap: 20px;
+    gap: 14px;
 }
 
 .campos-identificacao label,
@@ -114,7 +116,7 @@ body {
 }
 
 input, select {
-    padding: 12px 14px;
+    padding: 10px 12px;
     border: 2px solid var(--cor-cinza-borda);
     border-radius: 10px;
     font-size: 1rem;
@@ -151,7 +153,7 @@ input:focus, select:focus {
 .botao {
     border: none;
     border-radius: 12px;
-    padding: 18px 22px;
+    padding: 12px 16px;
     font-size: 1.1rem;
     font-weight: 700;
     cursor: pointer;
@@ -182,8 +184,8 @@ input:focus, select:focus {
 }
 
 .botao-grande {
-    padding: 26px 20px;
-    font-size: 1.25rem;
+    padding: 16px 14px;
+    font-size: 1.15rem;
 }
 
 .botao-primario {
@@ -205,7 +207,7 @@ input:focus, select:focus {
 .grade-botoes {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 18px;
+    gap: 12px;
 }
 
 .grade-botoes-relatorio {
@@ -216,12 +218,12 @@ input:focus, select:focus {
 .tabela-fila {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 12px;
+    margin-top: 10px;
 }
 
 .tabela-fila th, .tabela-fila td {
     text-align: left;
-    padding: 12px 10px;
+    padding: 10px 8px;
     border-bottom: 1px solid var(--cor-cinza-borda);
 }
 
@@ -255,7 +257,7 @@ input:focus, select:focus {
     border-left: 6px solid var(--cor-principal);
     border-radius: 10px;
     box-shadow: var(--sombra-padrao);
-    padding: 14px 18px;
+    padding: 10px 14px;
     min-width: 260px;
     animation: entrada-notificacao 0.3s ease-out;
 }
@@ -273,14 +275,14 @@ input:focus, select:focus {
 .resumo-grade {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
+    gap: 14px;
     text-align: center;
 }
 
 .resumo-item {
     background: var(--cor-fundo);
     border-radius: var(--raio-borda);
-    padding: 20px;
+    padding: 14px;
 }
 
 .resumo-valor {
@@ -299,13 +301,13 @@ input:focus, select:focus {
 .card-formulario {
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 12px;
 }
 
 .acoes-formulario {
     display: flex;
-    gap: 14px;
-    margin-top: 10px;
+    gap: 10px;
+    margin-top: 8px;
 }
 
 .mensagem-status {
@@ -326,14 +328,14 @@ input:focus, select:focus {
     color: var(--cor-branco);
     display: flex;
     flex-direction: column;
-    padding: 32px 48px;
+    padding: 20px 24px;
 }
 
 .painel-cabecalho {
     display: flex;
     align-items: center;
-    gap: 24px;
-    margin-bottom: 40px;
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
 .painel-logo {
@@ -388,7 +390,7 @@ input:focus, select:focus {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 40px;
+    padding: 24px;
     text-align: center;
 }
 
@@ -428,7 +430,7 @@ input:focus, select:focus {
 .painel-historico {
     background: rgba(255, 255, 255, 0.06);
     border-radius: 24px;
-    padding: 30px;
+    padding: 18px;
     overflow-y: auto;
 }
 
@@ -452,7 +454,7 @@ input:focus, select:focus {
 .painel-lista li {
     background: rgba(255, 255, 255, 0.08);
     border-radius: 12px;
-    padding: 14px 18px;
+    padding: 10px 14px;
     display: flex;
     justify-content: space-between;
     font-size: 1.15rem;
@@ -465,6 +467,74 @@ input:focus, select:focus {
     background: rgba(255, 255, 255, 0.15);
 }
 
+/* -------------------- Painel Geral (resumo do feirão) -------------------- */
+
+.painel-geral-corpo {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.painel-resumo-grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+}
+
+.painel-resumo-item {
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-radius: 20px;
+    padding: 16px;
+    text-align: center;
+}
+
+.painel-resumo-item-total {
+    background: rgba(244, 163, 0, 0.18);
+    border-color: var(--cor-secundaria);
+}
+
+.painel-resumo-valor {
+    display: block;
+    font-size: 3.2rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.painel-resumo-label {
+    display: block;
+    margin-top: 10px;
+    font-size: 1.05rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.painel-resumo-tabela-wrap {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.painel-resumo-tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1.05rem;
+}
+
+.painel-resumo-tabela th, .painel-resumo-tabela td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.painel-resumo-tabela th {
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    opacity: 0.8;
+}
+
 /* =============================================================
    Autenticação (login / cadastro), barra de usuário e admin
    ============================================================= */
@@ -474,10 +544,10 @@ input:focus, select:focus {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
     background: var(--cor-principal);
     color: var(--cor-branco);
-    padding: 12px 24px;
+    padding: 10px 16px;
 }
 
 .barra-usuario-info {
@@ -517,6 +587,19 @@ input:focus, select:focus {
 
 .form-logout {
     margin: 0;
+}
+
+/* Frase livre definida pelo administrador em Configurações ("Frase do
+   Menu"), exibida logo abaixo da barra-usuario em todas as telas internas
+   (ver layout.html). Faixa fina e discreta, sem competir visualmente com
+   o menu acima. */
+.barra-mensagem {
+    background: var(--cor-secundaria);
+    color: #402D00;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 6px 16px;
 }
 
 .botao-sair {
@@ -620,9 +703,55 @@ input:focus, select:focus {
     flex-wrap: wrap;
 }
 
-.select-perfil {
+.select-perfil, .select-empresa-recrutador {
     padding: 6px 8px;
     font-size: 0.9rem;
+}
+
+/* -------------------- Identidade visual da empresa (tela Empresas) -------------------- */
+.identidade-visual-empresa {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.logo-empresa-preview {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    background: var(--cor-fundo);
+    border-radius: 8px;
+    border: 1px solid var(--cor-cinza-borda);
+    padding: 2px;
+}
+
+.input-cor-empresa {
+    width: 42px;
+    height: 36px;
+    padding: 2px;
+    cursor: pointer;
+}
+
+/* Botões da linha de cada empresa (tela Empresas) usam a cor DAQUELA
+   empresa (variável --cor-empresa, definida inline em cada <tr> — ver
+   empresas.html) em vez da cor padrão do sistema. "Desativar"/"Ativar"
+   (.botao-alerta / .botao-primario da coluna Ações) ficam de fora
+   propositalmente, mantendo o vermelho de alerta sempre reconhecível. */
+#empresas-corpo tr .btn-upload-logo,
+#empresas-corpo tr .btn-renomear-empresa,
+#empresas-corpo tr .btn-reiniciar-contador-empresa,
+#empresas-corpo tr .acoes-usuario > a.botao {
+    background: var(--cor-empresa, var(--cor-principal-clara));
+}
+
+/* Coluna "Próxima Senha" (contador de numeração POR EMPRESA, ver
+   database.criar_senha): destaque monoespaçado simples, sem exigir CSS
+   novo elaborado — só um pouco de peso visual para ficar fácil de ler
+   rapidamente numa tabela com várias empresas. */
+.celula-proxima-senha {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
 }
 
 .card-zona-perigo {
@@ -657,7 +786,7 @@ input:focus, select:focus {
     background: var(--cor-branco);
     border-radius: var(--raio-borda);
     box-shadow: var(--sombra-padrao);
-    padding: 28px;
+    padding: 18px;
     max-width: 420px;
     width: 100%;
 }
@@ -699,11 +828,26 @@ input:focus, select:focus {
     font-size: 0.85rem;
     font-weight: 600;
     letter-spacing: 0.3px;
-    padding: 12px 16px;
+    padding: 8px 12px;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.12);
 }
 
 /* -------------------- Responsividade -------------------- */
+
+/* Qualquer tabela (fila, usuários, empresas, resumo do painel geral) vira
+   rolável horizontalmente dentro do próprio card em telas estreitas, em
+   vez de espremer as colunas a ponto de ficarem ilegíveis. O
+   min-width nas tabelas força o scroll a aparecer quando necessário. */
+@media (max-width: 700px) {
+    .card {
+        overflow-x: auto;
+    }
+
+    .tabela-fila, .painel-resumo-tabela {
+        min-width: 480px;
+    }
+}
+
 @media (max-width: 900px) {
     .painel-corpo {
         grid-template-columns: 1fr;
@@ -721,25 +865,58 @@ input:focus, select:focus {
 
 @media (max-width: 600px) {
     .pagina {
-        padding: 20px;
-        padding-bottom: 76px;
+        padding: 12px;
+        padding-bottom: 64px;
     }
 
     .pagina-auth {
-        padding-bottom: 76px;
+        padding-bottom: 64px;
+    }
+
+    .card {
+        padding: 14px;
+    }
+
+    .cabecalho {
+        padding: 12px;
+    }
+
+    .cabecalho .logo {
+        height: 44px;
+    }
+
+    .titulo-evento h1 {
+        font-size: 1.5rem;
     }
 
     .rodape-sigs {
         font-size: 0.75rem;
-        padding: 10px 12px;
+        padding: 6px 10px;
     }
 
     .painel {
-        padding: 20px;
+        padding: 12px;
+    }
+
+    .painel-cabecalho {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .painel-logo {
+        height: 56px;
+    }
+
+    .painel-titulo h1 {
+        font-size: 1.6rem;
     }
 
     .painel-numero {
         font-size: 5rem;
+    }
+
+    .painel-resumo-valor {
+        font-size: 2.2rem;
     }
 
     .grade-botoes {
@@ -752,6 +929,10 @@ input:focus, select:focus {
     }
 
     .identificacao-sessao {
-        gap: 14px;
+        gap: 12px;
+    }
+
+    .modal-caixa {
+        padding: 14px;
     }
 }

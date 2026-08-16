@@ -1,0 +1,83 @@
+<!--
+    painel_geral.html
+    ==================
+    Painel público resumo de TODO o feirão do emprego, projetado para
+    exibição em tela cheia (TV/monitor): total de senhas emitidas,
+    aguardando, em atendimento, atendidas e canceladas, com o detalhe por
+    empresa. Sem controles de chamada (apenas leitura) e sem exigência de
+    login — ver /api/painel/geral/status.
+-->
+{% extends "layout.html" %}
+
+{% block titulo %}SIGS - Painel Geral{% endblock %}
+
+{% block conteudo %}
+<div class="painel painel-geral">
+
+    <header class="painel-cabecalho">
+        <img class="painel-logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo SENAI">
+        <div class="painel-titulo">
+            <h1>{{ config.nome_evento }}</h1>
+            <p>Painel Geral — Resumo do Feirão</p>
+        </div>
+        <div class="painel-relogio">
+            <div id="painel-data">--/--/----</div>
+            <div id="painel-hora">--:--:--</div>
+        </div>
+    </header>
+
+    <main class="painel-geral-corpo">
+        <section class="painel-resumo-grade" id="painel-resumo-grade">
+            <div class="painel-resumo-item">
+                <span id="resumo-aguardando" class="painel-resumo-valor">0</span>
+                <span class="painel-resumo-label">Aguardando</span>
+            </div>
+            <div class="painel-resumo-item">
+                <span id="resumo-em-atendimento" class="painel-resumo-valor">0</span>
+                <span class="painel-resumo-label">Em Atendimento</span>
+            </div>
+            <div class="painel-resumo-item">
+                <span id="resumo-atendidas" class="painel-resumo-valor">0</span>
+                <span class="painel-resumo-label">Atendidas</span>
+            </div>
+            <div class="painel-resumo-item">
+                <span id="resumo-canceladas" class="painel-resumo-valor">0</span>
+                <span class="painel-resumo-label">Canceladas</span>
+            </div>
+            <div class="painel-resumo-item painel-resumo-item-total">
+                <span id="resumo-total" class="painel-resumo-valor">0</span>
+                <span class="painel-resumo-label">Total Emitidas</span>
+            </div>
+        </section>
+
+        <section class="painel-historico painel-resumo-tabela-wrap">
+            <h2>Por Empresa</h2>
+            <table class="painel-resumo-tabela">
+                <thead>
+                    <tr>
+                        <th>Empresa</th>
+                        <th>Aguardando</th>
+                        <th>Em Atendimento</th>
+                        <th>Atendidas</th>
+                        <th>Canceladas</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody id="painel-resumo-empresas-corpo">
+                    <tr><td colspan="6">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.SIGS_CONFIG = {
+        tempoAtualizacaoMs: {{ config.tempo_atualizacao_ms | default(2000) }}
+    };
+</script>
+<script src="{{ url_for('static', filename='js/painel_geral.js') }}"></script>
+{% endblock %}

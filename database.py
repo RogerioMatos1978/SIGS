@@ -33,16 +33,31 @@ Tabelas criadas:
 
     usuarios
         id, nome_completo, login, senha_hash, perfil, ativo, data_criacao,
-        ultimo_login
+        ultimo_login, empresa_id
+        (``empresa_id`` só é usado pelo perfil "recrutador" — vincula o
+        usuário a UMA empresa da tabela ``empresas``, ver seção de
+        Usuários mais abaixo)
 
     guiches_ocupados
         guiche, usuario_id, usuario_nome, ocupado_desde
+        (pool GERAL de guichês, usado pelo perfil "atendente")
+
+    guiches_empresa_ocupados
+        empresa_id, guiche, usuario_id, usuario_nome, ocupado_desde
+        (pool de salas/guichês POR EMPRESA, usado pelo perfil
+        "recrutador" — independente do pool geral acima; dois recrutadores
+        de empresas diferentes podem ocupar o mesmo número de sala sem
+        conflito, pois a chave primária é o par (empresa_id, guiche))
 
     empresas
-        id, nome, ativa, data_criacao
+        id, nome, ativa, data_criacao, logo_path, cor_principal,
+        contador_atual
         (empresas participantes do feirão do emprego; o nome é gravado
         como texto na própria senha no momento da emissão — ver
-        criar_empresa/listar_empresas mais abaixo)
+        criar_empresa/listar_empresas mais abaixo. ``contador_atual``
+        guarda o ÚLTIMO número de senha emitido PARA AQUELA EMPRESA —
+        cada empresa tem sua própria sequência independente 001, 002,
+        003... ver criar_senha/reiniciar_contador_empresa mais abaixo)
 """
 
 import sqlite3
@@ -136,6 +151,26 @@ def inicializar_banco() -> None:
             """
         )
 
+        # Empresas participantes do feirão do emprego. Cadastradas apenas
+        # por um administrador (tela /admin/empresas); selecionadas
+        # obrigatoriamente no momento da emissão de cada senha (ver
+        # api_emitir em app.py) e impressas no próprio ticket. Criada ANTES
+        # de "usuarios" porque a tabela "usuarios" abaixo referencia
+        # "empresas" (coluna "empresa_id", usada pelo perfil "recrutador").
+        conexao.execute(
+            """
+            CREATE TABLE IF NOT EXISTS empresas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL UNIQUE,
+                ativa INTEGER NOT NULL DEFAULT 1,
+                data_criacao TEXT NOT NULL,
+                logo_path TEXT,
+                cor_principal TEXT,
+                contador_atual INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+
         # Usuários do sistema (login obrigatório para qualquer acesso).
         #
         # Observação de projeto: o campo "perfil" NÃO possui uma cláusula
@@ -146,6 +181,10 @@ def inicializar_banco() -> None:
         # adicionar novos perfis no futuro (ex.: um perfil de supervisor)
         # sem exigir migração de esquema do SQLite — apenas atualizar
         # ``models.PerfilUsuario``.
+        #
+        # "empresa_id" só é usado pelo perfil "recrutador": vincula o
+        # usuário a UMA empresa (ver models.Usuario e a seção "Usuários"
+        # mais abaixo). Fica NULL para os demais perfis.
         conexao.execute(
             f"""
             CREATE TABLE IF NOT EXISTS usuarios (
@@ -156,14 +195,15 @@ def inicializar_banco() -> None:
                 perfil TEXT NOT NULL DEFAULT '{PerfilUsuario.ATENDENTE}',
                 ativo INTEGER NOT NULL DEFAULT 1,
                 data_criacao TEXT NOT NULL,
-                ultimo_login TEXT
+                ultimo_login TEXT,
+                empresa_id INTEGER REFERENCES empresas (id)
             )
             """
         )
 
-        # Ocupação de guichês: cada guichê (1..N, N definido em
-        # Configurações) só pode estar associado a um usuário logado por
-        # vez. A linha é removida quando o usuário efetua logout.
+        # Ocupação de guichês da fila GERAL: cada guichê (1..N, N definido
+        # em Configurações) só pode estar associado a um usuário "atendente"
+        # logado por vez. A linha é removida quando o usuário efetua logout.
         conexao.execute(
             """
             CREATE TABLE IF NOT EXISTS guiches_ocupados (
@@ -176,22 +216,37 @@ def inicializar_banco() -> None:
             """
         )
 
-        # Empresas participantes do feirão do emprego. Cadastradas apenas
-        # por um administrador (tela /admin/empresas); selecionadas
-        # obrigatoriamente no momento da emissão de cada senha (ver
-        # api_emitir em app.py) e impressas no próprio ticket.
+        # Ocupação de guichês (salas) POR EMPRESA: pool independente do
+        # geral acima, usado pelo perfil "recrutador". A chave primária é o
+        # par (empresa_id, guiche), permitindo que a mesma numeração de
+        # sala seja reutilizada por empresas diferentes simultaneamente
+        # (ex.: "Sala 01" da Empresa A e "Sala 01" da Empresa B não
+        # conflitam entre si). A linha é removida quando o recrutador
+        # efetua logout.
         conexao.execute(
             """
-            CREATE TABLE IF NOT EXISTS empresas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nome TEXT NOT NULL UNIQUE,
-                ativa INTEGER NOT NULL DEFAULT 1,
-                data_criacao TEXT NOT NULL
+            CREATE TABLE IF NOT EXISTS guiches_empresa_ocupados (
+                empresa_id INTEGER NOT NULL,
+                guiche INTEGER NOT NULL,
+                usuario_id INTEGER NOT NULL,
+                usuario_nome TEXT NOT NULL,
+                ocupado_desde TEXT NOT NULL,
+                PRIMARY KEY (empresa_id, guiche),
+                FOREIGN KEY (empresa_id) REFERENCES empresas (id),
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
             )
             """
         )
 
         # Índices para acelerar as consultas mais frequentes.
+        #
+        # IMPORTANTE: o índice de "usuarios.empresa_id" NÃO é criado aqui —
+        # em um banco de dados antigo (anterior ao perfil "recrutador"), a
+        # coluna "empresa_id" ainda não existe neste ponto (a tabela já
+        # existia, então "CREATE TABLE IF NOT EXISTS" acima não a recriou
+        # com a coluna nova). Esse índice só é criado mais abaixo, DEPOIS
+        # de "_migrar_tabela_usuarios_adicionar_empresa_id" garantir que a
+        # coluna existe — ver o final desta função.
         conexao.execute("CREATE INDEX IF NOT EXISTS idx_senhas_status ON senhas (status)")
         conexao.execute(
             "CREATE INDEX IF NOT EXISTS idx_eventos_data ON eventos_chamada (data_hora)"
@@ -219,6 +274,27 @@ def inicializar_banco() -> None:
         # Adiciona a coluna "empresa" à tabela "senhas" em bancos de dados
         # criados antes da funcionalidade de empresas do feirão existir.
         _migrar_tabela_senhas_adicionar_empresa(conexao)
+
+        # Adiciona a coluna "empresa_id" à tabela "usuarios" em bancos de
+        # dados criados antes do perfil "recrutador" existir.
+        _migrar_tabela_usuarios_adicionar_empresa_id(conexao)
+
+        # Adiciona as colunas "logo_path"/"cor_principal" à tabela
+        # "empresas" em bancos de dados criados antes da identidade visual
+        # por empresa existir.
+        _migrar_tabela_empresas_adicionar_identidade_visual(conexao)
+
+        # Adiciona a coluna "contador_atual" à tabela "empresas" em bancos
+        # de dados criados antes de cada empresa ter sua própria sequência
+        # de numeração de senhas (antes disso, havia um único contador
+        # global em "configuracoes").
+        _migrar_tabela_empresas_adicionar_contador(conexao)
+
+        # Só agora a coluna "empresa_id" está garantidamente presente
+        # (bancos novos já a criam direto; bancos antigos acabaram de
+        # recebê-la na migração acima), então é seguro criar o índice.
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_usuarios_empresa ON usuarios (empresa_id)")
+        conexao.commit()
 
     logger.info("Banco de dados inicializado em: %s", DATABASE_PATH)
 
@@ -400,6 +476,125 @@ def _migrar_tabela_senhas_adicionar_empresa(conexao: sqlite3.Connection) -> None
     )
 
 
+def _migrar_tabela_usuarios_adicionar_empresa_id(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona a coluna ``empresa_id`` (INTEGER, opcional) à tabela
+    ``usuarios`` em bancos de dados criados antes do perfil "recrutador"
+    existir.
+
+    Segue o mesmo padrão simples de
+    ``_migrar_tabela_senhas_adicionar_empresa``: apenas ``ALTER TABLE ...
+    ADD COLUMN``, sem necessidade de recriar a tabela, pois a nova coluna
+    aceita valores nulos — usuários já cadastrados simplesmente ficam sem
+    empresa vinculada (correto, já que nenhum deles era recrutador antes
+    desta funcionalidade existir).
+
+    Não faz nada se a coluna já existir (portanto é seguro chamar esta
+    função toda vez que o sistema inicia).
+    """
+    colunas = conexao.execute("PRAGMA table_info(usuarios)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "empresa_id" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    logger.warning(
+        "Esquema antigo da tabela 'usuarios' detectado (sem a coluna "
+        "'empresa_id'). Adicionando automaticamente..."
+    )
+
+    conexao.execute("ALTER TABLE usuarios ADD COLUMN empresa_id INTEGER REFERENCES empresas (id)")
+    conexao.commit()
+
+    logger.warning(
+        "Migração concluída: a tabela 'usuarios' agora possui a coluna "
+        "'empresa_id', usada para vincular um usuário 'recrutador' à sua "
+        "empresa."
+    )
+
+
+def _migrar_tabela_empresas_adicionar_identidade_visual(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona as colunas ``logo_path`` e ``cor_principal`` (ambas TEXT,
+    opcionais) à tabela ``empresas`` em bancos de dados criados antes da
+    identidade visual por empresa existir.
+
+    Mesmo padrão simples de ``_migrar_tabela_senhas_adicionar_empresa``:
+    duas chamadas de ``ALTER TABLE ... ADD COLUMN``, sem recriar a tabela.
+    Empresas já cadastradas simplesmente ficam sem identidade visual
+    própria (usam o logo/cor padrão do sistema) até que um administrador
+    faça o upload de um logo pela tela Empresas.
+
+    Não faz nada se as colunas já existirem (portanto é seguro chamar
+    esta função toda vez que o sistema inicia).
+    """
+    colunas = conexao.execute("PRAGMA table_info(empresas)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "logo_path" in nomes_colunas and "cor_principal" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    logger.warning(
+        "Esquema antigo da tabela 'empresas' detectado (sem as colunas de "
+        "identidade visual). Adicionando automaticamente..."
+    )
+
+    if "logo_path" not in nomes_colunas:
+        conexao.execute("ALTER TABLE empresas ADD COLUMN logo_path TEXT")
+    if "cor_principal" not in nomes_colunas:
+        conexao.execute("ALTER TABLE empresas ADD COLUMN cor_principal TEXT")
+    conexao.commit()
+
+    logger.warning(
+        "Migração concluída: a tabela 'empresas' agora possui as colunas "
+        "'logo_path' e 'cor_principal'."
+    )
+
+
+def _migrar_tabela_empresas_adicionar_contador(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona a coluna ``contador_atual`` (INTEGER, padrão 0) à tabela
+    ``empresas`` em bancos de dados criados antes de cada empresa ter sua
+    própria sequência de numeração de senhas.
+
+    Antes desta migração, a numeração de senhas era controlada por um
+    único contador GLOBAL (chave ``contador_atual`` na tabela
+    ``configuracoes``, ver ``config.py``), compartilhado por todas as
+    empresas. Esta coluna substitui aquele contador global: cada empresa
+    passa a ter sua própria sequência independente 001, 002, 003...
+    (ver ``criar_senha`` mais abaixo). A chave antiga em ``configuracoes``
+    permanece no banco (não é removida), apenas deixa de ser usada — não
+    há necessidade de migrar dados nela, pois o histórico de senhas já
+    emitidas mantém seus números originais independentemente de qual
+    contador os gerou.
+
+    Mesmo padrão simples de ``_migrar_tabela_senhas_adicionar_empresa``:
+    uma chamada de ``ALTER TABLE ... ADD COLUMN``, sem recriar a tabela.
+
+    Não faz nada se a coluna já existir (portanto é seguro chamar esta
+    função toda vez que o sistema inicia).
+    """
+    colunas = conexao.execute("PRAGMA table_info(empresas)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "contador_atual" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    logger.warning(
+        "Esquema antigo da tabela 'empresas' detectado (sem a coluna "
+        "'contador_atual'). Adicionando automaticamente..."
+    )
+
+    conexao.execute("ALTER TABLE empresas ADD COLUMN contador_atual INTEGER NOT NULL DEFAULT 0")
+    conexao.commit()
+
+    logger.warning(
+        "Migração concluída: a tabela 'empresas' agora possui a coluna "
+        "'contador_atual' — cada empresa passa a ter sua própria "
+        "sequência de numeração de senhas."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Utilitários internos
 # ---------------------------------------------------------------------------
@@ -441,33 +636,50 @@ def registrar_log(nivel: str, mensagem: str) -> None:
 # ---------------------------------------------------------------------------
 
 def criar_senha(
+    empresa_id: int,
+    empresa: Optional[str] = None,
     guiche: Optional[str] = None,
     usuario: Optional[str] = None,
-    empresa: Optional[str] = None,
 ) -> Senha:
     """
     Cria (emite) uma nova senha.
 
     O número sequencial da senha é obtido de forma atômica a partir da
-    configuração ``contador_atual`` (tabela ``configuracoes``), protegida
-    por um lock em memória para evitar que duas requisições simultâneas
-    gerem o mesmo número.
+    coluna ``empresas.contador_atual`` DAQUELA empresa (``empresa_id``),
+    protegida por um lock em memória para evitar que duas requisições
+    simultâneas gerem o mesmo número. Cada empresa possui sua PRÓPRIA
+    sequência independente — a Empresa A e a Empresa B podem ambas emitir,
+    ao mesmo tempo, uma senha número 001, sem conflito entre si (antes
+    desta funcionalidade existir, havia um único contador global
+    compartilhado por todas as empresas, na tabela ``configuracoes``).
 
-    ``empresa`` é o NOME da empresa do feirão selecionada no momento da
-    emissão (gravado como texto, no mesmo espírito de ``guiche`` e
-    ``usuario`` — ver módulo ``models.Empresa``). A validação de que a
-    empresa existe e está ativa é responsabilidade da camada de rotas
-    (``app.py:api_emitir``), não desta função.
+    ``empresa_id`` é obrigatório e deve corresponder a uma empresa já
+    cadastrada (a validação de que ela existe e está ativa é
+    responsabilidade da camada de rotas, ``app.py:api_emitir``, não desta
+    função — aqui apenas assumimos que o id é válido).
+
+    ``empresa`` é o NOME da empresa, gravado como texto na própria linha
+    da senha (no mesmo espírito de ``guiche`` e ``usuario``), mantido por
+    compatibilidade com relatórios e telas existentes que já filtram/exibem
+    senhas pelo nome da empresa em vez de pelo id.
 
     Retorna a instância de ``Senha`` recém-criada.
     """
     with _lock:
-        numero_atual = config_manager.obter("contador_atual", 0)
-        novo_numero = int(numero_atual) + 1
-        config_manager.salvar({"contador_atual": novo_numero})
-
-        data_hora = _agora_iso()
         with get_connection() as conexao:
+            linha_empresa = conexao.execute(
+                "SELECT contador_atual FROM empresas WHERE id = ?", (empresa_id,)
+            ).fetchone()
+            if linha_empresa is None:
+                raise ValueError(f"Empresa id={empresa_id} não encontrada.")
+
+            novo_numero = int(linha_empresa["contador_atual"]) + 1
+            conexao.execute(
+                "UPDATE empresas SET contador_atual = ? WHERE id = ?",
+                (novo_numero, empresa_id),
+            )
+
+            data_hora = _agora_iso()
             cursor = conexao.execute(
                 """
                 INSERT INTO senhas (numero, status, data_hora, guiche, usuario, empresa)
@@ -495,40 +707,84 @@ def criar_senha(
 
 def reiniciar_contador() -> None:
     """
-    Reinicia o contador de numeração de senhas para zero.
+    Reinicia o contador de numeração de senhas de TODAS as empresas para
+    zero (cada empresa tem sua própria sequência independente — ver
+    ``criar_senha``). Para reiniciar apenas UMA empresa, sem afetar as
+    demais, use ``reiniciar_contador_empresa``.
 
     Esta operação NÃO apaga o histórico de senhas já emitidas; apenas faz
-    com que a próxima senha emitida volte a ser numerada a partir de 001.
+    com que a próxima senha emitida para cada empresa volte a ser
+    numerada a partir de 001.
     """
     with _lock:
-        config_manager.salvar({"contador_atual": 0})
-    registrar_log("WARNING", "Contador de senhas reiniciado manualmente.")
+        with get_connection() as conexao:
+            conexao.execute("UPDATE empresas SET contador_atual = 0")
+            conexao.commit()
+    registrar_log("WARNING", "Contador de senhas reiniciado manualmente (todas as empresas).")
+
+
+def reiniciar_contador_empresa(empresa_id: int) -> bool:
+    """
+    Reinicia o contador de numeração de senhas de UMA ÚNICA empresa para
+    zero, sem afetar a sequência das demais empresas.
+
+    Usado pelo botão "🔄 Reiniciar Contador" exibido na linha de cada
+    empresa na tela Empresas (``/admin/empresas``).
+
+    Esta operação NÃO apaga o histórico de senhas já emitidas; apenas faz
+    com que a PRÓXIMA senha emitida para esta empresa volte a ser
+    numerada a partir de 001.
+
+    Retorna ``True`` se a empresa existia (e foi reiniciada), ou ``False``
+    se nenhuma empresa com esse id foi encontrada.
+    """
+    with _lock:
+        with get_connection() as conexao:
+            cursor = conexao.execute(
+                "UPDATE empresas SET contador_atual = 0 WHERE id = ?", (empresa_id,)
+            )
+            conexao.commit()
+            alterou = cursor.rowcount > 0
+
+    if alterou:
+        registrar_log(
+            "WARNING", f"Contador de senhas da empresa id={empresa_id} reiniciado manualmente."
+        )
+    return alterou
 
 
 # ---------------------------------------------------------------------------
 # Chamada de senhas (fila FIFO)
 # ---------------------------------------------------------------------------
 
-def obter_proxima_emitida() -> Optional[Senha]:
+def obter_proxima_emitida(empresa: Optional[str] = None) -> Optional[Senha]:
     """
     Retorna a próxima senha com status 'Emitida', respeitando a ordem de
     chegada (FIFO), ou ``None`` caso não haja senhas aguardando chamada.
+
+    ``empresa`` é opcional: quando informado (nome exato da empresa),
+    restringe a busca à fila DAQUELA empresa apenas — usado pelo perfil
+    "recrutador" (ver ``chamar_proxima``). Quando omitido (``None``),
+    considera a fila GERAL, com senhas de todas as empresas misturadas —
+    comportamento usado pelo perfil "atendente", inalterado desde antes
+    da existência dos recrutadores.
     """
+    condicao = "WHERE status = ?"
+    parametros: List = [StatusSenha.EMITIDA]
+    if empresa:
+        condicao += " AND empresa = ?"
+        parametros.append(empresa)
+
     with get_connection() as conexao:
         linha = conexao.execute(
-            """
-            SELECT * FROM senhas
-            WHERE status = ?
-            ORDER BY id ASC
-            LIMIT 1
-            """,
-            (StatusSenha.EMITIDA,),
+            f"SELECT * FROM senhas {condicao} ORDER BY id ASC LIMIT 1",
+            parametros,
         ).fetchone()
 
     return Senha.from_row(linha) if linha else None
 
 
-def chamar_proxima(guiche: str, usuario: str) -> Optional[Dict]:
+def chamar_proxima(guiche: str, usuario: str, empresa: Optional[str] = None) -> Optional[Dict]:
     """
     Chama a próxima senha da fila (a mais antiga com status 'Emitida').
 
@@ -537,11 +793,14 @@ def chamar_proxima(guiche: str, usuario: str) -> Optional[Dict]:
     painel. Retorna um dicionário com os dados da senha e do evento de
     chamada, ou ``None`` se a fila estiver vazia.
 
+    ``empresa`` restringe a chamada à fila de uma empresa específica (ver
+    ``obter_proxima_emitida``) — usado pelo perfil "recrutador".
+
     A operação é protegida por lock para impedir que duas chamadas
     simultâneas peguem a mesma senha (condição de corrida).
     """
     with _lock:
-        proxima = obter_proxima_emitida()
+        proxima = obter_proxima_emitida(empresa)
         if proxima is None:
             return None
 
@@ -576,7 +835,7 @@ def chamar_proxima(guiche: str, usuario: str) -> Optional[Dict]:
     }
 
 
-def repetir_ultima_chamada() -> Optional[Dict]:
+def repetir_ultima_chamada(empresa: Optional[str] = None) -> Optional[Dict]:
     """
     Repete a última senha chamada, gerando um NOVO evento de chamada com o
     mesmo número/guichê/usuário. Isso permite que o painel detecte a
@@ -584,12 +843,29 @@ def repetir_ultima_chamada() -> Optional[Dict]:
     sem alterar a posição da fila nem duplicar a senha na tabela
     ``senhas``.
 
-    Retorna ``None`` se ainda não houve nenhuma chamada.
+    ``empresa`` restringe a busca à última chamada de uma empresa
+    específica (via JOIN com ``senhas``) — usado pelo perfil
+    "recrutador", que só pode repetir chamadas da sua própria empresa.
+
+    Retorna ``None`` se ainda não houve nenhuma chamada (na empresa
+    informada, quando aplicável).
     """
     with get_connection() as conexao:
-        ultimo = conexao.execute(
-            "SELECT * FROM eventos_chamada ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        if empresa:
+            ultimo = conexao.execute(
+                """
+                SELECT e.* FROM eventos_chamada e
+                JOIN senhas s ON s.id = e.senha_id
+                WHERE s.empresa = ?
+                ORDER BY e.id DESC
+                LIMIT 1
+                """,
+                (empresa,),
+            ).fetchone()
+        else:
+            ultimo = conexao.execute(
+                "SELECT * FROM eventos_chamada ORDER BY id DESC LIMIT 1"
+            ).fetchone()
 
     if ultimo is None:
         return None
@@ -643,12 +919,15 @@ def obter_senha_em_atendimento(guiche: str) -> Optional[Senha]:
     return Senha.from_row(linha) if linha else None
 
 
-def finalizar_atendimento_e_chamar_proxima(guiche: str, usuario: str) -> Dict:
+def finalizar_atendimento_e_chamar_proxima(guiche: str, usuario: str, empresa: Optional[str] = None) -> Dict:
     """
     Implementa o botão "Finalizar Atendimento": encerra (marca como
     'Finalizada') a senha que está sendo atendida no guichê informado e,
     em seguida, chama automaticamente a próxima senha da fila (FIFO) para
     o mesmo guichê/atendente.
+
+    ``empresa`` restringe a próxima chamada à fila de uma empresa
+    específica — usado pelo perfil "recrutador" (ver ``chamar_proxima``).
 
     Retorna um dicionário com duas chaves:
         - "senha_finalizada": dados da senha finalizada, ou ``None`` se
@@ -656,7 +935,8 @@ def finalizar_atendimento_e_chamar_proxima(guiche: str, usuario: str) -> Dict:
           então se comporta apenas como "Chamar Próxima").
         - "chamada": dados da nova chamada (mesmo formato de
           ``chamar_proxima``), ou ``None`` se a fila estiver vazia — caso
-          em que o atendente deve aguardar a emissão de uma nova senha.
+          em que o atendente/recrutador deve aguardar a emissão de uma
+          nova senha.
     """
     senha_em_atendimento = obter_senha_em_atendimento(guiche)
 
@@ -665,7 +945,7 @@ def finalizar_atendimento_e_chamar_proxima(guiche: str, usuario: str) -> Dict:
         finalizar_senha(senha_em_atendimento.id)
         senha_finalizada_dict = senha_em_atendimento.to_dict()
 
-    proxima_chamada = chamar_proxima(guiche=guiche, usuario=usuario)
+    proxima_chamada = chamar_proxima(guiche=guiche, usuario=usuario, empresa=empresa)
 
     return {
         "senha_finalizada": senha_finalizada_dict,
@@ -673,16 +953,33 @@ def finalizar_atendimento_e_chamar_proxima(guiche: str, usuario: str) -> Dict:
     }
 
 
-def obter_chamada_atual() -> Optional[Dict]:
+def obter_chamada_atual(empresa: Optional[str] = None) -> Optional[Dict]:
     """
     Retorna os dados do evento de chamada mais recente (a senha que deve
     estar em destaque no painel neste momento), ou ``None`` se nenhuma
     chamada foi realizada ainda.
+
+    ``empresa`` restringe a busca à última chamada de uma empresa
+    específica (via JOIN com ``senhas``) — usado pelo painel público de
+    uma empresa (``/painel/empresa/<id>``). Quando omitido, considera
+    todas as empresas — comportamento do painel geral (``/painel``).
     """
     with get_connection() as conexao:
-        linha = conexao.execute(
-            "SELECT * FROM eventos_chamada ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        if empresa:
+            linha = conexao.execute(
+                """
+                SELECT e.* FROM eventos_chamada e
+                JOIN senhas s ON s.id = e.senha_id
+                WHERE s.empresa = ?
+                ORDER BY e.id DESC
+                LIMIT 1
+                """,
+                (empresa,),
+            ).fetchone()
+        else:
+            linha = conexao.execute(
+                "SELECT * FROM eventos_chamada ORDER BY id DESC LIMIT 1"
+            ).fetchone()
 
     if linha is None:
         return None
@@ -695,27 +992,47 @@ def obter_chamada_atual() -> Optional[Dict]:
 # Consultas para o painel público
 # ---------------------------------------------------------------------------
 
-def listar_ultimas_emitidas(quantidade: int = 10) -> List[Dict]:
+def listar_ultimas_emitidas(quantidade: int = 10, empresa: Optional[str] = None) -> List[Dict]:
     """
     Retorna as últimas N senhas emitidas (independentemente do status),
     ordenadas da mais recente para a mais antiga. Utilizado pelo painel
     para exibir o histórico de senhas emitidas.
+
+    ``empresa`` restringe o histórico a uma única empresa — usado pelo
+    painel público de uma empresa (``/painel/empresa/<id>``).
     """
+    condicao = ""
+    parametros: List = []
+    if empresa:
+        condicao = "WHERE empresa = ?"
+        parametros.append(empresa)
+    parametros.append(quantidade)
+
     with get_connection() as conexao:
         linhas = conexao.execute(
-            "SELECT * FROM senhas ORDER BY id DESC LIMIT ?",
-            (quantidade,),
+            f"SELECT * FROM senhas {condicao} ORDER BY id DESC LIMIT ?",
+            parametros,
         ).fetchall()
 
     return [Senha.from_row(linha).to_dict() for linha in linhas]
 
 
-def contar_aguardando() -> int:
-    """Retorna a quantidade de senhas atualmente aguardando chamada."""
+def contar_aguardando(empresa: Optional[str] = None) -> int:
+    """
+    Retorna a quantidade de senhas atualmente aguardando chamada.
+
+    ``empresa`` restringe a contagem a uma única empresa — usado pela
+    fila do perfil "recrutador" e pelo painel público de uma empresa.
+    """
+    condicao = "WHERE status = ?"
+    parametros: List = [StatusSenha.EMITIDA]
+    if empresa:
+        condicao += " AND empresa = ?"
+        parametros.append(empresa)
+
     with get_connection() as conexao:
         linha = conexao.execute(
-            "SELECT COUNT(*) AS total FROM senhas WHERE status = ?",
-            (StatusSenha.EMITIDA,),
+            f"SELECT COUNT(*) AS total FROM senhas {condicao}", parametros
         ).fetchone()
     return int(linha["total"])
 
@@ -754,18 +1071,34 @@ def cancelar_senha(senha_id: int) -> bool:
     return alterou
 
 
-def listar_fila_atual(limite: int = 20) -> List[Dict]:
-    """Retorna as senhas atualmente aguardando chamada (status Emitida),
-    em ordem de chegada, para exibição em uma tela de gerenciamento."""
+def obter_senha_por_id(senha_id: int) -> Optional[Senha]:
+    """Busca uma senha pelo id. Usado para checar a que empresa uma senha
+    pertence antes de permitir que um recrutador a cancele/finalize (ver
+    app.py:_pode_gerenciar_senha)."""
+    with get_connection() as conexao:
+        linha = conexao.execute("SELECT * FROM senhas WHERE id = ?", (senha_id,)).fetchone()
+    return Senha.from_row(linha) if linha else None
+
+
+def listar_fila_atual(limite: int = 20, empresa: Optional[str] = None) -> List[Dict]:
+    """
+    Retorna as senhas atualmente aguardando chamada (status Emitida), em
+    ordem de chegada, para exibição em uma tela de gerenciamento.
+
+    ``empresa`` restringe a fila a uma única empresa — usado pelo perfil
+    "recrutador", que só deve ver/gerenciar a fila da sua própria empresa.
+    """
+    condicao = "WHERE status = ?"
+    parametros: List = [StatusSenha.EMITIDA]
+    if empresa:
+        condicao += " AND empresa = ?"
+        parametros.append(empresa)
+    parametros.append(limite)
+
     with get_connection() as conexao:
         linhas = conexao.execute(
-            """
-            SELECT * FROM senhas
-            WHERE status = ?
-            ORDER BY id ASC
-            LIMIT ?
-            """,
-            (StatusSenha.EMITIDA, limite),
+            f"SELECT * FROM senhas {condicao} ORDER BY id ASC LIMIT ?",
+            parametros,
         ).fetchall()
 
     return [Senha.from_row(linha).to_dict() for linha in linhas]
@@ -894,6 +1227,65 @@ def listar_contagem_por_empresa(inicio: Optional[str] = None, fim: Optional[str]
     return [{"empresa": linha["empresa"], "total": linha["total"]} for linha in linhas]
 
 
+def resumo_geral_senhas() -> Dict:
+    """
+    Calcula o resumo agregado (TODOS os tempos, sem filtro de período) de
+    senhas por status — total geral e, dentro de cada status, a
+    contagem por empresa — usado pelo "Painel Geral" público
+    (``/painel/geral``).
+
+    Diferente de ``listar_contagem_por_empresa`` (que soma TODAS as
+    senhas de uma empresa, independente do status), aqui cada empresa
+    aparece com a contagem separada em aguardando/em atendimento/
+    atendidas/canceladas, permitindo montar uma tabela-resumo por empresa
+    no painel.
+    """
+    with get_connection() as conexao:
+        linhas_status = conexao.execute(
+            "SELECT status, COUNT(*) AS total FROM senhas GROUP BY status"
+        ).fetchall()
+        linhas_empresa = conexao.execute(
+            """
+            SELECT COALESCE(empresa, 'Não informado') AS empresa, status, COUNT(*) AS total
+            FROM senhas
+            GROUP BY COALESCE(empresa, 'Não informado'), status
+            """
+        ).fetchall()
+
+    totais = {status: 0 for status in StatusSenha.TODOS}
+    for linha in linhas_status:
+        if linha["status"] in totais:
+            totais[linha["status"]] = linha["total"]
+
+    por_empresa: Dict[str, Dict[str, int]] = {}
+    for linha in linhas_empresa:
+        empresa = linha["empresa"]
+        dados_empresa = por_empresa.setdefault(empresa, {status: 0 for status in StatusSenha.TODOS})
+        if linha["status"] in dados_empresa:
+            dados_empresa[linha["status"]] = linha["total"]
+
+    lista_empresas = [
+        {
+            "empresa": empresa,
+            "aguardando": dados[StatusSenha.EMITIDA],
+            "em_atendimento": dados[StatusSenha.CHAMADA],
+            "atendidas": dados[StatusSenha.FINALIZADA],
+            "canceladas": dados[StatusSenha.CANCELADA],
+            "total": sum(dados.values()),
+        }
+        for empresa, dados in sorted(por_empresa.items(), key=lambda item: item[0])
+    ]
+
+    return {
+        "total_emitidas": sum(totais.values()),
+        "total_aguardando": totais[StatusSenha.EMITIDA],
+        "total_em_atendimento": totais[StatusSenha.CHAMADA],
+        "total_atendidas": totais[StatusSenha.FINALIZADA],
+        "total_canceladas": totais[StatusSenha.CANCELADA],
+        "por_empresa": lista_empresas,
+    }
+
+
 def tempo_medio_atendimento(
     inicio: Optional[str] = None,
     fim: Optional[str] = None,
@@ -976,7 +1368,13 @@ def contar_usuarios() -> int:
     return int(linha["total"])
 
 
-def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optional[str] = None) -> Usuario:
+def criar_usuario(
+    nome_completo: str,
+    login: str,
+    senha_hash: str,
+    perfil: Optional[str] = None,
+    empresa_id: Optional[int] = None,
+) -> Usuario:
     """
     Cria um novo usuário no sistema.
 
@@ -992,6 +1390,10 @@ def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optio
     antes de ser gravado, evitando que "Joao", "joao" e " joao " sejam
     tratados como usuários diferentes por uma simples variação de
     maiúsculas/minúsculas ou espaços acidentais.
+
+    ``empresa_id`` só faz sentido quando ``perfil`` é "recrutador" — a
+    validação de que foi informado (e de que a empresa existe) é
+    responsabilidade da camada de rotas (``app.py``), não desta função.
     """
     login_normalizado = (login or "").strip().lower()
 
@@ -1004,10 +1406,10 @@ def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optio
         try:
             cursor = conexao.execute(
                 """
-                INSERT INTO usuarios (nome_completo, login, senha_hash, perfil, ativo, data_criacao)
-                VALUES (?, ?, ?, ?, 1, ?)
+                INSERT INTO usuarios (nome_completo, login, senha_hash, perfil, ativo, data_criacao, empresa_id)
+                VALUES (?, ?, ?, ?, 1, ?, ?)
                 """,
-                (nome_completo, login_normalizado, senha_hash, perfil, data_criacao),
+                (nome_completo, login_normalizado, senha_hash, perfil, data_criacao, empresa_id),
             )
             conexao.commit()
         except sqlite3.IntegrityError as erro:
@@ -1033,6 +1435,7 @@ def criar_usuario(nome_completo: str, login: str, senha_hash: str, perfil: Optio
         ativo=True,
         data_criacao=data_criacao,
         ultimo_login=None,
+        empresa_id=empresa_id,
     )
 
 
@@ -1061,11 +1464,31 @@ def obter_usuario_por_id(usuario_id: int) -> Optional[Usuario]:
 
 
 def listar_usuarios() -> List[Dict]:
-    """Retorna todos os usuários cadastrados (sem o hash de senha), para a
-    tela de administração de usuários."""
+    """
+    Retorna todos os usuários cadastrados (sem o hash de senha), para a
+    tela de administração de usuários.
+
+    Cada dicionário retornado inclui também a chave ``empresa_nome``
+    (via LEFT JOIN com ``empresas``), pronta para exibição direta na
+    tabela de usuários — ``None`` para quem não é recrutador ou ainda não
+    tem empresa vinculada.
+    """
     with get_connection() as conexao:
-        linhas = conexao.execute("SELECT * FROM usuarios ORDER BY nome_completo ASC").fetchall()
-    return [Usuario.from_row(linha).to_dict_publico() for linha in linhas]
+        linhas = conexao.execute(
+            """
+            SELECT u.*, e.nome AS empresa_nome
+            FROM usuarios u
+            LEFT JOIN empresas e ON e.id = u.empresa_id
+            ORDER BY u.nome_completo ASC
+            """
+        ).fetchall()
+
+    resultado = []
+    for linha in linhas:
+        usuario_dict = Usuario.from_row(linha).to_dict_publico()
+        usuario_dict["empresa_nome"] = linha["empresa_nome"]
+        resultado.append(usuario_dict)
+    return resultado
 
 
 def atualizar_ultimo_login(usuario_id: int) -> None:
@@ -1079,16 +1502,31 @@ def atualizar_ultimo_login(usuario_id: int) -> None:
 
 
 def definir_perfil_usuario(usuario_id: int, perfil: str) -> bool:
-    """Altera o perfil (admin/atendente/emissor) de um usuário. Apenas
-    administradores podem chamar esta operação (validado em app.py)."""
+    """
+    Altera o perfil (admin/atendente/emissor/recrutador) de um usuário.
+    Apenas administradores podem chamar esta operação (validado em
+    app.py).
+
+    Sempre que o NOVO perfil for diferente de "recrutador", o vínculo com
+    a empresa (``empresa_id``) é limpo automaticamente — evita deixar um
+    atendente/emissor/admin com um vínculo de empresa "fantasma" de uma
+    época em que ele era recrutador. Para VINCULAR (ou trocar) a empresa
+    de um recrutador, use ``definir_empresa_usuario`` separadamente.
+    """
     if perfil not in PerfilUsuario.TODOS:
         raise ValueError(f"Perfil inválido: {perfil}")
 
     with get_connection() as conexao:
         try:
-            cursor = conexao.execute(
-                "UPDATE usuarios SET perfil = ? WHERE id = ?", (perfil, usuario_id)
-            )
+            if perfil == PerfilUsuario.RECRUTADOR:
+                cursor = conexao.execute(
+                    "UPDATE usuarios SET perfil = ? WHERE id = ?", (perfil, usuario_id)
+                )
+            else:
+                cursor = conexao.execute(
+                    "UPDATE usuarios SET perfil = ?, empresa_id = NULL WHERE id = ?",
+                    (perfil, usuario_id),
+                )
             conexao.commit()
         except sqlite3.IntegrityError as erro:
             # Em tese não deveria mais ocorrer (ver
@@ -1102,6 +1540,35 @@ def definir_perfil_usuario(usuario_id: int, perfil: str) -> bool:
 
     if alterou:
         registrar_log("WARNING", f"Perfil do usuário id={usuario_id} alterado para '{perfil}'.")
+    return alterou
+
+
+def definir_empresa_usuario(usuario_id: int, empresa_id: Optional[int]) -> bool:
+    """
+    Vincula (ou desvincula, passando ``empresa_id=None``) um recrutador a
+    uma empresa. A validação de que a empresa existe é responsabilidade
+    da camada de rotas (``app.py``), não desta função — assim como
+    ``definir_perfil_usuario`` não valida se o usuário faz sentido ter o
+    perfil escolhido.
+
+    Não força o perfil do usuário a ser "recrutador": é possível vincular
+    uma empresa a qualquer usuário (o vínculo só tem EFEITO prático —
+    ocupar uma sala ao logar — para quem tem perfil "recrutador", ver
+    ``auth.iniciar_sessao``), mas isso é intencional: permite ao
+    administrador pré-configurar a empresa antes de trocar o perfil, sem
+    depender da ordem das duas ações.
+    """
+    with get_connection() as conexao:
+        cursor = conexao.execute(
+            "UPDATE usuarios SET empresa_id = ? WHERE id = ?", (empresa_id, usuario_id)
+        )
+        conexao.commit()
+        alterou = cursor.rowcount > 0
+
+    if alterou:
+        registrar_log(
+            "WARNING", f"Empresa do usuário id={usuario_id} definida para empresa_id={empresa_id}."
+        )
     return alterou
 
 
@@ -1144,7 +1611,8 @@ def resetar_senha_usuario(usuario_id: int, nova_senha_hash: str) -> bool:
 def resetar_senhas_emitidas() -> None:
     """
     Apaga TODO o histórico de senhas emitidas e de eventos de chamada,
-    reiniciando também o contador de numeração para zero.
+    reiniciando também o contador de numeração de TODAS as empresas para
+    zero (cada empresa tem sua própria sequência — ver ``criar_senha``).
 
     Esta é uma operação destrutiva e irreversível, disponível apenas para
     administradores (validado em app.py), útil por exemplo no início de um
@@ -1155,10 +1623,8 @@ def resetar_senhas_emitidas() -> None:
         conexao.execute("DELETE FROM eventos_chamada")
         conexao.execute("DELETE FROM senhas")
         conexao.execute("DELETE FROM sqlite_sequence WHERE name IN ('senhas', 'eventos_chamada')")
+        conexao.execute("UPDATE empresas SET contador_atual = 0")
         conexao.commit()
-
-    with _lock:
-        config_manager.salvar({"contador_atual": 0})
 
     registrar_log("WARNING", "TODAS as senhas emitidas e eventos de chamada foram apagados por um administrador.")
 
@@ -1232,6 +1698,103 @@ def listar_guiches_ocupados() -> List[Dict]:
     with get_connection() as conexao:
         linhas = conexao.execute(
             "SELECT * FROM guiches_ocupados ORDER BY guiche ASC"
+        ).fetchall()
+    return [dict(linha) for linha in linhas]
+
+
+# ---------------------------------------------------------------------------
+# Ocupação de guichês (salas) POR EMPRESA — perfil "recrutador"
+# ---------------------------------------------------------------------------
+#
+# Pool independente do pool geral acima (usado pelo "atendente"): a mesma
+# numeração de sala pode ser ocupada simultaneamente por recrutadores de
+# empresas diferentes, pois a chave primária de ``guiches_empresa_ocupados``
+# é o par (empresa_id, guiche) — ver docstring da tabela em
+# ``inicializar_banco``.
+
+def obter_guiche_empresa_do_usuario(usuario_id: int) -> Optional[int]:
+    """Retorna o número da sala atualmente ocupada por um recrutador, ou
+    ``None`` caso ele não esteja ocupando nenhuma sala no momento."""
+    with get_connection() as conexao:
+        linha = conexao.execute(
+            "SELECT guiche FROM guiches_empresa_ocupados WHERE usuario_id = ?", (usuario_id,)
+        ).fetchone()
+    return int(linha["guiche"]) if linha else None
+
+
+def ocupar_proximo_guiche_empresa_disponivel(
+    empresa_id: int, usuario_id: int, usuario_nome: str, qtd_guiches: int
+) -> Optional[int]:
+    """
+    Atribui automaticamente ao recrutador a primeira sala disponível
+    (entre 1 e ``qtd_guiches``) DENTRO da empresa informada — mesma lógica
+    de ``ocupar_proximo_guiche_disponivel``, mas com o pool restrito a
+    ``empresa_id`` em vez de global.
+
+    Se o usuário já estiver ocupando uma sala (nesta ou em outra empresa
+    — não deveria acontecer em uso normal, mas a busca já é por
+    ``usuario_id`` sem filtrar empresa), retorna a mesma sala (idempotente).
+    Retorna ``None`` se não houver nenhuma sala livre nesta empresa.
+    """
+    with _lock:
+        guiche_atual = obter_guiche_empresa_do_usuario(usuario_id)
+        if guiche_atual is not None:
+            return guiche_atual
+
+        with get_connection() as conexao:
+            ocupadas = {
+                linha["guiche"]
+                for linha in conexao.execute(
+                    "SELECT guiche FROM guiches_empresa_ocupados WHERE empresa_id = ?",
+                    (empresa_id,),
+                ).fetchall()
+            }
+
+            guiche_livre = next(
+                (numero for numero in range(1, qtd_guiches + 1) if numero not in ocupadas),
+                None,
+            )
+
+            if guiche_livre is None:
+                return None
+
+            conexao.execute(
+                """
+                INSERT INTO guiches_empresa_ocupados (empresa_id, guiche, usuario_id, usuario_nome, ocupado_desde)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (empresa_id, guiche_livre, usuario_id, usuario_nome, _agora_iso()),
+            )
+            conexao.commit()
+
+    registrar_log(
+        "INFO",
+        f"Sala {guiche_livre} (empresa id={empresa_id}) atribuída automaticamente a '{usuario_nome}'.",
+    )
+    return guiche_livre
+
+
+def liberar_guiche_empresa(usuario_id: int) -> None:
+    """Libera a sala ocupada por um recrutador (chamado no logout, e
+    também ao desativar o usuário — ver app.py:api_admin_definir_status).
+    Não faz nada (sem erro) se o usuário não ocupava nenhuma sala."""
+    with get_connection() as conexao:
+        conexao.execute("DELETE FROM guiches_empresa_ocupados WHERE usuario_id = ?", (usuario_id,))
+        conexao.commit()
+
+
+def listar_guiches_empresa_ocupados() -> List[Dict]:
+    """Retorna a lista de salas (guichês por empresa) atualmente ocupadas
+    por recrutadores, já com o nome da empresa (via JOIN), útil para a
+    tela de administração de usuários."""
+    with get_connection() as conexao:
+        linhas = conexao.execute(
+            """
+            SELECT g.*, e.nome AS empresa_nome
+            FROM guiches_empresa_ocupados g
+            JOIN empresas e ON e.id = g.empresa_id
+            ORDER BY e.nome ASC, g.guiche ASC
+            """
         ).fetchall()
     return [dict(linha) for linha in linhas]
 
@@ -1356,4 +1919,53 @@ def definir_status_empresa(empresa_id: int, ativa: bool) -> bool:
     if alterou:
         estado = "ativada" if ativa else "desativada"
         registrar_log("WARNING", f"Empresa id={empresa_id} {estado}.")
+    return alterou
+
+
+def definir_logo_empresa(empresa_id: int, logo_path: str, cor_principal: str) -> bool:
+    """
+    Grava o logo (``logo_path``, relativo à pasta ``static/`` — ver
+    docstring de ``models.Empresa``) e a cor extraída automaticamente
+    dele (``cor_principal``) para uma empresa. Chamada pela rota de
+    upload (``app.py:api_admin_upload_logo_empresa``) logo após salvar o
+    arquivo em disco e calcular a cor predominante.
+
+    Grava os dois valores juntos (em vez de duas funções separadas)
+    porque, na prática, todo novo logo enviado substitui a cor extraída
+    anterior — para SÓ mudar a cor sem trocar o logo, use
+    ``definir_cor_empresa``.
+    """
+    with get_connection() as conexao:
+        cursor = conexao.execute(
+            "UPDATE empresas SET logo_path = ?, cor_principal = ? WHERE id = ?",
+            (logo_path, cor_principal, empresa_id),
+        )
+        conexao.commit()
+        alterou = cursor.rowcount > 0
+
+    if alterou:
+        registrar_log(
+            "INFO",
+            f"Logo da empresa id={empresa_id} atualizado (cor extraída automaticamente: {cor_principal}).",
+        )
+    return alterou
+
+
+def definir_cor_empresa(empresa_id: int, cor_principal: str) -> bool:
+    """
+    Sobrescreve manualmente a cor de identidade visual de uma empresa
+    (``cor_principal``), sem alterar o logo já cadastrado. Usado quando o
+    administrador não gosta da cor extraída automaticamente do logo e
+    prefere escolher outra pelo seletor de cor da tela Empresas.
+    """
+    with get_connection() as conexao:
+        cursor = conexao.execute(
+            "UPDATE empresas SET cor_principal = ? WHERE id = ?",
+            (cor_principal, empresa_id),
+        )
+        conexao.commit()
+        alterou = cursor.rowcount > 0
+
+    if alterou:
+        registrar_log("INFO", f"Cor da empresa id={empresa_id} definida manualmente para {cor_principal}.")
     return alterou

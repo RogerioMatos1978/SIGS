@@ -290,9 +290,19 @@ async function finalizarAtendimento() {
     }
 }
 
-/** Abre o painel público em uma nova aba/janela. */
+/**
+ * Abre o painel público em uma nova aba/janela. Para o perfil "recrutador",
+ * abre o painel DA SUA EMPRESA (window.SIGS_CONFIG.painelUrl, calculado no
+ * servidor — ver index.html); para os demais perfis, abre o painel geral.
+ */
 function abrirPainel() {
-    window.open("/painel", "_blank");
+    const url = (window.SIGS_CONFIG && window.SIGS_CONFIG.painelUrl) || "/painel";
+    window.open(url, "_blank");
+}
+
+/** Abre o painel-resumo público (todas as empresas) em uma nova aba/janela. */
+function abrirPainelGeral() {
+    window.open("/painel/geral", "_blank");
 }
 
 /** Reinicia o contador de numeração de senhas, mediante confirmação. */
@@ -402,6 +412,7 @@ function inicializar() {
     vincularClique("btn-repetir", repetirChamada);
     vincularClique("btn-finalizar", finalizarAtendimento);
     vincularClique("btn-abrir-painel", abrirPainel);
+    vincularClique("btn-abrir-painel-geral", abrirPainelGeral);
     vincularClique("btn-testar-bip", tocarBip);
 
     // Botões restritos a administradores. Podem não existir no DOM para

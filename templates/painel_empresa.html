@@ -1,0 +1,63 @@
+<!--
+    painel_empresa.html
+    ====================
+    Painel público de UMA empresa do feirão do emprego, projetado para
+    exibição em tela cheia (TV/monitor) dentro da sala de entrevistas
+    daquela empresa. Mesma estrutura de painel.html, mas mostrando apenas
+    a fila e a chamada atual DAQUELA empresa (ver
+    /api/painel/empresa/<id>/status). Quem chama a próxima senha é o
+    recrutador, logado na tela principal — este painel é só o display,
+    sem controles de chamada.
+-->
+{% extends "layout.html" %}
+
+{% block titulo %}SIGS - Painel {{ empresa.nome }}{% endblock %}
+
+{% block conteudo %}
+<div class="painel">
+
+    <header class="painel-cabecalho">
+        <!-- Usa o logo PRÓPRIO da empresa quando cadastrado (ver tela
+             Empresas, upload de logo); cai no logo padrão do sistema
+             caso a empresa ainda não tenha um. -->
+        <img class="painel-logo"
+             src="{% if empresa.logo_path %}{{ url_for('static', filename=empresa.logo_path) }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}"
+             alt="Logo {{ empresa.nome }}">
+        <div class="painel-titulo">
+            <h1>{{ empresa.nome }}</h1>
+            <p>{{ config.nome_evento }} &middot; Painel de Chamadas</p>
+        </div>
+        <div class="painel-relogio">
+            <div id="painel-data">--/--/----</div>
+            <div id="painel-hora">--:--:--</div>
+        </div>
+    </header>
+
+    <main class="painel-corpo">
+        <section class="painel-chamada-atual" id="painel-chamada-atual">
+            <span class="painel-label">Senha</span>
+            <span id="painel-numero-atual" class="painel-numero">---</span>
+            <span id="painel-guiche-atual" class="painel-guiche">--</span>
+        </section>
+
+        <section class="painel-historico">
+            <h2>Últimas Senhas Emitidas — {{ empresa.nome }}</h2>
+            <ul id="painel-lista-emitidas" class="painel-lista">
+                <li>Carregando...</li>
+            </ul>
+        </section>
+    </main>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.SIGS_CONFIG = {
+        tempoAtualizacaoMs: {{ config.tempo_atualizacao_ms | default(2000) }},
+        empresaId: {{ empresa.id }}
+    };
+</script>
+<script src="{{ url_for('static', filename='js/bip.js') }}"></script>
+<script src="{{ url_for('static', filename='js/painel_empresa.js') }}"></script>
+{% endblock %}

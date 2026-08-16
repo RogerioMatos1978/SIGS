@@ -16,12 +16,19 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-    <!-- Define a cor principal do sistema como variavel CSS, permitindo que
-         o usuario personalize a identidade visual pela tela de Configuracoes
-         sem necessidade de editar arquivos CSS manualmente. -->
+    <!-- Define a cor principal como variavel CSS. Por padrao, vem da
+         configuracao GERAL do sistema (tela Configuracoes). Duas excecoes,
+         em ordem de prioridade:
+           1. "empresa" (variavel so existe em painel_empresa.html, rota
+              publica sem login): usa a cor DAQUELA empresa, se definida.
+           2. "identidade_empresa" (preenchida pelo context processor
+              injetar_usuario_logado em app.py, so para um recrutador
+              logado com empresa vinculada): usa a cor DA EMPRESA dele —
+              assim a tela principal de um recrutador "veste" a cor da
+              empresa em que esta logado automaticamente. -->
     <style>
         :root {
-            --cor-principal: {{ config.cor_principal if config else '#003C71' }};
+            --cor-principal: {% if empresa is defined and empresa and empresa.cor_principal %}{{ empresa.cor_principal }}{% elif identidade_empresa and identidade_empresa.cor %}{{ identidade_empresa.cor }}{% else %}{{ config.cor_principal if config else '#003C71' }}{% endif %};
         }
     </style>
 
@@ -48,11 +55,15 @@
             <span class="barra-usuario-perfil">
                 {% if eh_admin %}Administrador
                 {% elif usuario_logado.perfil == 'emissor' %}Emissor de Senhas
+                {% elif usuario_logado.perfil == 'recrutador' %}Recrutador{% if usuario_logado.empresa_nome %} — {{ usuario_logado.empresa_nome }}{% endif %}
                 {% else %}Atendente
                 {% endif %}
             </span>
             {% if usuario_logado.guiche %}
-                <span class="barra-usuario-guiche">Guichê {{ '%02d' | format(usuario_logado.guiche) }}</span>
+                <span class="barra-usuario-guiche">
+                    {% if usuario_logado.perfil == 'recrutador' %}Sala{% else %}Guichê{% endif %}
+                    {{ '%02d' | format(usuario_logado.guiche) }}
+                </span>
             {% endif %}
         </span>
         <span class="barra-usuario-acoes">
@@ -68,6 +79,12 @@
             </form>
         </span>
     </div>
+    {% if config and config.frase_menu %}
+    <!-- Frase livre definida pelo administrador em Configurações ("Frase
+         do Menu"), exibida logo abaixo do menu em TODAS as telas internas
+         (dentro do mesmo bloco condicional do menu, logo acima). -->
+    <div class="barra-mensagem">{{ config.frase_menu }}</div>
+    {% endif %}
     {% endif %}
 
     {% block conteudo %}{% endblock %}

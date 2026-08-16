@@ -95,6 +95,114 @@ async function renomearEmpresa(empresaId, nomeAtual) {
     }
 }
 
+/**
+ * Envia o arquivo de logo escolhido para uma empresa. Diferente de
+ * ``chamarApiAdmin`` (que sempre envia JSON), aqui o corpo é
+ * ``multipart/form-data`` (via ``FormData``) — por isso NÃO definimos o
+ * cabeçalho ``Content-Type`` manualmente: o navegador precisa calcular
+ * sozinho o "boundary" correto do multipart, o que só acontece se o
+ * header for deixado para o próprio ``fetch`` preencher.
+ */
+async function enviarLogoEmpresa(empresaId, arquivo) {
+    const formData = new FormData();
+    formData.append("logo", arquivo);
+
+    const resposta = await fetch(`/api/admin/empresas/${empresaId}/logo`, {
+        method: "POST",
+        body: formData,
+    });
+
+    if (resposta.status === 401) {
+        window.location.href = "/login";
+        throw new Error("Sessão expirada.");
+    }
+
+    const dados = await resposta.json().catch(() => ({}));
+
+    if (!resposta.ok || dados.sucesso === false) {
+        throw new Error(dados.erro || `Erro inesperado (HTTP ${resposta.status}).`);
+    }
+
+    return dados;
+}
+
+/**
+ * Chamada quando o administrador escolhe um arquivo de logo no seletor
+ * (input file oculto, aberto pelo botão "📷 Logo" — ver inicializar).
+ * Envia o arquivo, e em caso de sucesso atualiza a miniatura do logo e o
+ * seletor de cor na mesma linha com o resultado (a cor é extraída
+ * automaticamente da imagem pelo servidor).
+ */
+async function tratarSelecaoLogo(evento) {
+    const input = evento.target;
+    const arquivo = input.files && input.files[0];
+    if (!arquivo) {
+        return;
+    }
+
+    const empresaId = input.dataset.empresaId;
+
+    try {
+        const dados = await enviarLogoEmpresa(empresaId, arquivo);
+
+        const preview = document.getElementById(`logo-preview-${empresaId}`);
+        if (preview) {
+            // Bust de cache: sem isso, o navegador pode continuar exibindo
+            // a imagem antiga (mesma URL) mesmo após o arquivo no servidor
+            // ter sido substituído.
+            preview.src = `/static/${dados.logo_path}?v=${Date.now()}`;
+        }
+
+        const seletorCor = document.querySelector(`.input-cor-empresa[data-empresa-id="${empresaId}"]`);
+        if (seletorCor && dados.cor_principal) {
+            seletorCor.value = dados.cor_principal;
+        }
+    } catch (erro) {
+        alert(`Erro ao enviar o logo: ${erro.message}`);
+    } finally {
+        // Limpa o input para permitir escolher o MESMO arquivo de novo no
+        // futuro (o evento "change" não dispara se o valor não mudar).
+        input.value = "";
+    }
+}
+
+/** Sobrescreve manualmente a cor de identidade visual de uma empresa. */
+async function alterarCorEmpresa(empresaId, cor) {
+    try {
+        await chamarApiAdmin(`/api/admin/empresas/${empresaId}/cor`, {
+            method: "POST",
+            body: JSON.stringify({ cor }),
+        });
+    } catch (erro) {
+        alert(`Erro ao atualizar cor da empresa: ${erro.message}`);
+    }
+}
+
+/**
+ * Reinicia para zero o contador de numeração de senhas de UMA empresa
+ * (cada empresa tem sua própria sequência independente — ver
+ * database.criar_senha). Não afeta as demais empresas nem apaga o
+ * histórico de senhas já emitidas.
+ */
+async function reiniciarContadorEmpresa(empresaId, nomeEmpresa) {
+    if (!window.confirm(`Reiniciar o contador de senhas de "${nomeEmpresa}"? A próxima senha emitida para ela voltará a ser 001.`)) {
+        return;
+    }
+
+    try {
+        await chamarApiAdmin(`/api/admin/empresas/${empresaId}/reiniciar-contador`, {
+            method: "POST",
+        });
+
+        const celula = document.getElementById(`proxima-senha-${empresaId}`);
+        if (celula) {
+            celula.textContent = "001";
+        }
+    } catch (erro) {
+        alert(`Erro ao reiniciar contador da empresa: ${erro.message}`);
+    }
+}
+
 /** Ativa ou desativa uma empresa. */
 async function alternarStatusEmpresa(empresaId, ativaAtual) {
     const novoStatus = !ativaAtual;
@@ -126,10 +234,38 @@ function inicializar() {
         });
     });
 
+    document.querySelectorAll(".btn-reiniciar-contador-empresa").forEach((botao) => {
+        botao.addEventListener("click", () => {
+            reiniciarContadorEmpresa(botao.dataset.empresaId, botao.dataset.empresaNome);
+        });
+    });
+
     document.querySelectorAll(".btn-toggle-status-empresa").forEach((botao) => {
         botao.addEventListener("click", () => {
             const ativaAtual = botao.dataset.ativa === "true";
             alternarStatusEmpresa(botao.dataset.empresaId, ativaAtual);
+        });
+    });
+
+    // Botão "📷 Logo" apenas abre o seletor de arquivo oculto correspondente
+    // (data-target aponta para o id do <input type="file">); o envio de
+    // fato acontece no "change" desse input, tratado por tratarSelecaoLogo.
+    document.querySelectorAll(".btn-upload-logo").forEach((botao) => {
+        botao.addEventListener("click", () => {
+            const input = document.getElementById(botao.dataset.target);
+            if (input) {
+                input.click();
+            }
+        });
+    });
+
+    document.querySelectorAll(".input-logo-empresa").forEach((input) => {
+        input.addEventListener("change", tratarSelecaoLogo);
+    });
+
+    document.querySelectorAll(".input-cor-empresa").forEach((input) => {
+        input.addEventListener("change", () => {
+            alterarCorEmpresa(input.dataset.empresaId, input.value);
         });
     });
 }

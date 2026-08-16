@@ -196,9 +196,14 @@ class ImpressoraTermica:
 
     def _desenhar_logo(self, hdc, caminho_logo: str, y: int, largura_pagina: int) -> int:
         """
-        Desenha o logotipo do SENAI centralizado no topo do ticket,
-        utilizando PIL para carregar a imagem e convertê-la em um bitmap
-        do Windows compatível com o contexto de impressão.
+        Desenha o logotipo centralizado no topo do ticket, utilizando PIL
+        para carregar a imagem e convertê-la em um bitmap do Windows
+        compatível com o contexto de impressão.
+
+        ``caminho_logo`` é o logo DA EMPRESA selecionada na emissão (ver
+        app.py:api_emitir), não mais o logo padrão do sistema — cada
+        empresa imprime com seu próprio logo (ou sem logo algum, se ainda
+        não tiver um cadastrado; ver imprimir_senha).
 
         Retorna a altura ocupada pela imagem em pixels (0 se a imagem não
         puder ser carregada, para que a impressão continue normalmente).
@@ -243,7 +248,7 @@ class ImpressoraTermica:
         Layout impresso (todo centralizado horizontalmente):
 
             ==========================
-            [logotipo SENAI, se disponível]
+            [logotipo da EMPRESA, se ela tiver um cadastrado]
             [nome_evento]
             SENHA 001            <- Arial 65
             [nome_empresa]       <- empresa selecionada na emissão
@@ -252,6 +257,13 @@ class ImpressoraTermica:
             [Saudação]           <- Arial 45
             Bem-vindo ao SENAI.
             ==========================
+
+        ``caminho_logo`` é o logo DA EMPRESA selecionada na emissão
+        (``empresa.logo_path``, resolvido em app.py:api_emitir), não mais
+        o logo padrão do sistema (config.logo_path) — cada ticket é
+        impresso com o logo da própria empresa. Se a empresa não tiver
+        logo cadastrado, o ticket sai sem nenhum logo (sem fallback para
+        o logo do sistema, propositalmente).
 
         ``nome_empresa`` é a empresa do feirão selecionada obrigatoriamente
         no momento da emissão (ver app.py:api_emitir). Se omitido (ex.:

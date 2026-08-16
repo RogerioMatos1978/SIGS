@@ -262,3 +262,91 @@
 2026-08-16 12:05:44 | INFO     | SIGS | Repetição de chamada da senha 003.
 2026-08-16 12:06:10 | WARNING  | SIGS | Senha do usuário id=8 foi redefinida por um administrador.
 2026-08-16 12:18:08 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 12:20:02 | WARNING  | SIGS | Senha do usuário id=8 foi redefinida por um administrador.
+2026-08-16 12:20:37 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-16 12:20:57 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-08-16 12:20:57 | INFO     | SIGS | Senha emitida: número 006 (id=6, empresa='COMIGO')
+2026-08-16 12:21:06 | INFO     | SIGS | Ticket impresso com sucesso: senha 006 na impressora 'Microsoft Print to PDF'.
+2026-08-16 13:06:09 | WARNING  | SIGS | Esquema antigo da tabela 'usuarios' detectado (sem a coluna 'empresa_id'). Adicionando automaticamente...
+2026-08-16 13:06:09 | WARNING  | SIGS | Migração concluída: a tabela 'usuarios' agora possui a coluna 'empresa_id', usada para vincular um usuário 'recrutador' à sua empresa.
+2026-08-16 13:06:09 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 13:09:36 | WARNING  | SIGS | Perfil do usuário id=6 alterado para 'recrutador'.
+2026-08-16 13:09:38 | WARNING  | SIGS | Empresa do usuário id=6 definida para empresa_id=1.
+2026-08-16 13:09:47 | WARNING  | SIGS | Senha do usuário id=6 foi redefinida por um administrador.
+2026-08-16 13:10:11 | INFO     | SIGS | Logout realizado: 'rsmatos'.
+2026-08-16 13:10:19 | INFO     | SIGS | Sala 1 (empresa id=1) atribuída automaticamente a 'Teste02'.
+2026-08-16 13:10:19 | INFO     | SIGS | Login realizado: 'teste02' (perfil recrutador, guichê 1).
+2026-08-16 13:10:53 | INFO     | SIGS | Senha 006 chamada no guichê 'Sala 01 — COMIGO' por 'Teste02'.
+2026-08-16 13:11:55 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 13:14:39 | INFO     | SIGS | Logout realizado: 'teste02'.
+2026-08-16 13:15:08 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 13:36:11 | WARNING  | SIGS | Esquema antigo da tabela 'empresas' detectado (sem as colunas de identidade visual). Adicionando automaticamente...
+2026-08-16 13:36:11 | WARNING  | SIGS | Migração concluída: a tabela 'empresas' agora possui as colunas 'logo_path' e 'cor_principal'.
+2026-08-16 13:36:11 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 13:39:58 | INFO     | SIGS | Logo da empresa id=1 atualizado (cor extraída automaticamente: #ABC4A5).
+2026-08-16 13:40:49 | INFO     | SIGS | Logo da empresa id=2 atualizado (cor extraída automaticamente: #C3CAD6).
+2026-08-16 13:43:49 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-16 13:45:06 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 13:45:19 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-16 13:45:35 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-08-16 13:45:35 | INFO     | SIGS | Senha emitida: número 007 (id=7, empresa='COMIGO')
+2026-08-16 13:45:43 | INFO     | SIGS | Ticket impresso com sucesso: senha 007 na impressora 'Microsoft Print to PDF'.
+2026-08-16 13:47:10 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 13:48:12 | WARNING  | SIGS | Perfil do usuário id=9 alterado para 'recrutador'.
+2026-08-16 13:48:13 | WARNING  | SIGS | Empresa do usuário id=9 definida para empresa_id=2.
+2026-08-16 13:48:38 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 13:48:53 | INFO     | SIGS | Sala 1 (empresa id=1) atribuída automaticamente a 'Teste02'.
+2026-08-16 13:48:53 | INFO     | SIGS | Login realizado: 'teste02' (perfil recrutador, guichê 1).
+2026-08-16 13:49:34 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 13:49:35 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 13:49:37 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 13:49:38 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-16 13:49:45 | INFO     | SIGS | Senha id=6 finalizada.
+2026-08-16 13:49:45 | INFO     | SIGS | Senha 007 chamada no guichê 'Sala 01 — COMIGO' por 'Teste02'.
+2026-08-16 13:49:56 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 13:50:13 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 13:50:21 | INFO     | SIGS | Sala 1 (empresa id=2) atribuída automaticamente a 'Teste03'.
+2026-08-16 13:50:21 | INFO     | SIGS | Login realizado: 'teste03' (perfil recrutador, guichê 1).
+2026-08-16 13:51:03 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-08-16 13:51:03 | INFO     | SIGS | Senha emitida: número 008 (id=8, empresa='IMPASA')
+2026-08-16 13:51:09 | INFO     | SIGS | Ticket impresso com sucesso: senha 008 na impressora 'Microsoft Print to PDF'.
+2026-08-16 13:51:24 | INFO     | SIGS | Senha id=7 finalizada.
+2026-08-16 13:52:10 | INFO     | SIGS | Senha 008 chamada no guichê 'Sala 01 — IMPASA' por 'Teste03'.
+2026-08-16 13:52:17 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 13:52:19 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 13:52:22 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 13:52:26 | INFO     | SIGS | Repetição de chamada da senha 007.
+2026-08-16 13:52:29 | INFO     | SIGS | Senha id=8 finalizada.
+2026-08-16 14:03:09 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 14:03:33 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-16 14:03:46 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 14:04:41 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 14:05:26 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 14:05:36 | INFO     | SIGS | Login realizado: 'rsmatos' (perfil admin, guichê None).
+2026-08-16 14:06:09 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'logo_path', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-16 14:11:23 | INFO     | SIGS | Empresa 'Cereal Ouro' cadastrada (id=3).
+2026-08-16 14:11:32 | INFO     | SIGS | Logo da empresa id=3 atualizado (cor extraída automaticamente: #1C2414).
+2026-08-16 14:12:36 | INFO     | SIGS | Logout realizado: 'rsmatos'.
+2026-08-16 14:12:48 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-16 14:12:56 | INFO     | SIGS | Configurações atualizadas: ['contador_atual']
+2026-08-16 14:12:56 | INFO     | SIGS | Senha emitida: número 009 (id=9, empresa='Cereal Ouro')
+2026-08-16 14:13:01 | INFO     | SIGS | Ticket impresso com sucesso: senha 009 na impressora 'Microsoft Print to PDF'.
+2026-08-16 14:13:16 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-16 14:13:26 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 14:13:38 | WARNING  | SIGS | Perfil do usuário id=5 alterado para 'recrutador'.
+2026-08-16 14:13:40 | WARNING  | SIGS | Empresa do usuário id=5 definida para empresa_id=3.
+2026-08-16 14:13:49 | WARNING  | SIGS | Senha do usuário id=5 foi redefinida por um administrador.
+2026-08-16 14:13:55 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 14:14:11 | INFO     | SIGS | Sala 1 (empresa id=3) atribuída automaticamente a 'Teste01'.
+2026-08-16 14:14:11 | INFO     | SIGS | Login realizado: 'teste01' (perfil recrutador, guichê 1).
+2026-08-16 14:14:33 | INFO     | SIGS | Senha 009 chamada no guichê 'Sala 01 — Cereal Ouro' por 'Teste01'.
+2026-08-16 14:36:55 | WARNING  | SIGS | Esquema antigo da tabela 'empresas' detectado (sem a coluna 'contador_atual'). Adicionando automaticamente...
+2026-08-16 14:36:55 | WARNING  | SIGS | Migração concluída: a tabela 'empresas' agora possui a coluna 'contador_atual' — cada empresa passa a ter sua própria sequência de numeração de senhas.
+2026-08-16 14:36:55 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 14:41:54 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 14:42:16 | INFO     | SIGS | Senha id=9 finalizada.
+2026-08-16 14:43:21 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-16 14:43:34 | INFO     | SIGS | Senha emitida: número 001 (id=10, empresa='Cereal Ouro')
+2026-08-16 14:43:46 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
+2026-08-16 14:48:05 | INFO     | SIGS | Senha 001 chamada no guichê 'Sala 01 — Cereal Ouro' por 'Teste01'.
+2026-08-16 14:48:11 | INFO     | SIGS | Senha id=10 finalizada.

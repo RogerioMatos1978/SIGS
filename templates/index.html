@@ -15,7 +15,12 @@
 <div class="pagina">
 
     <header class="cabecalho">
-        <img class="logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo SENAI">
+        <!-- Se o recrutador logado tiver empresa com logo proprio (ver
+             injetar_usuario_logado em app.py), mostra o logo DA EMPRESA
+             em vez do logo padrao do sistema. -->
+        <img class="logo"
+             src="{% if identidade_empresa and identidade_empresa.logo_path %}{{ url_for('static', filename=identidade_empresa.logo_path) }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}"
+             alt="Logo">
         <div class="titulo-evento">
             <h1>SIGS</h1>
             <p>{{ config.nome_evento }}</p>
@@ -50,6 +55,42 @@
             </p>
             {% endif %}
         </section>
+        {% elif usuario_logado.perfil == 'recrutador' %}
+        <section class="card card-identificacao">
+            <h2>Recrutador Logado</h2>
+            <div class="identificacao-sessao">
+                <div class="identificacao-item">
+                    <span class="identificacao-label">Nome</span>
+                    <span class="identificacao-valor">{{ usuario_logado.nome_completo }}</span>
+                </div>
+                <div class="identificacao-item">
+                    <span class="identificacao-label">Empresa</span>
+                    <span class="identificacao-valor">{{ usuario_logado.empresa_nome or 'Nenhuma empresa vinculada' }}</span>
+                </div>
+                <div class="identificacao-item">
+                    <span class="identificacao-label">Sala</span>
+                    <span class="identificacao-valor">
+                        {% if usuario_logado.guiche %}
+                            {{ '%02d' | format(usuario_logado.guiche) }}
+                        {% else %}
+                            Nenhuma sala livre
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            {% if not usuario_logado.empresa_nome %}
+            <p class="mensagem-status erro">
+                Você não está vinculado a nenhuma empresa. Peça a um administrador
+                para vincular uma empresa ao seu usuário em Gerenciar Usuários.
+            </p>
+            {% elif not usuario_logado.guiche %}
+            <p class="mensagem-status erro">
+                Todas as salas desta empresa estão ocupadas no momento. Peça a um
+                administrador para aumentar a quantidade de salas por empresa em
+                Configurações, ou aguarde a liberação de uma sala.
+            </p>
+            {% endif %}
+        </section>
         {% else %}
         <section class="card card-identificacao">
             <h2>{{ 'Administrador' if eh_admin else 'Emissor de Senhas' }}</h2>
@@ -60,12 +101,12 @@
             {% else %}
             <p>Sem guichê atribuído — este perfil apenas emite senhas para a
                fila; a chamada e o atendimento são feitos pelos usuários com
-               perfil atendente.</p>
+               perfil atendente ou recrutador.</p>
             {% endif %}
         </section>
         {% endif %}
 
-        {% if usuario_logado.perfil == 'atendente' %}
+        {% if usuario_logado.perfil in ('atendente', 'recrutador') %}
         <section class="card card-senha-atual">
             <h2>Última Senha Chamada</h2>
             <div id="senha-atual-destaque" class="senha-destaque">--</div>
@@ -80,7 +121,7 @@
             </button>
             {% endif %}
 
-            {% if usuario_logado.perfil == 'atendente' %}
+            {% if usuario_logado.perfil in ('atendente', 'recrutador') %}
             <button id="btn-chamar" class="botao botao-primario botao-grande">
                 📢 Chamar Próxima
             </button>
@@ -94,6 +135,9 @@
 
             <button id="btn-abrir-painel" class="botao botao-secundario botao-grande">
                 🖥️ Abrir Painel
+            </button>
+            <button id="btn-abrir-painel-geral" class="botao botao-secundario botao-grande">
+                📺 Painel Geral
             </button>
             <button id="btn-testar-bip" class="botao botao-secundario botao-grande">
                 🔔 Testar Bip
@@ -175,7 +219,10 @@
 <!-- Variáveis globais lidas pelo index.js (nunca JavaScript inline). -->
 <script>
     window.SIGS_CONFIG = {
-        tempoAtualizacaoMs: {{ config.tempo_atualizacao_ms | default(2000) }}
+        tempoAtualizacaoMs: {{ config.tempo_atualizacao_ms | default(2000) }},
+        // Para o recrutador, "Abrir Painel" leva direto ao painel da SUA
+        // empresa (não ao painel geral) — ver templates/painel_empresa.html.
+        painelUrl: {% if usuario_logado.perfil == 'recrutador' and usuario_logado.empresa_id %}"{{ url_for('painel_empresa', empresa_id=usuario_logado.empresa_id) }}"{% else %}"{{ url_for('painel') }}"{% endif %}
     };
 </script>
 <script src="{{ url_for('static', filename='js/bip.js') }}"></script>

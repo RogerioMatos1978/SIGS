@@ -42,6 +42,11 @@ CHAVE_SESSAO_NOME = "usuario_nome"
 CHAVE_SESSAO_LOGIN = "usuario_login"
 CHAVE_SESSAO_PERFIL = "usuario_perfil"
 CHAVE_SESSAO_GUICHE = "guiche"
+# As duas chaves abaixo só são preenchidas para o perfil "recrutador" (ver
+# iniciar_sessao): identificam a empresa à qual o recrutador está
+# vinculado, usada para filtrar a fila/chamadas às senhas daquela empresa.
+CHAVE_SESSAO_EMPRESA_ID = "empresa_id"
+CHAVE_SESSAO_EMPRESA_NOME = "empresa_nome"
 
 TAMANHO_MINIMO_SENHA = 6
 
@@ -98,11 +103,16 @@ def iniciar_sessao(usuario) -> None:
     """
     Grava os dados do usuário autenticado na sessão Flask.
 
-    Apenas usuários com perfil "atendente" assumem automaticamente um
-    guichê de atendimento disponível — administradores e emissores de
-    senha NÃO ocupam guichê, pois não realizam chamadas de atendimento
-    (o administrador gerencia o sistema; o emissor apenas emite senhas em
-    um totem).
+    Usuários com perfil "atendente" assumem automaticamente um guichê da
+    fila GERAL de atendimento. Usuários com perfil "recrutador" assumem
+    automaticamente uma sala/guichê dentro do pool DA SUA PRÓPRIA empresa
+    (``usuario.empresa_id``, definido pelo administrador em "Gerenciar
+    Usuários") — os dois pools são independentes entre si (ver
+    ``database.ocupar_proximo_guiche_disponivel`` vs.
+    ``database.ocupar_proximo_guiche_empresa_disponivel``). Administradores
+    e emissores de senha NÃO ocupam guichê/sala, pois não realizam
+    chamadas de atendimento (o administrador gerencia o sistema; o emissor
+    apenas emite senhas em um totem).
     """
     session.clear()
     session[CHAVE_SESSAO_USUARIO_ID] = usuario.id
@@ -114,6 +124,9 @@ def iniciar_sessao(usuario) -> None:
     database.atualizar_ultimo_login(usuario.id)
 
     guiche = None
+    empresa_id = None
+    empresa_nome = None
+
     if usuario.perfil == PerfilUsuario.ATENDENTE:
         qtd_guiches = config_manager.obter("qtd_guiches", 5)
         guiche = database.ocupar_proximo_guiche_disponivel(usuario.id, usuario.nome_completo, qtd_guiches)
@@ -125,18 +138,57 @@ def iniciar_sessao(usuario) -> None:
                 qtd_guiches,
             )
 
+    elif usuario.perfil == PerfilUsuario.RECRUTADOR:
+        if usuario.empresa_id is None:
+            logger.warning(
+                "Usuário '%s' tem perfil recrutador, mas não está vinculado a "
+                "nenhuma empresa. Peça a um administrador para vincular uma "
+                "empresa em Gerenciar Usuários.",
+                usuario.login,
+            )
+        else:
+            empresa = database.obter_empresa_por_id(usuario.empresa_id)
+            if empresa is None:
+                logger.warning(
+                    "Usuário '%s' está vinculado a uma empresa (id=%s) que não "
+                    "existe mais.",
+                    usuario.login,
+                    usuario.empresa_id,
+                )
+            else:
+                empresa_id = empresa.id
+                empresa_nome = empresa.nome
+                qtd_guiches_empresa = config_manager.obter("qtd_guiches_por_empresa", 3)
+                guiche = database.ocupar_proximo_guiche_empresa_disponivel(
+                    empresa_id, usuario.id, usuario.nome_completo, qtd_guiches_empresa
+                )
+
+                if guiche is None:
+                    logger.warning(
+                        "Recrutador '%s' logou, mas não há salas disponíveis para "
+                        "a empresa '%s' (limite: %s).",
+                        usuario.login,
+                        empresa_nome,
+                        qtd_guiches_empresa,
+                    )
+
     session[CHAVE_SESSAO_GUICHE] = guiche
+    session[CHAVE_SESSAO_EMPRESA_ID] = empresa_id
+    session[CHAVE_SESSAO_EMPRESA_NOME] = empresa_nome
 
     database.registrar_log("INFO", f"Login realizado: '{usuario.login}' (perfil {usuario.perfil}, guichê {guiche}).")
 
 
 def encerrar_sessao() -> None:
-    """Libera o guichê ocupado e remove todos os dados da sessão atual."""
+    """Libera o guichê/sala ocupado (em qualquer um dos dois pools — geral
+    ou por empresa, um dos DELETE é sempre um no-op) e remove todos os
+    dados da sessão atual."""
     usuario_id = session.get(CHAVE_SESSAO_USUARIO_ID)
     login = session.get(CHAVE_SESSAO_LOGIN)
 
     if usuario_id is not None:
         database.liberar_guiche(usuario_id)
+        database.liberar_guiche_empresa(usuario_id)
         database.registrar_log("INFO", f"Logout realizado: '{login}'.")
 
     session.clear()
@@ -161,6 +213,8 @@ def usuario_logado() -> Optional[dict]:
         "login": session.get(CHAVE_SESSAO_LOGIN),
         "perfil": session.get(CHAVE_SESSAO_PERFIL),
         "guiche": session.get(CHAVE_SESSAO_GUICHE),
+        "empresa_id": session.get(CHAVE_SESSAO_EMPRESA_ID),
+        "empresa_nome": session.get(CHAVE_SESSAO_EMPRESA_NOME),
     }
 
 

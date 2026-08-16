@@ -101,8 +101,10 @@ configurar.
 ### 4.1 Logotipo
 
 Substitua o arquivo `static/img/logo.png` pelo logotipo oficial do SENAI
-(mantendo o nome `logo.png`, ou atualizando o caminho na tela de
-Configurações). O arquivo entregue é apenas um placeholder de exemplo.
+(mantendo o nome `logo.png`). O arquivo entregue é apenas um placeholder
+de exemplo. Este logo é usado como imagem de CABEÇALHO nas telas internas
+do sistema — ele NÃO é mais usado na impressão do ticket: cada empresa
+tem seu próprio logo, impresso no ticket em seu lugar (ver seção 4.7).
 
 ### 4.2 Impressora
 
@@ -127,8 +129,14 @@ Na tela de Configurações também é possível ajustar:
 - Nome do evento (impresso no ticket e exibido no painel).
 - Quantidade de senhas exibidas no painel (histórico).
 - Tempo de atualização do painel (em milissegundos).
-- Quantidade de guichês de atendimento disponíveis (ver seção 4.4).
+- Quantidade de guichês de atendimento disponíveis, fila geral (ver seção 4.4).
+- Quantidade de salas por empresa, usadas pelos recrutadores (ver seção 4.6).
 - Cor principal do sistema (paleta visual).
+- Frase do Menu: um texto livre (opcional) exibido em uma faixa logo
+  abaixo do menu superior, em TODAS as telas internas do sistema (tela
+  principal, Configurações, Relatórios, Usuários, Empresas). Útil para
+  avisos do dia (ex.: "Documento com foto obrigatório"). Deixe em branco
+  para não exibir nenhuma faixa.
 
 Todas as configurações são persistidas na tabela `configuracoes` do
 SQLite e aplicadas imediatamente, sem necessidade de reiniciar o
@@ -157,7 +165,7 @@ administrador (ver seção 12.3 para detalhes). A partir daí, esse
 administrador cria todos os demais usuários (atendentes, emissores ou
 outros administradores) pela tela Usuários.
 
-**Três perfis de acesso:**
+**Quatro perfis de acesso:**
 
 - **Administrador** — acesso total ao sistema (Configurações,
   Relatórios, Gerenciar Usuários, reinício de contador, reset de senha de
@@ -165,28 +173,33 @@ outros administradores) pela tela Usuários.
   não opera a fila (não emite nem chama senhas) — seu papel é de gestão,
   não de atendimento.
 - **Atendente** (perfil sugerido por padrão ao cadastrar um novo usuário)
-  — ao logar, assume automaticamente um guichê de atendimento disponível.
-  Responsável por Chamar Próxima, Repetir Chamada e Finalizar
-  Atendimento.
+  — ao logar, assume automaticamente um guichê da fila GERAL de
+  atendimento (compartilhada entre todas as empresas). Responsável por
+  Chamar Próxima, Repetir Chamada e Finalizar Atendimento.
 - **Emissor de Senhas** — perfil restrito, criado apenas por um
   administrador na tela Usuários. Não ocupa guichê. Só enxerga o botão
   Emitir Senha — pensado para operar um totem de emissão na entrada do
   evento; as senhas que ele emite alimentam a fila consumida pelos
-  atendentes.
+  atendentes e recrutadores.
+- **Recrutador** — vinculado a UMA empresa específica pelo administrador
+  (ver seção 4.6). Ao logar, assume automaticamente uma sala dentro da
+  fila DAQUELA empresa (pool independente da fila geral do atendente) e
+  só chama, repete chamada e finaliza (dá baixa) senhas emitidas para
+  essa empresa.
 
-| Recurso | Atendente | Emissor | Administrador |
-|---|---|---|---|
-| Emitir senha | ❌ | ✅ | ❌ |
-| Chamar / Repetir / Finalizar atendimento | ✅ | ❌ | ❌ |
-| Abrir painel / Testar bip | ✅ | ✅ | ✅ |
-| Ocupa guichê automaticamente | ✅ | ❌ | ❌ |
-| Configurações do sistema | ❌ | ❌ | ✅ |
-| Relatórios (CSV/Excel/PDF) | ❌ | ❌ | ✅ |
-| Gerenciar usuários | ❌ | ❌ | ✅ |
-| Gerenciar empresas do feirão | ❌ | ❌ | ✅ |
-| Reiniciar contador de senhas | ❌ | ❌ | ✅ |
-| Resetar senha de outro usuário | ❌ | ❌ | ✅ |
-| Resetar (apagar) todas as senhas emitidas | ❌ | ❌ | ✅ |
+| Recurso | Atendente | Emissor | Recrutador | Administrador |
+|---|---|---|---|---|
+| Emitir senha | ❌ | ✅ | ❌ | ❌ |
+| Chamar / Repetir / Finalizar atendimento | ✅ (fila geral) | ❌ | ✅ (só da própria empresa) | ❌ |
+| Abrir painel / Painel Geral / Testar bip | ✅ | ✅ | ✅ | ✅ |
+| Ocupa guichê/sala automaticamente | ✅ | ❌ | ✅ | ❌ |
+| Configurações do sistema | ❌ | ❌ | ❌ | ✅ |
+| Relatórios (CSV/Excel/PDF) | ❌ | ❌ | ❌ | ✅ |
+| Gerenciar usuários | ❌ | ❌ | ❌ | ✅ |
+| Gerenciar empresas do feirão | ❌ | ❌ | ❌ | ✅ |
+| Reiniciar contador de senhas | ❌ | ❌ | ❌ | ✅ |
+| Resetar senha de outro usuário | ❌ | ❌ | ❌ | ✅ |
+| Resetar (apagar) todas as senhas emitidas | ❌ | ❌ | ❌ | ✅ |
 
 **Guichês:** ao fazer login, um usuário **atendente** assume
 automaticamente o primeiro guichê disponível (entre 1 e a quantidade
@@ -196,15 +209,16 @@ guichê. O guichê é liberado automaticamente no logout, ficando disponível
 para o próximo login. Se todos os guichês estiverem ocupados, a tela
 principal avisa o atendente e ele não conseguirá chamar senhas até que um
 guichê seja liberado (ou até um administrador aumentar a quantidade de
-guichês em Configurações).
+guichês em Configurações). O perfil **recrutador** segue a mesma lógica,
+mas em um pool de "salas" separado POR EMPRESA — ver seção 4.6.
 
-**Finalizar Atendimento:** o botão "Finalizar Atendimento" (visível
-apenas para atendentes) marca a senha em atendimento no guichê como
-finalizada e, na mesma ação, já chama automaticamente a próxima senha da
-fila — não é necessário clicar em "Chamar Próxima" separadamente depois
-de atender um cliente. Se não houver mais senhas aguardando, o sistema
-exibe um aviso "Aguardando nova senha ser emitida" (isso não é tratado
-como erro, é uma situação normal de baixa demanda momentânea).
+**Finalizar Atendimento:** o botão "Finalizar Atendimento" (visível para
+atendentes e recrutadores) marca a senha em atendimento no guichê/sala
+como finalizada e, na mesma ação, já chama automaticamente a próxima
+senha da fila — não é necessário clicar em "Chamar Próxima" separadamente
+depois de atender um cliente. Se não houver mais senhas aguardando, o
+sistema exibe um aviso "Aguardando nova senha ser emitida" (isso não é
+tratado como erro, é uma situação normal de baixa demanda momentânea).
 
 **Reset de senha (login) x Reiniciar contador x Resetar senhas emitidas**
 — são três operações diferentes, todas restritas a administradores:
@@ -214,11 +228,15 @@ como erro, é uma situação normal de baixa demanda momentânea).
   (por exemplo, a senha do único admin foi esquecida), rode
   `python criar_admin.py` diretamente no servidor (ver seção 12.3).
 - *Reiniciar Contador* (tela principal): zera a numeração das próximas
-  senhas de atendimento (a próxima emitida volta a ser 001), sem apagar
-  o histórico.
+  senhas de TODAS as empresas de uma vez (a próxima emitida por cada
+  empresa volta a ser 001), sem apagar o histórico. Cada empresa tem sua
+  PRÓPRIA sequência independente de numeração (seção 4.5) — para
+  reiniciar apenas UMA empresa, sem afetar as demais, use o botão
+  "🔄 Reiniciar Contador" da linha daquela empresa em `/admin/empresas`.
 - *Resetar Todas as Senhas Emitidas* (tela Usuários, "Zona de Perigo"):
   apaga PERMANENTEMENTE todo o histórico de senhas e chamadas, e também
-  reinicia o contador. Use apenas ao iniciar um evento totalmente novo.
+  reinicia o contador de todas as empresas. Use apenas ao iniciar um
+  evento totalmente novo.
 
 ### 4.5 Empresas do feirão do emprego
 
@@ -235,7 +253,15 @@ emitida — o nome da empresa também sai impresso no próprio ticket.
   emissão caso nenhuma empresa válida e ativa seja informada, mesmo que
   alguém tente contornar o formulário.
 - **Impressão**: o nome da empresa selecionada é impresso logo abaixo do
-  número da senha no próprio ticket (ver `printer.py`).
+  número da senha no próprio ticket (ver `printer.py`). O LOGO impresso no
+  topo do ticket também é o da PRÓPRIA EMPRESA (não mais o logo padrão do
+  sistema) — se a empresa ainda não tiver um logo cadastrado (seção 4.7),
+  o ticket simplesmente sai sem nenhum logo.
+- **Numeração por empresa**: cada empresa possui sua PRÓPRIA sequência
+  independente de numeração de senhas (001, 002, 003...) — duas empresas
+  diferentes podem emitir, ao mesmo tempo, uma senha de número 001, sem
+  conflito entre si. Veja "Reiniciar Contador" acima para reiniciar a
+  numeração de uma empresa específica.
 - **Relatórios**: a tela de Relatórios ganhou um filtro por empresa
   (incluindo empresas já desativadas, para não perder o histórico de
   eventos passados) e uma tabela "Senhas por Empresa" com a contagem de
@@ -247,6 +273,87 @@ emitida — o nome da empresa também sai impresso no próprio ticket.
 > Se nenhuma empresa estiver cadastrada (ou todas estiverem inativas), a
 > janela de emissão exibe um aviso orientando a procurar um
 > administrador — não é possível emitir senha sem selecionar uma empresa.
+
+### 4.6 Recrutadores e Painéis por Empresa
+
+Além da fila geral (atendentes) e do painel público único, o SIGS
+oferece uma fila e um painel **independentes para cada empresa** —
+pensado para feirões em que cada empresa entrevista em sua própria sala,
+com seu próprio recrutador chamando as senhas.
+
+**Vincular um recrutador a uma empresa** (`/admin/usuarios`, restrito a
+administradores):
+
+1. Cadastre a empresa primeiro em `/admin/empresas` (seção 4.5), caso
+   ainda não exista.
+2. Em "Novo Usuário", selecione o perfil **Recrutador** — um seletor de
+   empresa aparece e é obrigatório.
+3. Para um usuário já existente, mude o perfil dele para "Recrutador" na
+   tabela "Usuários Cadastrados" e, em seguida, escolha a empresa no
+   seletor "Empresa (Recrutador)" da mesma linha.
+4. Mudar o perfil de um recrutador para qualquer outro (atendente,
+   emissor, admin) limpa automaticamente o vínculo com a empresa.
+
+**Painel de uma empresa** (`http://localhost:5000/painel/empresa/<id>`,
+público, sem login): mostra apenas a chamada atual e as últimas senhas
+emitidas DAQUELA empresa. O link direto para cada empresa está disponível
+no botão "🖥️ Abrir Painel" da tela `/admin/empresas`; o recrutador logado
+também tem um atalho "🖥️ Abrir Painel" na tela principal, que já abre
+direto o painel da sua própria empresa.
+
+**Painel Geral** (`http://localhost:5000/painel/geral`, público, sem
+login): mostra o resumo agregado de todo o feirão — total de senhas
+aguardando, em atendimento, atendidas e canceladas — e uma tabela com o
+mesmo detalhamento por empresa. Acessível pelo botão "📺 Painel Geral" na
+tela principal (visível para qualquer perfil logado).
+
+**Salas (guichês por empresa):** ao logar, um recrutador assume
+automaticamente a primeira sala disponível (entre 1 e a quantidade
+configurada em "Quantidade de Salas por Empresa", seção 4.3) **dentro da
+sua própria empresa** — a numeração de salas é independente entre
+empresas (a "Sala 01" da Empresa A e a "Sala 01" da Empresa B não
+conflitam). Um recrutador só pode chamar, repetir chamada, finalizar ou
+cancelar senhas da SUA empresa; tentar gerenciar uma senha de outra
+empresa retorna erro 403.
+
+### 4.7 Identidade visual por empresa (logo + cor)
+
+Cada empresa pode ter seu PRÓPRIO logo e cor de destaque, aplicados
+automaticamente em duas telas: o painel público daquela empresa
+(`/painel/empresa/<id>`) e a tela principal de um recrutador vinculado a
+ela — as demais telas (do atendente, emissor e administrador) continuam
+sempre com o logo/cor padrão do sistema (seção 4.1/4.3).
+
+Além das telas, o logo da empresa também é usado no PRÓPRIO TICKET
+impresso na emissão de senha (seção 4.5) — o logo padrão do sistema
+deixou de ser usado na impressão.
+
+**Como configurar** (`/admin/empresas`, restrito a administradores), na
+coluna "Identidade Visual" de cada empresa:
+
+1. Clique em "📷 Logo" e escolha uma imagem (PNG, JPG, GIF ou WEBP).
+2. O sistema calcula automaticamente uma cor de destaque a partir da
+   própria imagem (a cor média do logo) e já preenche o seletor de cor ao
+   lado com o resultado — não é necessário fazer nada além do upload para
+   "gerar" a identidade visual da empresa.
+3. Se a cor sugerida não agradar, clique no seletor de cor e escolha
+   outra manualmente — a alteração é salva imediatamente, sem afetar o
+   logo já enviado.
+4. Enviar um novo logo substitui tanto o arquivo quanto a cor extraída
+   automaticamente (a cor escolhida manualmente no passo 3 seria
+   sobrescrita nesse caso).
+
+Logos com fundo transparente são tratados corretamente (compostos sobre
+um fundo branco antes do cálculo da cor), e o arquivo antigo é removido
+do disco automaticamente ao enviar um novo logo com extensão diferente,
+evitando acúmulo de arquivos órfãos.
+
+Na própria tela `/admin/empresas`, os botões "🖥️ Abrir Painel", "📷 Logo"
+e "✏️ Renomear" de cada linha já usam a cor DAQUELA empresa (em vez da
+cor padrão do sistema), facilitando identificar visualmente qual linha é
+de qual empresa. O botão "🚫 Desativar"/"✅ Ativar" fica de fora
+propositalmente, para manter o vermelho/verde de alerta sempre
+reconhecível.
 
 ---
 
@@ -307,7 +414,11 @@ Para que o painel público seja acessado de outro dispositivo na mesma
 rede (por exemplo, um Smart TV ou outro computador exibindo o painel):
 
 1. Descubra o IP local da máquina que roda o SIGS (`ipconfig` no cmd).
-2. No dispositivo remoto, acesse `http://<IP-DA-MAQUINA>:5000/painel`.
+2. No dispositivo remoto, acesse `http://<IP-DA-MAQUINA>:5000/painel`
+   (painel geral de chamadas), `http://<IP-DA-MAQUINA>:5000/painel/geral`
+   (resumo do feirão) ou `http://<IP-DA-MAQUINA>:5000/painel/empresa/<id>`
+   (painel de uma empresa específica — ver botão "Abrir Painel" em
+   `/admin/empresas`).
 3. Se a conexão falhar, libere a porta 5000 no Firewall do Windows:
    - Painel de Controle > Sistema e Segurança > Firewall do Windows
      Defender > Configurações Avançadas > Regras de Entrada > Nova Regra.
@@ -411,6 +522,9 @@ do período selecionado.
   `/admin/usuarios` e respectivas APIs) exigem explicitamente o perfil
   "admin"; usuários com perfil "atendente" recebem HTTP 403 caso tentem
   acessá-las diretamente pela URL.
+- Um recrutador só consegue finalizar/cancelar/chamar/repetir senhas da
+  SUA PRÓPRIA empresa — tentar gerenciar (mesmo sabendo o id) uma senha
+  de outra empresa também retorna HTTP 403.
 - Um usuário desativado por um administrador tem a sessão invalidada
   automaticamente na requisição seguinte, mesmo que o cookie de sessão
   ainda esteja presente no navegador.
@@ -444,8 +558,9 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
   ser consumidas diretamente por aplicativos móveis (Android/iOS) ou
   dashboards externos.
 - **Login / Controle de usuários**: já implementado (`auth.py` +
-  tabela `usuarios`), com perfis admin/atendente, guichê automático e
-  reset de senha/contador/histórico pelo administrador.
+  tabela `usuarios`), com perfis admin/atendente/emissor/recrutador,
+  guichê/sala automática e reset de senha/contador/histórico pelo
+  administrador.
 - **LDAP / Active Directory**: a autenticação local (`auth.py`) pode ser
   estendida para validar contra um servidor LDAP/AD antes (ou em vez) de
   checar a tabela `usuarios`, mantendo o restante do fluxo de sessão e
@@ -463,7 +578,9 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | Rota | Acesso | Descrição |
 |---|---|---|
 | `GET /` | Login | Tela principal (emissão/chamada de senhas) |
-| `GET /painel` | Público | Painel de chamadas (tela cheia, para TV/monitor) |
+| `GET /painel` | Público | Painel geral de chamadas (tela cheia, para TV/monitor) |
+| `GET /painel/empresa/<id>` | Público | Painel de UMA empresa (fila e chamada daquela empresa) |
+| `GET /painel/geral` | Público | Painel-resumo (emitidas/aguardando/atendidas/canceladas, por empresa) |
 | `GET /health` | Público | Health check: confirma que o app e o banco de dados estão respondendo |
 | `GET/POST /login` | Público | Autenticação |
 | `POST /logout` | Login | Encerra sessão e libera o guichê |
@@ -477,28 +594,34 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | Rota | Acesso | Descrição |
 |---|---|---|
 | `POST /api/emitir` | Login | Emite uma nova senha (grava + imprime); exige `empresa_id` no corpo |
-| `POST /api/chamar` | Login | Chama a próxima senha da fila |
-| `POST /api/repetir` | Login | Repete a última chamada |
-| `POST /api/finalizar-atendimento` | Login | Finaliza o atendimento e chama a próxima |
-| `POST /api/reiniciar` | Admin | Reinicia o contador de senhas |
-| `GET /api/painel/status` | Público | Dados consumidos pelo painel (polling) |
-| `GET /api/fila` | Login | Lista da fila atual |
-| `POST /api/senha/<id>/finalizar` | Login | Finaliza uma senha específica |
-| `POST /api/senha/<id>/cancelar` | Login | Cancela uma senha específica |
+| `POST /api/chamar` | Login | Chama a próxima senha da fila (escopo automático por empresa p/ recrutador) |
+| `POST /api/repetir` | Login | Repete a última chamada (idem) |
+| `POST /api/finalizar-atendimento` | Login | Finaliza o atendimento e chama a próxima (idem) |
+| `POST /api/reiniciar` | Admin | Reinicia o contador de senhas de TODAS as empresas |
+| `GET /api/painel/status` | Público | Dados consumidos pelo painel geral (polling) |
+| `GET /api/painel/empresa/<id>/status` | Público | Dados consumidos pelo painel de uma empresa |
+| `GET /api/painel/geral/status` | Público | Dados consumidos pelo painel-resumo |
+| `GET /api/fila` | Login | Lista da fila atual (escopo automático por empresa p/ recrutador) |
+| `POST /api/senha/<id>/finalizar` | Login | Finaliza uma senha específica (recrutador só a da própria empresa) |
+| `POST /api/senha/<id>/cancelar` | Login | Cancela uma senha específica (idem) |
 | `GET/POST /api/config` | Admin | Lê/atualiza as configurações do sistema |
 | `GET /api/impressoras` | Login | Lista as impressoras instaladas no Windows |
 | `GET /api/empresas` | Login | Lista as empresas ATIVAS (seletor de emissão) |
 | `GET /api/relatorios/{csv,excel,pdf,resumo}` | Admin | Exporta/consulta relatórios (aceitam filtro `empresa`) |
-| `POST /api/admin/usuarios` | Admin | Cria um usuário com perfil escolhido |
+| `POST /api/admin/usuarios` | Admin | Cria um usuário com perfil escolhido (exige `empresa_id` se "recrutador") |
 | `POST /api/admin/usuarios/<id>/resetar-senha` | Admin | Reseta a senha de um usuário |
-| `POST /api/admin/usuarios/<id>/perfil` | Admin | Altera o perfil de um usuário |
+| `POST /api/admin/usuarios/<id>/perfil` | Admin | Altera o perfil de um usuário (limpa a empresa se sair de "recrutador") |
+| `POST /api/admin/usuarios/<id>/empresa` | Admin | Vincula/desvincula a empresa de um recrutador |
 | `POST /api/admin/usuarios/<id>/status` | Admin | Ativa/desativa um usuário |
 | `POST /api/admin/reset-senhas-emitidas` | Admin | Apaga todo o histórico de senhas |
-| `GET /api/admin/guiches` | Admin | Lista os guichês atualmente ocupados |
+| `GET /api/admin/guiches` | Admin | Lista os guichês atualmente ocupados (fila geral) |
 | `GET /api/admin/empresas` | Admin | Lista TODAS as empresas (ativas e inativas) |
 | `POST /api/admin/empresas` | Admin | Cadastra uma nova empresa |
 | `POST /api/admin/empresas/<id>/renomear` | Admin | Renomeia uma empresa |
 | `POST /api/admin/empresas/<id>/status` | Admin | Ativa/desativa uma empresa |
+| `POST /api/admin/empresas/<id>/reiniciar-contador` | Admin | Reinicia o contador de senhas de UMA empresa (não afeta as demais) |
+| `POST /api/admin/empresas/<id>/logo` | Admin | Envia o logo da empresa (multipart) e extrai a cor automaticamente |
+| `POST /api/admin/empresas/<id>/cor` | Admin | Sobrescreve manualmente a cor da empresa |
 
 ### 12.3 Melhorias de usabilidade desta versão
 
@@ -580,7 +703,7 @@ guichê, painel público responsivo):
 | Ticket não centralizado corretamente | Impressora com driver antigo | Atualize o driver da impressora; o sistema já calcula a largura dinamicamente via `GetDeviceCaps()` |
 | Painel não atualiza | Bloqueio de firewall/rede | Verifique a seção 6 (Rede e Firewall) |
 | Bip não toca no painel | Navegador bloqueando áudio automático | Interaja uma vez com a página (clique) antes de abrir o painel, ou configure o navegador para permitir autoplay de áudio no domínio |
-| Logotipo não aparece no ticket | Caminho do logotipo incorreto | Verifique o campo "Caminho do Logotipo" em Configurações |
+| Logotipo não aparece no ticket | A empresa selecionada na emissão não tem logo cadastrado | Faça o upload do logo da empresa em "Identidade Visual" na tela `/admin/empresas` (seção 4.7) — o ticket usa o logo DA EMPRESA, não mais o logo padrão do sistema |
 | Esqueci a senha do administrador | — | Rode `python criar_admin.py` na pasta do projeto (ver seção 12.3) para redefinir a senha e garantir o perfil administrador |
 | `/health` retorna erro 500 | Problema de arquivo/permissão em `database/senhas.db` | Confirme que a pasta `database/` existe e que o processo tem permissão de escrita nela |
 | `database is locked` | Duas instâncias rodando ao mesmo tempo (`dev.py`/`wsgi.py`), ou antivírus bloqueando o arquivo | Feche instâncias duplicadas; adicione uma exceção ao antivírus para a pasta `database/` se persistir |

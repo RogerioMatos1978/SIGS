@@ -45,7 +45,13 @@ STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 IMG_DIR = STATIC_DIR / "img"
 
-# Logotipo padrão do SENAI (o usuário deve substituir pelo arquivo oficial).
+# Logotipo padrão do SENAI, usado apenas como IMAGEM DE CABEÇALHO nas
+# telas internas do sistema (ver templates, tag <img class="logo">) quando
+# não há identidade visual de empresa aplicável. NÃO é mais usado na
+# impressão de tickets — desde que cada empresa passou a ter seu próprio
+# logo (ver models.Empresa.logo_path), o ticket impresso usa o logo DA
+# EMPRESA selecionada na emissão, nunca este logo padrão (ver
+# app.py:api_emitir).
 LOGO_PADRAO = "static/img/logo.png"
 
 # Arquivo de log de aplicação (eventos técnicos, erros, exceções).
@@ -76,12 +82,15 @@ TABELA_CONFIGURACOES = "configuracoes"
 CONFIGURACOES_PADRAO: Dict[str, str] = {
     "nome_evento": "Feirão do Emprego",
     "nome_impressora": "",             # vazio = usar impressora padrão do Windows
-    "logo_path": LOGO_PADRAO,
     "qtd_senhas_exibidas": "10",       # quantidade de senhas exibidas no painel
     "tempo_atualizacao_ms": "2000",    # intervalo de atualização do painel (ms)
     "cor_principal": "#003C71",        # azul institucional SENAI
-    "contador_atual": "0",             # último número de senha emitido
+    "contador_atual": "0",             # LEGADO: contador global antigo, não é mais lido
+                                        # (cada empresa tem seu próprio contador agora,
+                                        # ver empresas.contador_atual em database.py)
     "qtd_guiches": "5",                 # quantidade de guichês de atendimento disponíveis
+    "qtd_guiches_por_empresa": "3",     # quantidade de salas/guichês por empresa (recrutadores)
+    "frase_menu": "",                   # frase livre exibida no menu de todas as telas internas
 }
 
 # Chaves que devem ser tratadas como números inteiros na leitura.
@@ -90,6 +99,7 @@ CHAVES_INTEIRAS = {
     "tempo_atualizacao_ms",
     "contador_atual",
     "qtd_guiches",
+    "qtd_guiches_por_empresa",
 }
 
 # ---------------------------------------------------------------------------

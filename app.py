@@ -11,21 +11,26 @@ impressão física em ``printer.py`` e a configuração em ``config.py``.
 Rotas principais:
 
     GET  /                      Tela principal (emissão/chamada de senhas) [login]
-    GET  /painel                Painel público de chamadas (tela cheia) [público]
+    GET  /painel                Painel público geral de chamadas (tela cheia) [público]
+    GET  /painel/empresa/<id>   Painel público de UMA empresa (tela cheia) [público]
+    GET  /painel/geral          Painel público resumo (emitidas/atendidas/canceladas) [público]
     GET  /configuracoes         Tela de configurações do sistema [admin]
     GET  /relatorios            Tela de geração de relatórios [admin]
     GET/POST /login             Autenticação de usuários
-    POST /logout                Encerra sessão e libera o guichê
+    POST /logout                Encerra sessão e libera o guichê/sala
     GET  /admin/usuarios        Gerenciamento de usuários [admin]
     GET  /admin/empresas        Gerenciamento de empresas do feirão [admin]
 
     POST /api/emitir            Emite uma nova senha (grava + imprime)
-    POST /api/chamar            Chama a próxima senha da fila (FIFO)
-    POST /api/repetir           Repete a última chamada realizada
-    POST /api/finalizar-atendimento  Finaliza o atendimento e já chama a próxima
+    POST /api/chamar            Chama a próxima senha da fila (FIFO; escopo automático por
+                                 empresa quando o usuário logado é "recrutador")
+    POST /api/repetir           Repete a última chamada realizada (mesmo escopo acima)
+    POST /api/finalizar-atendimento  Finaliza o atendimento e já chama a próxima (idem)
     POST /api/reiniciar         Reinicia o contador de senhas
-    GET  /api/painel/status     Dados consumidos pelo painel (polling)
-    GET  /api/fila              Lista da fila atual (tela principal)
+    GET  /api/painel/status     Dados consumidos pelo painel geral (polling)
+    GET  /api/painel/empresa/<id>/status  Dados consumidos pelo painel de uma empresa
+    GET  /api/painel/geral/status         Dados consumidos pelo painel-resumo público
+    GET  /api/fila              Lista da fila atual (escopo automático por empresa p/ recrutador)
     POST /api/senha/<id>/finalizar
     POST /api/senha/<id>/cancelar
 
@@ -46,10 +51,11 @@ Execução:
 
 import csv
 import io
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
-from flask import Flask, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 
 import auth
 import database
@@ -92,15 +98,42 @@ database.inicializar_banco()
 @app.context_processor
 def injetar_usuario_logado():
     """
-    Disponibiliza as variáveis ``usuario_logado``, ``eh_admin`` e
-    ``sigs_versao`` para TODOS os templates automaticamente, sem precisar
-    repassá-las manualmente em cada chamada a ``render_template``.
-    ``sigs_versao`` é usada pelo rodapé fixo (ver templates/layout.html).
+    Disponibiliza as variáveis ``usuario_logado``, ``eh_admin``,
+    ``sigs_versao`` e ``identidade_empresa`` para TODOS os templates
+    automaticamente, sem precisar repassá-las manualmente em cada chamada
+    a ``render_template``. ``sigs_versao`` é usada pelo rodapé fixo (ver
+    templates/layout.html).
+
+    ``identidade_empresa`` é ``None`` para qualquer perfil que não seja
+    "recrutador" (ou para um recrutador sem empresa vinculada/sem
+    identidade visual definida). Quando presente, é um dicionário
+    ``{"logo_path": ..., "cor": ...}`` com o logo/cor DA EMPRESA do
+    recrutador logado — ``templates/layout.html`` usa ``cor`` para
+    sobrescrever a variável CSS ``--cor-principal``, e ``index.html`` usa
+    ``logo_path`` para trocar o logo do cabeçalho. Isso faz a tela
+    principal do recrutador (e apenas ela — as demais telas são
+    restritas a admin, que não tem empresa) "vestir" automaticamente a
+    identidade visual da empresa em que ele está logado. O painel público
+    de uma empresa (``/painel/empresa/<id>``) NÃO usa esta variável, pois
+    é uma rota sem login: ele lê ``empresa.logo_path``/``empresa.cor_principal``
+    diretamente do objeto ``empresa`` que a própria rota já passa ao
+    template (ver ``painel_empresa`` abaixo).
     """
+    usuario_sessao = auth.usuario_logado()
+
+    identidade_empresa = None
+    if usuario_sessao and usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR:
+        empresa_id = usuario_sessao.get("empresa_id")
+        if empresa_id:
+            empresa = database.obter_empresa_por_id(empresa_id)
+            if empresa and (empresa.logo_path or empresa.cor_principal):
+                identidade_empresa = {"logo_path": empresa.logo_path, "cor": empresa.cor_principal}
+
     return {
-        "usuario_logado": auth.usuario_logado(),
+        "usuario_logado": usuario_sessao,
         "eh_admin": auth.eh_admin(),
         "sigs_versao": SIGS_VERSAO,
+        "identidade_empresa": identidade_empresa,
     }
 
 
@@ -122,14 +155,59 @@ def resposta_sucesso(dados: dict, codigo_http: int = 200):
 
 
 def _guiche_formatado(usuario_sessao: dict) -> Optional[str]:
-    """Formata o número do guichê do usuário logado como 'Guichê 01',
-    'Guichê 02' etc., ou ``None`` se o usuário não ocupa guichê algum.
+    """
+    Formata o guichê/sala do usuário logado como texto pronto para gravar
+    em ``senhas.guiche`` e exibir no painel, ou ``None`` se o usuário não
+    ocupa guichê/sala algum no momento.
 
-    Centralizar essa formatação evita repetir ``f"Guichê {n:02d}"`` em
-    cada rota que precisa dela (``/api/chamar`` e
-    ``/api/finalizar-atendimento``), reduzindo o risco de inconsistência."""
+    Dois formatos, conforme o perfil:
+        - "atendente": ``"Guichê 01"`` (pool geral).
+        - "recrutador": ``"Sala 01 — <Nome da Empresa>"`` (pool por
+          empresa) — o nome da empresa é embutido no próprio texto para
+          diferenciar visualmente das salas de outras empresas nos
+          relatórios (a coluna "Empresa" também já cobre isso, mas o
+          texto do guichê fica ambíguo sem essa distinção, já que a
+          numeração 1..N se repete de forma independente em cada
+          empresa).
+
+    Centralizar essa formatação evita repetir a lógica em cada rota que
+    precisa dela (``/api/chamar`` e ``/api/finalizar-atendimento``),
+    reduzindo o risco de inconsistência.
+    """
     guiche = usuario_sessao.get("guiche")
-    return f"Guichê {guiche:02d}" if guiche else None
+    if not guiche:
+        return None
+    if usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR:
+        empresa_nome = usuario_sessao.get("empresa_nome") or "Empresa não identificada"
+        return f"Sala {guiche:02d} — {empresa_nome}"
+    return f"Guichê {guiche:02d}"
+
+
+def _pode_gerenciar_senha(usuario_sessao: dict, senha_id: int) -> bool:
+    """
+    Verifica se o usuário logado pode finalizar/cancelar uma senha
+    específica pelo id.
+
+    Para todos os perfis exceto "recrutador", sempre retorna ``True``
+    (comportamento inalterado desde antes da existência dos
+    recrutadores — qualquer usuário logado podia gerenciar qualquer
+    senha). Para "recrutador", só retorna ``True`` se a senha pertencer à
+    empresa vinculada ao usuário, impedindo que um recrutador
+    finalize/cancele senhas de outra empresa mesmo sabendo o id.
+
+    Se a senha não existir, retorna ``True`` propositalmente: deixa a
+    própria rota (``finalizar_senha``/``cancelar_senha``) responder com o
+    404 apropriado, em vez desta função inventar uma resposta de
+    permissão para um recurso inexistente.
+    """
+    if usuario_sessao.get("perfil") != PerfilUsuario.RECRUTADOR:
+        return True
+
+    senha = database.obter_senha_por_id(senha_id)
+    if senha is None:
+        return True
+
+    return senha.empresa == usuario_sessao.get("empresa_nome")
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +272,42 @@ def painel():
     """
     configuracoes = config_manager.obter_todas()
     return render_template("painel.html", config=configuracoes)
+
+
+@app.route("/painel/empresa/<int:empresa_id>")
+def painel_empresa(empresa_id: int):
+    """
+    Painel público de UMA empresa do feirão, projetado para exibição em
+    TV/monitor dentro da sala de entrevistas daquela empresa. Mostra
+    apenas a fila e a chamada atual daquela empresa (ver
+    ``/api/painel/empresa/<id>/status``).
+
+    Assim como o painel geral (``/painel``), é INTENCIONALMENTE público
+    (sem exigência de login): o candidato aguardando na sala não precisa
+    de conta no sistema. Quem CHAMA a próxima senha é o recrutador,
+    logado na tela principal (ver ``index``) — este painel é apenas o
+    display, não tem controles de chamada.
+
+    Retorna 404 se a empresa não existir (id inválido/removido).
+    """
+    empresa = database.obter_empresa_por_id(empresa_id)
+    if empresa is None:
+        abort(404)
+
+    configuracoes = config_manager.obter_todas()
+    return render_template("painel_empresa.html", config=configuracoes, empresa=empresa)
+
+
+@app.route("/painel/geral")
+def painel_geral():
+    """
+    Painel público resumo do feirão inteiro: total de senhas emitidas,
+    aguardando, em atendimento, finalizadas e canceladas, com o detalhe
+    por empresa (ver ``/api/painel/geral/status``). Também projetado para
+    TV/monitor, sem exigência de login.
+    """
+    configuracoes = config_manager.obter_todas()
+    return render_template("painel_geral.html", config=configuracoes)
 
 
 @app.route("/configuracoes")
@@ -274,15 +388,19 @@ def logout_tela():
 @auth.admin_required
 def usuarios_tela():
     """Tela de gerenciamento de usuários: criação, reset de senha,
-    ativação/desativação e alteração de perfil. Acesso restrito a
-    administradores."""
+    ativação/desativação, alteração de perfil e (para recrutadores) o
+    vínculo com uma empresa do feirão. Acesso restrito a administradores."""
     usuarios = database.listar_usuarios()
     guiches_ocupados = database.listar_guiches_ocupados()
+    guiches_empresa_ocupados = database.listar_guiches_empresa_ocupados()
+    empresas = database.listar_empresas()
     return render_template(
         "usuarios.html",
         config=config_manager.obter_todas(),
         usuarios=usuarios,
         guiches_ocupados=guiches_ocupados,
+        guiches_empresa_ocupados=guiches_empresa_ocupados,
+        empresas=empresas,
     )
 
 
@@ -335,6 +453,17 @@ def api_emitir():
     tela "Empresas", /admin/empresas). A empresa é validada no servidor
     (existe e está ativa) — nunca confiamos apenas na validação do
     formulário no navegador.
+
+    A numeração da senha (``senha.numero``) é POR EMPRESA: cada empresa
+    tem sua própria sequência independente 001, 002, 003... (ver
+    ``database.criar_senha``) — duas empresas diferentes podem ter, ao
+    mesmo tempo, uma senha de número 001.
+
+    O ticket impresso usa o LOGO DA PRÓPRIA EMPRESA (``empresa.logo_path``),
+    não mais o logo padrão do sistema configurado em Configurações. Se a
+    empresa ainda não tiver um logo cadastrado, o ticket é impresso sem
+    nenhum logo (ver ``_extrair_cor_predominante``/tela Empresas para
+    fazer o upload).
     """
     try:
         dados = request.get_json(silent=True) or {}
@@ -358,17 +487,28 @@ def api_emitir():
         guiche = f"Guichê {usuario_sessao['guiche']:02d}" if usuario_sessao.get("guiche") else None
         usuario = usuario_sessao.get("nome_completo")
 
-        senha = database.criar_senha(guiche=guiche, usuario=usuario, empresa=empresa.nome)
+        senha = database.criar_senha(
+            empresa_id=empresa.id, empresa=empresa.nome, guiche=guiche, usuario=usuario
+        )
 
         erro_impressao = None
         try:
             configuracoes = config_manager.obter_todas()
             nome_impressora = impressora_escolhida or configuracoes.get("nome_impressora") or None
             impressora = ImpressoraTermica(nome_impressora)
+            # Logo IMPRESSO no ticket: o logo do SISTEMA (config.logo_path)
+            # não é mais usado aqui — agora imprimimos o logo DA PRÓPRIA
+            # EMPRESA. "empresa.logo_path" é relativo à pasta "static/"
+            # (ex.: "img/empresas/3.png"), enquanto o Pillow (usado por
+            # printer.py) abre o arquivo relativo à raiz do projeto — daí
+            # o prefixo "static/" abaixo. Empresa sem logo cadastrado
+            # imprime sem nenhum logo (sem fallback para o logo do
+            # sistema, propositalmente).
+            caminho_logo_empresa = f"static/{empresa.logo_path}" if empresa.logo_path else None
             impressora.imprimir_senha(
                 numero=senha.numero,
                 nome_evento=configuracoes.get("nome_evento", ""),
-                caminho_logo=configuracoes.get("logo_path"),
+                caminho_logo=caminho_logo_empresa,
                 nome_empresa=empresa.nome,
             )
         except ErroImpressora as erro:
@@ -387,22 +527,38 @@ def api_emitir():
 @app.route("/api/chamar", methods=["POST"])
 @auth.login_required
 def api_chamar():
-    """Chama a próxima senha da fila (FIFO), sempre em nome do guichê e do
+    """
+    Chama a próxima senha da fila (FIFO), sempre em nome do guichê e do
     usuário atualmente logados (obtidos da sessão, nunca do corpo da
-    requisição, para evitar chamadas em nome de outro guichê)."""
+    requisição, para evitar chamadas em nome de outro guichê).
+
+    Quando o perfil logado é "recrutador", a fila é automaticamente
+    restrita à empresa vinculada ao usuário (``usuario_sessao['empresa_nome']``)
+    — um recrutador nunca chama uma senha de outra empresa. Para o perfil
+    "atendente", o comportamento é o de sempre: a fila GERAL (sem filtro
+    de empresa).
+    """
     try:
         usuario_sessao = auth.usuario_logado()
+        eh_recrutador = usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
+
         if not usuario_sessao.get("guiche"):
-            return resposta_erro(
-                "Você não possui um guichê atribuído no momento (todos ocupados). "
-                "Faça logout e login novamente ou contate um administrador.",
-                409,
+            mensagem = (
+                "Você não possui uma sala atribuída no momento (todas ocupadas "
+                "nesta empresa). Faça logout e login novamente ou contate um "
+                "administrador."
+                if eh_recrutador
+                else "Você não possui um guichê atribuído no momento (todos "
+                "ocupados). Faça logout e login novamente ou contate um "
+                "administrador."
             )
+            return resposta_erro(mensagem, 409)
 
         guiche = _guiche_formatado(usuario_sessao)
         usuario = usuario_sessao.get("nome_completo")
+        empresa_filtro = usuario_sessao.get("empresa_nome") if eh_recrutador else None
 
-        resultado = database.chamar_proxima(guiche=guiche, usuario=usuario)
+        resultado = database.chamar_proxima(guiche=guiche, usuario=usuario, empresa=empresa_filtro)
         if resultado is None:
             return resposta_erro("Não há senhas aguardando chamada.", 404)
 
@@ -415,9 +571,22 @@ def api_chamar():
 @app.route("/api/repetir", methods=["POST"])
 @auth.login_required
 def api_repetir():
-    """Repete a última chamada realizada (nova animação/bip no painel)."""
+    """
+    Repete a última chamada realizada (nova animação/bip no painel).
+
+    Para o perfil "recrutador", repete apenas a última chamada DA SUA
+    PRÓPRIA empresa (nunca a última chamada geral, que pode pertencer a
+    outra empresa) — ver ``database.repetir_ultima_chamada``.
+    """
     try:
-        resultado = database.repetir_ultima_chamada()
+        usuario_sessao = auth.usuario_logado()
+        empresa_filtro = (
+            usuario_sessao.get("empresa_nome")
+            if usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
+            else None
+        )
+
+        resultado = database.repetir_ultima_chamada(empresa=empresa_filtro)
         if resultado is None:
             return resposta_erro("Nenhuma chamada foi realizada ainda.", 404)
 
@@ -439,17 +608,26 @@ def api_finalizar_atendimento():
     """
     try:
         usuario_sessao = auth.usuario_logado()
+        eh_recrutador = usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
+
         if not usuario_sessao.get("guiche"):
-            return resposta_erro(
-                "Você não possui um guichê atribuído no momento. Apenas usuários "
-                "com perfil atendente e guichê ativo podem finalizar atendimentos.",
-                409,
+            mensagem = (
+                "Você não possui uma sala atribuída no momento. Apenas usuários "
+                "com perfil recrutador e sala ativa podem finalizar atendimentos."
+                if eh_recrutador
+                else "Você não possui um guichê atribuído no momento. Apenas "
+                "usuários com perfil atendente e guichê ativo podem finalizar "
+                "atendimentos."
             )
+            return resposta_erro(mensagem, 409)
 
         guiche = _guiche_formatado(usuario_sessao)
         usuario = usuario_sessao.get("nome_completo")
+        empresa_filtro = usuario_sessao.get("empresa_nome") if eh_recrutador else None
 
-        resultado = database.finalizar_atendimento_e_chamar_proxima(guiche=guiche, usuario=usuario)
+        resultado = database.finalizar_atendimento_e_chamar_proxima(
+            guiche=guiche, usuario=usuario, empresa=empresa_filtro
+        )
 
         resposta = {
             "senha_finalizada": resultado["senha_finalizada"],
@@ -468,11 +646,18 @@ def api_finalizar_atendimento():
 @auth.login_required
 @auth.admin_required
 def api_reiniciar():
-    """Reinicia o contador de numeração de senhas para zero. Restrito a
-    administradores (é uma operação sensível que afeta todos os guichês)."""
+    """
+    Reinicia o contador de numeração de senhas de TODAS as empresas para
+    zero (cada empresa tem sua própria sequência independente — ver
+    ``database.criar_senha``). Restrito a administradores (é uma operação
+    sensível que afeta todas as empresas de uma vez). Para reiniciar
+    apenas UMA empresa, use
+    ``/api/admin/empresas/<id>/reiniciar-contador`` (botão por linha na
+    tela Empresas).
+    """
     try:
         database.reiniciar_contador()
-        return resposta_sucesso({"mensagem": "Contador reiniciado com sucesso."})
+        return resposta_sucesso({"mensagem": "Contador reiniciado com sucesso (todas as empresas)."})
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao reiniciar contador: {erro}", 500)
 
@@ -480,10 +665,25 @@ def api_reiniciar():
 @app.route("/api/fila")
 @auth.login_required
 def api_fila():
-    """Retorna a fila atual de senhas aguardando chamada."""
+    """
+    Retorna a fila atual de senhas aguardando chamada.
+
+    Para o perfil "recrutador", a fila é automaticamente restrita à
+    empresa vinculada ao usuário — ele só vê (e só pode cancelar) as
+    senhas da sua própria empresa. Para os demais perfis, mantém o
+    comportamento de sempre: a fila GERAL, sem filtro de empresa.
+    """
     try:
-        fila = database.listar_fila_atual()
-        return resposta_sucesso({"fila": fila, "total_aguardando": database.contar_aguardando()})
+        usuario_sessao = auth.usuario_logado()
+        empresa_filtro = (
+            usuario_sessao.get("empresa_nome")
+            if usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
+            else None
+        )
+
+        fila = database.listar_fila_atual(empresa=empresa_filtro)
+        total = database.contar_aguardando(empresa=empresa_filtro)
+        return resposta_sucesso({"fila": fila, "total_aguardando": total})
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao consultar fila: {erro}", 500)
 
@@ -491,7 +691,10 @@ def api_fila():
 @app.route("/api/senha/<int:senha_id>/finalizar", methods=["POST"])
 @auth.login_required
 def api_finalizar(senha_id: int):
-    """Marca uma senha como finalizada."""
+    """Marca uma senha como finalizada. Um recrutador só pode finalizar
+    senhas da sua própria empresa (ver ``_pode_gerenciar_senha``)."""
+    if not _pode_gerenciar_senha(auth.usuario_logado(), senha_id):
+        return resposta_erro("Você não tem permissão para gerenciar esta senha.", 403)
     if database.finalizar_senha(senha_id):
         return resposta_sucesso({"mensagem": "Senha finalizada."})
     return resposta_erro("Senha não encontrada.", 404)
@@ -500,7 +703,10 @@ def api_finalizar(senha_id: int):
 @app.route("/api/senha/<int:senha_id>/cancelar", methods=["POST"])
 @auth.login_required
 def api_cancelar(senha_id: int):
-    """Marca uma senha como cancelada."""
+    """Marca uma senha como cancelada. Um recrutador só pode cancelar
+    senhas da sua própria empresa (ver ``_pode_gerenciar_senha``)."""
+    if not _pode_gerenciar_senha(auth.usuario_logado(), senha_id):
+        return resposta_erro("Você não tem permissão para gerenciar esta senha.", 403)
     if database.cancelar_senha(senha_id):
         return resposta_sucesso({"mensagem": "Senha cancelada."})
     return resposta_erro("Senha não encontrada.", 404)
@@ -534,6 +740,63 @@ def api_painel_status():
         )
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao consultar status do painel: {erro}", 500)
+
+
+@app.route("/api/painel/empresa/<int:empresa_id>/status")
+def api_painel_empresa_status(empresa_id: int):
+    """
+    Endpoint consultado periodicamente pelo painel público de UMA empresa
+    (``/painel/empresa/<id>``). Mesmo formato de ``/api/painel/status``,
+    mas com a chamada atual e as últimas emitidas restritas àquela
+    empresa (ver ``database.obter_chamada_atual``/``listar_ultimas_emitidas``
+    com o parâmetro ``empresa``).
+    """
+    empresa = database.obter_empresa_por_id(empresa_id)
+    if empresa is None:
+        return resposta_erro("Empresa não encontrada.", 404)
+
+    try:
+        configuracoes = config_manager.obter_todas()
+        qtd_exibidas = configuracoes.get("qtd_senhas_exibidas", 10)
+
+        agora = datetime.now()
+
+        return resposta_sucesso(
+            {
+                "empresa": empresa.to_dict(),
+                "chamada_atual": database.obter_chamada_atual(empresa=empresa.nome),
+                "ultimas_emitidas": database.listar_ultimas_emitidas(qtd_exibidas, empresa=empresa.nome),
+                "total_aguardando": database.contar_aguardando(empresa=empresa.nome),
+                "data": agora.strftime("%d/%m/%Y"),
+                "hora": agora.strftime("%H:%M:%S"),
+                "config": configuracoes,
+            }
+        )
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao consultar status do painel da empresa: {erro}", 500)
+
+
+@app.route("/api/painel/geral/status")
+def api_painel_geral_status():
+    """
+    Endpoint consultado periodicamente pelo painel-resumo público
+    (``/painel/geral``). Retorna o resumo agregado de senhas por status
+    (total geral e detalhado por empresa) — ver
+    ``database.resumo_geral_senhas``.
+    """
+    try:
+        agora = datetime.now()
+
+        return resposta_sucesso(
+            {
+                "resumo": database.resumo_geral_senhas(),
+                "data": agora.strftime("%d/%m/%Y"),
+                "hora": agora.strftime("%H:%M:%S"),
+                "config": config_manager.obter_todas(),
+            }
+        )
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao consultar o painel geral: {erro}", 500)
 
 
 # ---------------------------------------------------------------------------
@@ -865,6 +1128,7 @@ def api_admin_criar_usuario():
         login_novo = str(dados.get("login") or "").strip()
         senha = str(dados.get("senha") or "")
         perfil = str(dados.get("perfil") or PerfilUsuario.ATENDENTE).strip()
+        empresa_id_bruto = dados.get("empresa_id")
 
         if not nome_completo or not login_novo:
             return resposta_erro("Informe nome completo e login.", 400)
@@ -876,11 +1140,27 @@ def api_admin_criar_usuario():
         if perfil not in PerfilUsuario.TODOS:
             return resposta_erro("Perfil inválido.", 400)
 
+        # Um recrutador PRECISA estar vinculado a uma empresa já na
+        # criação (é assim que ele sabe qual fila atender ao logar — ver
+        # auth.iniciar_sessao). Para os demais perfis, qualquer
+        # empresa_id enviado é simplesmente ignorado.
+        empresa_id = None
+        if perfil == PerfilUsuario.RECRUTADOR:
+            if empresa_id_bruto in (None, ""):
+                return resposta_erro("Selecione a empresa do recrutador.", 400)
+            try:
+                empresa_id = int(empresa_id_bruto)
+            except (TypeError, ValueError):
+                return resposta_erro("Empresa inválida.", 400)
+            if database.obter_empresa_por_id(empresa_id) is None:
+                return resposta_erro("Empresa não encontrada.", 400)
+
         usuario = database.criar_usuario(
             nome_completo=nome_completo,
             login=login_novo,
             senha_hash=auth.gerar_hash_senha(senha),
             perfil=perfil,
+            empresa_id=empresa_id,
         )
         return resposta_sucesso({"usuario": usuario.to_dict_publico()}, 201)
 
@@ -943,13 +1223,48 @@ def api_admin_definir_status(usuario_id: int):
 
         if database.definir_status_usuario(usuario_id, ativo):
             if not ativo:
-                # Libera imediatamente o guichê do usuário desativado.
+                # Libera imediatamente o guichê/sala do usuário desativado
+                # (um dos dois DELETE é sempre um no-op, dependendo do
+                # perfil — ver auth.encerrar_sessao para o mesmo padrão).
                 database.liberar_guiche(usuario_id)
+                database.liberar_guiche_empresa(usuario_id)
             return resposta_sucesso({"mensagem": "Status do usuário atualizado."})
         return resposta_erro("Usuário não encontrado.", 404)
 
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao atualizar status: {erro}", 500)
+
+
+@app.route("/api/admin/usuarios/<int:usuario_id>/empresa", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_definir_empresa_usuario(usuario_id: int):
+    """
+    Vincula (ou desvincula, enviando ``empresa_id: null``) um recrutador a
+    uma empresa do feirão. Usado pelo seletor de empresa na tabela de
+    usuários (``/admin/usuarios``) — separado da rota de perfil
+    (``.../perfil``) porque o administrador pode querer trocar a empresa
+    de um recrutador já existente sem alterar o perfil dele.
+    """
+    try:
+        dados = request.get_json(silent=True) or {}
+        empresa_id_bruto = dados.get("empresa_id")
+
+        empresa_id = None
+        if empresa_id_bruto not in (None, ""):
+            try:
+                empresa_id = int(empresa_id_bruto)
+            except (TypeError, ValueError):
+                return resposta_erro("Empresa inválida.", 400)
+            if database.obter_empresa_por_id(empresa_id) is None:
+                return resposta_erro("Empresa não encontrada.", 400)
+
+        if database.definir_empresa_usuario(usuario_id, empresa_id):
+            return resposta_sucesso({"mensagem": "Empresa do recrutador atualizada."})
+        return resposta_erro("Usuário não encontrado.", 404)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao atualizar empresa do usuário: {erro}", 500)
 
 
 @app.route("/api/admin/reset-senhas-emitidas", methods=["POST"])
@@ -1059,6 +1374,167 @@ def api_admin_status_empresa(empresa_id: int):
 
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao atualizar status da empresa: {erro}", 500)
+
+
+@app.route("/api/admin/empresas/<int:empresa_id>/reiniciar-contador", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_reiniciar_contador_empresa(empresa_id: int):
+    """
+    Reinicia para zero o contador de numeração de senhas de UMA ÚNICA
+    empresa (a próxima senha emitida para ela volta a ser 001), sem
+    afetar a sequência das demais empresas nem apagar o histórico de
+    senhas já emitidas.
+
+    Cada empresa possui sua própria sequência independente de numeração
+    (ver ``database.criar_senha``); este botão substitui, por empresa, o
+    antigo botão único "Reiniciar Contador" de Configurações — aquele
+    agora reinicia TODAS as empresas de uma vez (ver
+    ``database.reiniciar_contador``).
+    """
+    try:
+        if database.reiniciar_contador_empresa(empresa_id):
+            return resposta_sucesso({"mensagem": "Contador de senhas da empresa reiniciado."})
+        return resposta_erro("Empresa não encontrada.", 404)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao reiniciar contador da empresa: {erro}", 500)
+
+
+# ---------------------------------------------------------------------------
+# API - Identidade visual da empresa (logo + cor)
+# ---------------------------------------------------------------------------
+#
+# Cada empresa pode ter seu próprio logo e cor de destaque, aplicados
+# automaticamente no painel público daquela empresa (/painel/empresa/<id>)
+# e na tela principal de um recrutador vinculado a ela (ver
+# injetar_usuario_logado). A cor é sempre extraída automaticamente do
+# logo enviado (ver _extrair_cor_predominante), mas pode ser sobrescrita
+# manualmente a qualquer momento pela rota .../cor abaixo.
+
+EXTENSOES_LOGO_PERMITIDAS = {"png", "jpg", "jpeg", "gif", "webp"}
+PASTA_LOGOS_EMPRESAS = STATIC_DIR / "img" / "empresas"
+
+
+def _extrair_cor_predominante(caminho_imagem) -> str:
+    """
+    Calcula uma cor hexadecimal (``"#RRGGBB"``) representativa de uma
+    imagem, usada como sugestão automática de "cor da empresa" ao enviar
+    um logo.
+
+    Técnica simples e barata: reduz a imagem inteira a 1x1 pixel com
+    reamostragem suavizada (``Image.LANCZOS``), o que produz efetivamente
+    a cor MÉDIA de toda a imagem — não é uma extração sofisticada de
+    "cor dominante" (não identifica clusters de cor), mas é suficiente
+    para gerar uma cor de destaque plausível sem dependências extras além
+    do Pillow (já usado por ``printer.py``).
+
+    Logos com fundo transparente (PNG/GIF com canal alfa) são compostos
+    sobre um fundo BRANCO antes do cálculo — sem isso, pixels
+    transparentes tendem a ser interpretados como preto puro pelo Pillow,
+    o que enviesaria a média para tons escuros mesmo em logos claros.
+    """
+    from PIL import Image
+
+    with Image.open(caminho_imagem) as imagem:
+        if imagem.mode in ("RGBA", "LA") or (imagem.mode == "P" and "transparency" in imagem.info):
+            imagem_rgba = imagem.convert("RGBA")
+            fundo_branco = Image.new("RGB", imagem_rgba.size, (255, 255, 255))
+            fundo_branco.paste(imagem_rgba, mask=imagem_rgba.split()[-1])
+            imagem_rgb = fundo_branco
+        else:
+            imagem_rgb = imagem.convert("RGB")
+
+        r, g, b = imagem_rgb.resize((1, 1), Image.LANCZOS).getpixel((0, 0))
+
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
+@app.route("/api/admin/empresas/<int:empresa_id>/logo", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_upload_logo_empresa(empresa_id: int):
+    """
+    Recebe o upload do logo de uma empresa (campo de formulário
+    ``multipart/form-data`` chamado ``logo``), salva o arquivo em
+    ``static/img/empresas/<id>.<extensão>`` e extrai automaticamente a
+    cor predominante da imagem, gravando os dois valores de uma vez (ver
+    ``database.definir_logo_empresa``).
+
+    Se a empresa já tinha um logo com uma extensão DIFERENTE (por
+    exemplo, trocou de .png para .jpg), o arquivo antigo é removido do
+    disco para não acumular arquivos órfãos.
+    """
+    empresa = database.obter_empresa_por_id(empresa_id)
+    if empresa is None:
+        return resposta_erro("Empresa não encontrada.", 404)
+
+    arquivo = request.files.get("logo")
+    if arquivo is None or not arquivo.filename:
+        return resposta_erro("Envie um arquivo de imagem no campo 'logo'.", 400)
+
+    extensao = arquivo.filename.rsplit(".", 1)[-1].lower() if "." in arquivo.filename else ""
+    if extensao not in EXTENSOES_LOGO_PERMITIDAS:
+        return resposta_erro(
+            f"Formato de imagem não suportado. Use um dos seguintes: {', '.join(sorted(EXTENSOES_LOGO_PERMITIDAS))}.",
+            400,
+        )
+
+    PASTA_LOGOS_EMPRESAS.mkdir(parents=True, exist_ok=True)
+
+    # Remove um logo anterior com extensão diferente (evita arquivo órfão
+    # em disco quando a empresa troca, por exemplo, de .png para .jpg).
+    for extensao_existente in EXTENSOES_LOGO_PERMITIDAS:
+        if extensao_existente == extensao:
+            continue
+        caminho_antigo = PASTA_LOGOS_EMPRESAS / f"{empresa_id}.{extensao_existente}"
+        if caminho_antigo.exists():
+            try:
+                caminho_antigo.unlink()
+            except OSError as erro:  # pragma: no cover - falha de infraestrutura
+                logger.warning("Não foi possível remover o logo antigo '%s': %s", caminho_antigo, erro)
+
+    caminho_arquivo = PASTA_LOGOS_EMPRESAS / f"{empresa_id}.{extensao}"
+
+    try:
+        arquivo.save(str(caminho_arquivo))
+        cor_extraida = _extrair_cor_predominante(caminho_arquivo)
+    except Exception as erro:
+        # Cobre tanto falha de escrita em disco quanto um arquivo que não
+        # é realmente uma imagem válida (upload corrompido/malicioso) —
+        # o Pillow levanta uma exceção ao tentar abrir esse último caso.
+        if caminho_arquivo.exists():
+            caminho_arquivo.unlink(missing_ok=True)
+        return resposta_erro(f"Não foi possível processar o arquivo de imagem enviado: {erro}", 400)
+
+    logo_path_relativo = f"img/empresas/{empresa_id}.{extensao}"
+    database.definir_logo_empresa(empresa_id, logo_path_relativo, cor_extraida)
+
+    return resposta_sucesso({"logo_path": logo_path_relativo, "cor_principal": cor_extraida})
+
+
+@app.route("/api/admin/empresas/<int:empresa_id>/cor", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_definir_cor_empresa(empresa_id: int):
+    """
+    Sobrescreve manualmente a cor de identidade visual de uma empresa
+    (sem alterar o logo), usada quando o administrador não gosta da cor
+    extraída automaticamente do logo enviado.
+    """
+    try:
+        dados = request.get_json(silent=True) or {}
+        cor = str(dados.get("cor") or "").strip()
+
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", cor):
+            return resposta_erro("Informe uma cor no formato hexadecimal, ex.: #003C71.", 400)
+
+        if database.definir_cor_empresa(empresa_id, cor.upper()):
+            return resposta_sucesso({"cor_principal": cor.upper()})
+        return resposta_erro("Empresa não encontrada.", 404)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao atualizar cor da empresa: {erro}", 500)
 
 
 # ---------------------------------------------------------------------------

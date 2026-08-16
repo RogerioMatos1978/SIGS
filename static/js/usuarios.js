@@ -12,6 +12,9 @@
 
 const formularioNovoUsuario = document.getElementById("form-novo-usuario");
 const mensagemNovoUsuario = document.getElementById("novo-usuario-mensagem");
+const selectNovoPerfil = document.getElementById("novo-perfil");
+const campoNovaEmpresa = document.getElementById("campo-novo-empresa");
+const selectNovaEmpresa = document.getElementById("novo-empresa-id");
 
 /** Executa uma chamada à API, tratando erros de forma padronizada. */
 async function chamarApiAdmin(url, opcoes = {}) {
@@ -58,7 +61,17 @@ async function criarUsuario(evento) {
     const nomeCompleto = document.getElementById("novo-nome").value.trim();
     const login = document.getElementById("novo-login").value.trim();
     const senha = document.getElementById("novo-senha").value;
-    const perfil = document.getElementById("novo-perfil").value;
+    const perfil = selectNovoPerfil.value;
+    const empresaId = selectNovaEmpresa ? selectNovaEmpresa.value : "";
+
+    // Perfil "recrutador" exige empresa escolhida antes de enviar — evita
+    // uma ida desnecessária ao servidor só para receber o mesmo erro de
+    // volta (o servidor também valida isso, ver app.py:api_admin_criar_usuario).
+    if (perfil === "recrutador" && !empresaId) {
+        mensagemNovoUsuario.textContent = "Selecione a empresa do recrutador.";
+        mensagemNovoUsuario.className = "mensagem-status erro";
+        return;
+    }
 
     botaoEnviar.disabled = true;
     const textoOriginalBotao = botaoEnviar.textContent;
@@ -69,7 +82,13 @@ async function criarUsuario(evento) {
     try {
         await chamarApiAdmin("/api/admin/usuarios", {
             method: "POST",
-            body: JSON.stringify({ nome_completo: nomeCompleto, login, senha, perfil }),
+            body: JSON.stringify({
+                nome_completo: nomeCompleto,
+                login,
+                senha,
+                perfil,
+                empresa_id: perfil === "recrutador" ? empresaId : null,
+            }),
         });
 
         mensagemNovoUsuario.textContent = "Usuário criado com sucesso!";
@@ -128,17 +147,62 @@ async function alternarStatus(usuarioId, ativoAtual) {
     }
 }
 
-/** Altera o perfil (admin/atendente) de um usuário. */
+/**
+ * Altera o perfil (admin/atendente/emissor/recrutador) de um usuário.
+ *
+ * Ao mudar PARA "recrutador", o seletor de empresa da mesma linha é
+ * habilitado (mas o vínculo em si só é gravado quando o administrador
+ * escolher a empresa nesse seletor — ver alterarEmpresaRecrutador). Ao
+ * mudar PARA QUALQUER OUTRO perfil, o servidor já limpa o vínculo de
+ * empresa automaticamente (ver database.definir_perfil_usuario), então a
+ * página é recarregada para refletir isso no seletor de empresa.
+ */
 async function alterarPerfil(usuarioId, novoPerfil) {
     try {
         await chamarApiAdmin(`/api/admin/usuarios/${usuarioId}/perfil`, {
             method: "POST",
             body: JSON.stringify({ perfil: novoPerfil }),
         });
+
+        const selectEmpresa = document.querySelector(
+            `.select-empresa-recrutador[data-usuario-id="${usuarioId}"]`
+        );
+        if (selectEmpresa) {
+            if (novoPerfil === "recrutador") {
+                selectEmpresa.disabled = false;
+            } else {
+                window.location.reload();
+            }
+        }
     } catch (erro) {
         alert(`Erro ao atualizar perfil: ${erro.message}`);
         window.location.reload();
     }
+}
+
+/** Vincula (ou desvincula) um recrutador a uma empresa. */
+async function alterarEmpresaRecrutador(usuarioId, empresaId) {
+    try {
+        await chamarApiAdmin(`/api/admin/usuarios/${usuarioId}/empresa`, {
+            method: "POST",
+            body: JSON.stringify({ empresa_id: empresaId || null }),
+        });
+    } catch (erro) {
+        alert(`Erro ao atualizar empresa do recrutador: ${erro.message}`);
+        window.location.reload();
+    }
+}
+
+/**
+ * Mostra ou esconde o campo de escolha de empresa no formulário "Novo
+ * Usuário", conforme o perfil selecionado (só faz sentido para
+ * "recrutador").
+ */
+function atualizarCampoNovaEmpresa() {
+    if (!campoNovaEmpresa) {
+        return;
+    }
+    campoNovaEmpresa.style.display = selectNovoPerfil.value === "recrutador" ? "flex" : "none";
 }
 
 /** Reseta TODAS as senhas emitidas e chamadas (ação destrutiva). */
@@ -169,6 +233,11 @@ function inicializar() {
         formularioNovoUsuario.addEventListener("submit", criarUsuario);
     }
 
+    if (selectNovoPerfil) {
+        selectNovoPerfil.addEventListener("change", atualizarCampoNovaEmpresa);
+        atualizarCampoNovaEmpresa();
+    }
+
     document.querySelectorAll(".btn-resetar-senha").forEach((botao) => {
         botao.addEventListener("click", () => resetarSenha(botao.dataset.usuarioId));
     });
@@ -183,6 +252,12 @@ function inicializar() {
     document.querySelectorAll(".select-perfil").forEach((select) => {
         select.addEventListener("change", () => {
             alterarPerfil(select.dataset.usuarioId, select.value);
+        });
+    });
+
+    document.querySelectorAll(".select-empresa-recrutador").forEach((select) => {
+        select.addEventListener("change", () => {
+            alterarEmpresaRecrutador(select.dataset.usuarioId, select.value);
         });
     });
 
