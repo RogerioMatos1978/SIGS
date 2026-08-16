@@ -86,6 +86,12 @@
                 <a href="{{ url_for('relatorios_tela') }}">Relatórios</a>
                 <a href="{{ url_for('usuarios_tela') }}">Usuários</a>
                 <a href="{{ url_for('empresas_tela') }}">Empresas</a>
+            {% elif usuario_logado.perfil == 'recrutador' %}
+                <!-- Recrutador também acessa Relatórios (somente da própria
+                     empresa — ver auth.admin_ou_recrutador_required e
+                     relatorios_tela em app.py), mas não os demais itens do
+                     menu administrativo. -->
+                <a href="{{ url_for('relatorios_tela') }}">Relatórios</a>
             {% endif %}
             <form method="POST" action="{{ url_for('logout_tela') }}" class="form-logout">
                 <button type="submit" class="botao botao-terciario botao-sair">Sair</button>

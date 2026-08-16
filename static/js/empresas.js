@@ -203,6 +203,33 @@ async function reiniciarContadorEmpresa(empresaId, nomeEmpresa) {
     }
 }
 
+/**
+ * Reabre o atendimento de uma empresa cujo dia foi finalizado pelo
+ * recrutador (ver /api/finalizar-atendimento-dia em index.js) —
+ * restrito a administradores, propositalmente (ver
+ * app.py:api_admin_reabrir_atendimento_empresa). NÃO restaura as senhas
+ * que foram canceladas automaticamente no encerramento.
+ */
+async function reabrirAtendimentoEmpresa(empresaId, nomeEmpresa) {
+    if (
+        !window.confirm(
+            `Reabrir o atendimento de "${nomeEmpresa}"? Isso volta a permitir emissão e chamada de novas ` +
+            `senhas para esta empresa hoje. As senhas já canceladas pelo encerramento NÃO serão restauradas.`
+        )
+    ) {
+        return;
+    }
+
+    try {
+        await chamarApiAdmin(`/api/admin/empresas/${empresaId}/reabrir-atendimento`, {
+            method: "POST",
+        });
+        window.location.reload();
+    } catch (erro) {
+        alert(`Erro ao reabrir atendimento da empresa: ${erro.message}`);
+    }
+}
+
 /** Ativa ou desativa uma empresa. */
 async function alternarStatusEmpresa(empresaId, ativaAtual) {
     const novoStatus = !ativaAtual;
@@ -237,6 +264,12 @@ function inicializar() {
     document.querySelectorAll(".btn-reiniciar-contador-empresa").forEach((botao) => {
         botao.addEventListener("click", () => {
             reiniciarContadorEmpresa(botao.dataset.empresaId, botao.dataset.empresaNome);
+        });
+    });
+
+    document.querySelectorAll(".btn-reabrir-atendimento-empresa").forEach((botao) => {
+        botao.addEventListener("click", () => {
+            reabrirAtendimentoEmpresa(botao.dataset.empresaId, botao.dataset.empresaNome);
         });
     });
 

@@ -422,3 +422,32 @@ def admin_required(funcao_view):
         return funcao_view(*args, **kwargs)
 
     return wrapper
+
+
+def admin_ou_recrutador_required(funcao_view):
+    """
+    Decorator que exige, além de login válido, que o usuário possua o
+    perfil de administrador OU recrutador. Usado pela tela de Relatórios
+    (``/relatorios`` e ``/api/relatorios/*``), que agora também é
+    acessível a um recrutador — restrita, na prática, aos dados da
+    PRÓPRIA empresa dele (a própria rota, em ``app.py``, é responsável
+    por forçar esse recorte; este decorator só garante que o perfil é um
+    dos dois permitidos). Deve ser combinado com ``login_required``
+    (aplicado primeiro) nas rotas correspondentes.
+    """
+
+    @wraps(funcao_view)
+    def wrapper(*args, **kwargs):
+        perfil = session.get(CHAVE_SESSAO_PERFIL)
+        if perfil not in (PerfilUsuario.ADMIN, PerfilUsuario.RECRUTADOR):
+            if _requisicao_eh_api():
+                return (
+                    jsonify({"sucesso": False, "erro": "Acesso restrito a administradores e recrutadores."}),
+                    403,
+                )
+            flash("Esta área é restrita a administradores e recrutadores.", "erro")
+            return redirect(url_for("index"))
+
+        return funcao_view(*args, **kwargs)
+
+    return wrapper

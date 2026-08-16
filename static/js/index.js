@@ -291,6 +291,38 @@ async function finalizarAtendimento() {
 }
 
 /**
+ * Encerra o atendimento do dia da empresa do recrutador logado (ver
+ * app.py:api_finalizar_atendimento_dia). Ação irreversível pelo próprio
+ * recrutador — apenas um administrador pode reabrir depois — por isso
+ * exige confirmação explícita com o aviso completo antes de prosseguir.
+ */
+async function finalizarAtendimentoDia() {
+    const confirmado = window.confirm(
+        "Finalizar o atendimento do dia?\n\n" +
+        "Após confirmar, não será mais possível emitir nem chamar novas senhas " +
+        "para esta empresa. Todas as senhas sem atendimento (aguardando na fila) " +
+        "serão CANCELADAS automaticamente e registradas como canceladas no " +
+        "relatório da empresa e no relatório do administrador.\n\n" +
+        "Apenas um administrador poderá reabrir o atendimento depois, caso isto " +
+        "tenha sido um engano."
+    );
+    if (!confirmado) {
+        return;
+    }
+
+    try {
+        const dados = await chamarApi("/api/finalizar-atendimento-dia", { method: "POST" });
+        exibirNotificacao(dados.mensagem || "Atendimento do dia finalizado.", "sucesso");
+    } catch (erro) {
+        exibirNotificacao(erro.message, "erro");
+    } finally {
+        // Recarrega a página para refletir o novo estado (botões
+        // desabilitados, aviso de dia finalizado) vindo do servidor.
+        window.location.reload();
+    }
+}
+
+/**
  * Abre o painel público em uma nova aba/janela. Para o perfil "recrutador",
  * abre o painel DA SUA EMPRESA (window.SIGS_CONFIG.painelUrl, calculado no
  * servidor — ver index.html); para os demais perfis, abre o painel geral.
@@ -411,6 +443,7 @@ function inicializar() {
     vincularClique("btn-chamar", chamarProximaSenha);
     vincularClique("btn-repetir", repetirChamada);
     vincularClique("btn-finalizar", finalizarAtendimento);
+    vincularClique("btn-finalizar-dia", finalizarAtendimentoDia);
     vincularClique("btn-abrir-painel", abrirPainel);
     vincularClique("btn-abrir-painel-geral", abrirPainelGeral);
     vincularClique("btn-testar-bip", tocarBip);

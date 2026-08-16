@@ -33,7 +33,7 @@ function montarParametros(incluirTipo = true) {
         parametros.set("tipo", campoTipo.value);
     }
     if (campoEmpresa && campoEmpresa.value) {
-        parametros.set("empresa", campoEmpresa.value);
+        parametros.set("empresa_id", campoEmpresa.value);
     }
 
     return parametros.toString();
@@ -44,6 +44,14 @@ function montarParametros(incluirTipo = true) {
  * inativas), a lista usada para popular o filtro "Empresa" — diferente
  * do seletor de emissão de senha, aqui é necessário incluir empresas já
  * desativadas, pois o histórico delas continua consultável.
+ *
+ * Chama um endpoint restrito a administradores (/api/admin/empresas) —
+ * por isso NUNCA é chamada para uma sessão de recrutador (ver
+ * inicializar(), que pula esta função quando window.SIGS_CONFIG.ehRecrutador
+ * é verdadeiro; o próprio HTML também não renderiza o campo "Empresa"
+ * nesse caso — ver relatorios.html/_parametros_periodo em app.py, que
+ * força o recorte à empresa do recrutador independente do que a
+ * querystring contiver).
  */
 async function carregarFiltroEmpresas() {
     if (!campoEmpresa) {
@@ -60,7 +68,7 @@ async function carregarFiltroEmpresas() {
 
         (dados.empresas || []).forEach((empresa) => {
             const opcao = document.createElement("option");
-            opcao.value = empresa.nome;
+            opcao.value = empresa.id;
             opcao.textContent = empresa.ativa ? empresa.nome : `${empresa.nome} (inativa)`;
             campoEmpresa.appendChild(opcao);
         });
@@ -126,13 +134,21 @@ function baixarRelatorio(formato) {
     window.open(url, "_blank");
 }
 
+const EH_RECRUTADOR = Boolean(window.SIGS_CONFIG && window.SIGS_CONFIG.ehRecrutador);
+
 function inicializar() {
     document.getElementById("btn-atualizar-resumo").addEventListener("click", atualizarResumo);
     document.getElementById("btn-download-csv").addEventListener("click", () => baixarRelatorio("csv"));
     document.getElementById("btn-download-excel").addEventListener("click", () => baixarRelatorio("excel"));
     document.getElementById("btn-download-pdf").addEventListener("click", () => baixarRelatorio("pdf"));
 
-    carregarFiltroEmpresas();
+    // Recrutador não tem permissão para /api/admin/empresas (403) e o
+    // campo "Empresa" nem é renderizado no HTML para esse perfil (ver
+    // relatorios.html) — pular a chamada evita um erro 403 desnecessário
+    // no console.
+    if (!EH_RECRUTADOR) {
+        carregarFiltroEmpresas();
+    }
     atualizarResumo();
 }
 

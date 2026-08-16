@@ -90,6 +90,13 @@
                 Configurações, ou aguarde a liberação de uma sala.
             </p>
             {% endif %}
+            {% if empresa_recrutador and empresa_recrutador.atendimento_finalizado_em %}
+            <p id="aviso-atendimento-finalizado" class="mensagem-status erro">
+                ✅ Atendimento do dia FINALIZADO nesta empresa (em {{ empresa_recrutador.atendimento_finalizado_em }}).
+                Não é mais possível emitir ou chamar novas senhas. Caso isto tenha sido um engano,
+                procure um administrador para reabrir o atendimento.
+            </p>
+            {% endif %}
         </section>
         {% else %}
         <section class="card card-identificacao">
@@ -121,8 +128,10 @@
             </button>
             {% endif %}
 
+            {% set dia_finalizado = usuario_logado.perfil == 'recrutador' and empresa_recrutador and empresa_recrutador.atendimento_finalizado_em %}
+
             {% if usuario_logado.perfil in ('atendente', 'recrutador') %}
-            <button id="btn-chamar" class="botao botao-primario botao-grande">
+            <button id="btn-chamar" class="botao botao-primario botao-grande" {% if dia_finalizado %}disabled title="Atendimento do dia já finalizado — não é possível chamar novas senhas."{% endif %}>
                 📢 Chamar Próxima
             </button>
             <button id="btn-repetir" class="botao botao-secundario botao-grande">
@@ -130,6 +139,15 @@
             </button>
             <button id="btn-finalizar" class="botao botao-primario botao-grande">
                 ✅ Finalizar Atendimento
+            </button>
+            {% endif %}
+
+            {% if usuario_logado.perfil == 'recrutador' %}
+            <button id="btn-finalizar-dia" class="botao botao-alerta botao-grande" {% if dia_finalizado %}disabled{% endif %}>
+                {% if dia_finalizado %}🔒 Atendimento do Dia Finalizado{% else %}🔒 Finalizar Atendimento do Dia{% endif %}
+            </button>
+            <button id="btn-relatorios" class="botao botao-terciario botao-grande">
+                📊 Relatórios
             </button>
             {% endif %}
 

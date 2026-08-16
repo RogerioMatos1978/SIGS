@@ -48,6 +48,13 @@ class Senha:
     usuario: Optional[str] = None
     empresa: Optional[str] = None
     empresa_id: Optional[int] = None
+    # "hora_chamada"/"hora_finalizada": marcos de tempo do ciclo de vida da
+    # senha, usados pelos relatórios para calcular o tempo de atendimento
+    # (ver database._migrar_tabela_senhas_adicionar_marcos_tempo,
+    # database.chamar_proxima e database.finalizar_senha). Ambos ``None``
+    # até a senha ser chamada/finalizada, respectivamente.
+    hora_chamada: Optional[str] = None
+    hora_finalizada: Optional[str] = None
 
     def to_dict(self) -> dict:
         """Converte a senha para um dicionário serializável em JSON."""
@@ -57,6 +64,7 @@ class Senha:
     def from_row(linha: sqlite3.Row) -> "Senha":
         """Constrói uma instância de ``Senha`` a partir de uma linha do
         banco de dados (``sqlite3.Row``)."""
+        chaves = linha.keys()
         return Senha(
             id=linha["id"],
             numero=linha["numero"],
@@ -68,7 +76,7 @@ class Senha:
             # database._migrar_tabela_senhas_adicionar_empresa); senhas
             # emitidas antes dessa migração simplesmente terão este campo
             # como None ("Não informado" nos relatórios).
-            empresa=linha["empresa"] if "empresa" in linha.keys() else None,
+            empresa=linha["empresa"] if "empresa" in chaves else None,
             # "empresa_id" (ver database._migrar_tabela_senhas_adicionar_empresa_id)
             # é a referência ESTÁVEL usada para filtrar fila/permissões por
             # empresa (ver app.py:_pode_gerenciar_senha) — "empresa" (acima)
@@ -76,7 +84,9 @@ class Senha:
             # EXIBIÇÃO/relatórios, nunca para controle de acesso, pois o
             # nome de uma empresa pode ser reaproveitado depois de uma
             # renomeação.
-            empresa_id=linha["empresa_id"] if "empresa_id" in linha.keys() else None,
+            empresa_id=linha["empresa_id"] if "empresa_id" in chaves else None,
+            hora_chamada=linha["hora_chamada"] if "hora_chamada" in chaves else None,
+            hora_finalizada=linha["hora_finalizada"] if "hora_finalizada" in chaves else None,
         )
 
 
@@ -270,24 +280,37 @@ class Empresa:
     logo_path: Optional[str] = None
     cor_principal: Optional[str] = None
     contador_atual: int = 0
+    # ``None`` (padrão) = atendimento ABERTO normalmente. Um timestamp
+    # aqui significa que um recrutador desta empresa clicou em
+    # "Finalizar Atendimento do Dia" (ver
+    # database.finalizar_atendimento_dia_empresa) — a empresa para de
+    # aceitar novas emissões/chamadas até um administrador reabrir (ver
+    # database.reabrir_atendimento_empresa).
+    atendimento_finalizado_em: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @staticmethod
     def from_row(linha: sqlite3.Row) -> "Empresa":
+        chaves = linha.keys()
         return Empresa(
             id=linha["id"],
             nome=linha["nome"],
             ativa=bool(linha["ativa"]),
             data_criacao=linha["data_criacao"],
             # As colunas abaixo foram adicionadas por migração automática
-            # (ver database._migrar_tabela_empresas_adicionar_identidade_visual
-            # e database._migrar_tabela_empresas_adicionar_contador);
+            # (ver database._migrar_tabela_empresas_adicionar_identidade_visual,
+            # database._migrar_tabela_empresas_adicionar_contador e
+            # database._migrar_tabela_empresas_adicionar_atendimento_finalizado);
             # empresas de bancos antigos simplesmente ficam sem identidade
-            # visual própria (usam o logo/cor padrão do sistema) e com
-            # contador zerado até a próxima migração/emissão.
-            logo_path=linha["logo_path"] if "logo_path" in linha.keys() else None,
-            cor_principal=linha["cor_principal"] if "cor_principal" in linha.keys() else None,
-            contador_atual=linha["contador_atual"] if "contador_atual" in linha.keys() else 0,
+            # visual própria (usam o logo/cor padrão do sistema), com
+            # contador zerado, e com atendimento aberto (não finalizado)
+            # até a próxima migração/ação.
+            logo_path=linha["logo_path"] if "logo_path" in chaves else None,
+            cor_principal=linha["cor_principal"] if "cor_principal" in chaves else None,
+            contador_atual=linha["contador_atual"] if "contador_atual" in chaves else 0,
+            atendimento_finalizado_em=(
+                linha["atendimento_finalizado_em"] if "atendimento_finalizado_em" in chaves else None
+            ),
         )

@@ -194,7 +194,9 @@ outros administradores) pela tela Usuários.
 | Abrir painel / Painel Geral / Testar bip | ✅ | ✅ | ✅ | ✅ |
 | Ocupa guichê/sala automaticamente | ✅ | ❌ | ✅ | ❌ |
 | Configurações do sistema | ❌ | ❌ | ❌ | ✅ |
-| Relatórios (CSV/Excel/PDF) | ❌ | ❌ | ❌ | ✅ |
+| Relatórios (CSV/Excel/PDF) | ❌ | ❌ | ✅ (só da própria empresa) | ✅ (todas, com filtro) |
+| Finalizar atendimento do dia (própria empresa) | ❌ | ❌ | ✅ | ❌ |
+| Reabrir atendimento de uma empresa finalizada | ❌ | ❌ | ❌ | ✅ |
 | Gerenciar usuários | ❌ | ❌ | ❌ | ✅ |
 | Gerenciar empresas do feirão | ❌ | ❌ | ❌ | ✅ |
 | Reiniciar contador de senhas | ❌ | ❌ | ❌ | ✅ |
@@ -355,6 +357,47 @@ de qual empresa. O botão "🚫 Desativar"/"✅ Ativar" fica de fora
 propositalmente, para manter o vermelho/verde de alerta sempre
 reconhecível.
 
+### 4.8 Encerramento do atendimento do dia (por empresa) e Relatórios do recrutador
+
+Cada recrutador pode encerrar, por conta própria, o atendimento do dia da
+SUA empresa — útil ao final do expediente/feirão, quando a empresa não
+vai mais receber candidatos naquele dia.
+
+**Como funciona** (botão "🔒 Finalizar Atendimento do Dia", tela
+principal do recrutador):
+
+1. Ao clicar, uma janela de confirmação explica claramente o efeito da
+   ação antes de prosseguir (emissão e chamadas serão bloqueadas; senhas
+   sem atendimento serão canceladas).
+2. Confirmando, a empresa passa a rejeitar tanto a EMISSÃO de novas
+   senhas (ela some do seletor de emissão, como se estivesse inativa)
+   quanto a CHAMADA de senhas novas (`/api/chamar` retorna 409).
+3. Toda senha daquela empresa que ainda estava com status "Emitida"
+   (nunca chegou a ser chamada) é **cancelada automaticamente**, e passa
+   a constar como cancelada tanto no relatório da própria empresa quanto
+   no relatório do administrador.
+4. Uma senha que já estava "em atendimento" (status "Chamada") no
+   momento do encerramento **não é cancelada** — o recrutador ainda pode
+   clicar em "Finalizar Atendimento" normalmente para dar baixa nela,
+   mesmo depois de encerrar o dia.
+5. Clicar de novo no botão (ou o servidor receber a requisição duas
+   vezes) não tem efeito adicional — a ação é idempotente, apenas
+   informa que o dia já estava finalizado.
+
+**Reabertura:** só um **administrador** pode reverter um encerramento
+feito por engano, pela tela `/admin/empresas` (botão "🔓 Reabrir" ao lado
+do rótulo "🔒 Finalizado (data/hora)" na coluna "Atendimento do Dia"). O
+próprio recrutador que finalizou não consegue reabrir sozinho. Reabrir
+NÃO restaura as senhas que foram canceladas automaticamente — o
+cancelamento permanece no histórico/relatório.
+
+**Relatórios do recrutador:** com esta etapa, o recrutador ganhou acesso
+à tela `/relatorios` (link "Relatórios" no menu superior) — mas sempre
+restrito, no servidor, à SUA PRÓPRIA empresa: o seletor "Empresa" nem é
+exibido para esse perfil, e tentar forçar outra empresa manualmente pela
+URL (`?empresa_id=...`) é ignorado — o servidor sempre resolve a empresa
+a partir da sessão de login, nunca do que o cliente envia.
+
 ---
 
 ## 5. Execução
@@ -479,19 +522,30 @@ sistema sem perda de dados e sem deslogar os usuários.
 
 ## 9. Relatórios
 
-A tela de Relatórios permite filtrar por período (data início/fim), por
-tipo (senhas emitidas ou chamadas realizadas) e por empresa do feirão
-(incluindo empresas já desativadas, para consultar eventos passados),
-exportando em três formatos:
+A tela de Relatórios (`/relatorios`) é acessível tanto a administradores
+(veem todas as empresas, com filtro) quanto a recrutadores (veem apenas
+a própria empresa, sem seletor — ver seção 4.8). Permite filtrar por
+período (data início/fim) e por tipo (senhas emitidas ou chamadas
+realizadas), exportando em três formatos:
 
 - **CSV** — compatível com Excel, Google Sheets, etc.
 - **Excel (.xlsx)** — planilha formatada, pronta para análise.
 - **PDF** — relatório gerencial formatado para impressão/arquivamento.
 
+No relatório de "Senhas Emitidas", cada linha traz as colunas: **Hora
+Emissão**, **Hora Chamada**, **Tempo de Atendimento** (intervalo entre a
+chamada e a finalização) e **Hora Finalizada**. Para uma senha
+**cancelada** (seja manualmente, seja automaticamente pelo encerramento
+do dia — ver seção 4.8), essas três últimas colunas ficam em branco,
+independentemente de ela ter chegado a ser chamada antes do
+cancelamento — uma senha cancelada é sempre tratada como "sem
+atendimento" no relatório.
+
 Também é exibido um resumo com o tempo médio de atendimento (intervalo
 entre a emissão e a primeira chamada de cada senha) e uma tabela "Senhas
 por Empresa", com a contagem de senhas emitidas para cada empresa dentro
-do período selecionado.
+do período selecionado (para o recrutador, mostra apenas a própria
+empresa).
 
 > Importante: o uso de PDF nos relatórios gerenciais é independente da
 > impressão do ticket de senha, que nunca utiliza PDF — o ticket é
@@ -525,6 +579,14 @@ do período selecionado.
 - Um recrutador só consegue finalizar/cancelar/chamar/repetir senhas da
   SUA PRÓPRIA empresa — tentar gerenciar (mesmo sabendo o id) uma senha
   de outra empresa também retorna HTTP 403.
+- Todo o escopo por empresa (fila, chamadas e agora também relatórios) é
+  resolvido sempre pelo `empresa_id` estável gravado na sessão de login
+  do servidor, nunca por um valor enviado pelo cliente (formulário ou
+  querystring) — um recrutador não consegue ver dados de outra empresa
+  mesmo editando manualmente a URL do relatório.
+- Somente um administrador pode reabrir o atendimento de uma empresa cujo
+  dia foi finalizado por um recrutador (seção 4.8) — o próprio recrutador
+  que finalizou não pode reverter sozinho.
 - Um usuário desativado por um administrador tem a sessão invalidada
   automaticamente na requisição seguinte, mesmo que o cookie de sessão
   ainda esteja presente no navegador.
@@ -606,8 +668,9 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | `POST /api/senha/<id>/cancelar` | Login | Cancela uma senha específica (idem) |
 | `GET/POST /api/config` | Admin | Lê/atualiza as configurações do sistema |
 | `GET /api/impressoras` | Login | Lista as impressoras instaladas no Windows |
-| `GET /api/empresas` | Login | Lista as empresas ATIVAS (seletor de emissão) |
-| `GET /api/relatorios/{csv,excel,pdf,resumo}` | Admin | Exporta/consulta relatórios (aceitam filtro `empresa`) |
+| `GET /api/empresas` | Login | Lista as empresas ATIVAS e com o dia ainda aberto (seletor de emissão) |
+| `POST /api/finalizar-atendimento-dia` | Recrutador | Encerra o atendimento do dia da PRÓPRIA empresa (bloqueia emissão/chamada; cancela senhas sem atendimento) |
+| `GET /api/relatorios/{csv,excel,pdf,resumo}` | Admin/Recrutador | Exporta/consulta relatórios (admin: filtro `empresa_id` opcional; recrutador: sempre restrito à própria empresa) |
 | `POST /api/admin/usuarios` | Admin | Cria um usuário com perfil escolhido (exige `empresa_id` se "recrutador") |
 | `POST /api/admin/usuarios/<id>/resetar-senha` | Admin | Reseta a senha de um usuário |
 | `POST /api/admin/usuarios/<id>/perfil` | Admin | Altera o perfil de um usuário (limpa a empresa se sair de "recrutador") |
@@ -622,6 +685,7 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | `POST /api/admin/empresas/<id>/reiniciar-contador` | Admin | Reinicia o contador de senhas de UMA empresa (não afeta as demais) |
 | `POST /api/admin/empresas/<id>/logo` | Admin | Envia o logo da empresa (multipart) e extrai a cor automaticamente |
 | `POST /api/admin/empresas/<id>/cor` | Admin | Sobrescreve manualmente a cor da empresa |
+| `POST /api/admin/empresas/<id>/reabrir-atendimento` | Admin | Reabre o atendimento de uma empresa cujo dia foi finalizado (não restaura senhas já canceladas) |
 
 ### 12.3 Melhorias de usabilidade desta versão
 

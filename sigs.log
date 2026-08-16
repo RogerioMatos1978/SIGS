@@ -363,3 +363,38 @@
 2026-08-16 15:54:17 | INFO     | SIGS | Login realizado: 'teste01' (perfil recrutador, guichê 1).
 2026-08-16 15:54:48 | ERROR    | SIGS | Não há senhas aguardando chamada.
 2026-08-16 15:54:53 | INFO     | SIGS | Repetição de chamada da senha 001.
+2026-08-16 16:32:27 | WARNING  | SIGS | Esquema antigo da tabela 'senhas' detectado (sem a coluna 'empresa_id'). Adicionando automaticamente...
+2026-08-16 16:32:27 | WARNING  | SIGS | Migração concluída: a tabela 'senhas' agora possui a coluna 'empresa_id' (referência estável, usada para escopo de fila e permissões por empresa). Backfill best-effort aplicado a partir do nome já gravado em 'empresa'.
+2026-08-16 16:32:27 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 16:38:22 | INFO     | SIGS | Logout realizado: 'teste02'.
+2026-08-16 16:38:43 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 16:39:01 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-16 16:40:57 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-16 16:41:21 | INFO     | SIGS | Logout realizado: 'teste03'.
+2026-08-16 16:41:31 | INFO     | SIGS | Sala 1 (empresa id=2) atribuída automaticamente a 'Teste03'.
+2026-08-16 16:41:31 | INFO     | SIGS | Login realizado: 'teste03' (perfil recrutador, guichê 1).
+2026-08-16 16:41:47 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-16 16:41:57 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-16 16:43:11 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-16 16:43:12 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-16 16:43:17 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-16 17:48:04 | WARNING  | SIGS | Esquema antigo da tabela 'senhas' detectado (sem as colunas de marcos de tempo). Adicionando automaticamente...
+2026-08-16 17:48:04 | WARNING  | SIGS | Migração concluída: a tabela 'senhas' agora possui as colunas 'hora_chamada' e 'hora_finalizada', usadas para calcular o tempo de atendimento nos relatórios.
+2026-08-16 17:48:04 | WARNING  | SIGS | Esquema antigo da tabela 'empresas' detectado (sem a coluna 'atendimento_finalizado_em'). Adicionando automaticamente...
+2026-08-16 17:48:04 | WARNING  | SIGS | Migração concluída: a tabela 'empresas' agora possui a coluna 'atendimento_finalizado_em', usada para encerrar o atendimento do dia por empresa.
+2026-08-16 17:48:04 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 17:49:49 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 17:50:09 | INFO     | SIGS | Logout realizado: 'teste03'.
+2026-08-16 17:50:24 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 17:54:43 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 17:54:56 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-16 17:55:05 | INFO     | SIGS | Senha emitida: número 002 (id=13, empresa='COMIGO')
+2026-08-16 17:55:12 | INFO     | SIGS | Ticket impresso com sucesso: senha 002 na impressora 'Microsoft Print to PDF'.
+2026-08-16 17:56:00 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 17:56:49 | INFO     | SIGS | Login realizado: 'teste01' (perfil recrutador, guichê 1).
+2026-08-16 17:57:35 | INFO     | SIGS | Sala 1 (empresa id=1) atribuída automaticamente a 'Teste02'.
+2026-08-16 17:57:35 | INFO     | SIGS | Login realizado: 'teste02' (perfil recrutador, guichê 1).
+2026-08-16 17:57:56 | INFO     | SIGS | Senha 002 chamada no guichê 'Sala 01 — COMIGO' por 'Teste02'.
+2026-08-16 17:58:16 | INFO     | SIGS | Senha id=13 finalizada.
+2026-08-16 17:58:47 | INFO     | SIGS | Logout realizado: 'teste02'.
+2026-08-16 17:58:49 | INFO     | SIGS | Logout realizado: 'mariamatos'.

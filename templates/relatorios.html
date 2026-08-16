@@ -40,13 +40,20 @@
                         <option value="chamadas">Chamadas Realizadas</option>
                     </select>
                 </label>
+                {% if not eh_recrutador %}
                 <label>
                     Empresa
                     <select id="filtro-empresa">
                         <option value="">Todas as empresas</option>
                     </select>
                 </label>
+                {% endif %}
             </div>
+            {% if eh_recrutador %}
+            <p class="mensagem-status">
+                Exibindo somente os dados da sua empresa{% if empresa_recrutador %} ({{ empresa_recrutador.nome }}){% endif %}.
+            </p>
+            {% endif %}
             <button id="btn-atualizar-resumo" class="botao botao-primario">🔎 Atualizar Resumo</button>
         </section>
 
@@ -99,5 +106,13 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+    // Lido por relatorios.js para saber se deve carregar o seletor de
+    // empresas (admin) ou pular essa chamada (recrutador, sem permissão
+    // para /api/admin/empresas — ver auth.admin_required).
+    window.SIGS_CONFIG = {
+        ehRecrutador: {{ 'true' if eh_recrutador else 'false' }}
+    };
+</script>
 <script src="{{ url_for('static', filename='js/relatorios.js') }}"></script>
 {% endblock %}

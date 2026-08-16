@@ -60,7 +60,7 @@ from flask import Flask, abort, jsonify, redirect, render_template, request, sen
 import auth
 import database
 from config import SIGS_VERSAO, STATIC_DIR, TEMPLATES_DIR, config_manager, logger, obter_secret_key
-from models import PerfilUsuario
+from models import PerfilUsuario, StatusSenha
 from printer import ErroImpressora, ImpressoraTermica
 
 # ---------------------------------------------------------------------------
@@ -266,9 +266,22 @@ def index():
     """Tela principal, utilizada pelo atendente para emitir e chamar senhas.
 
     Exige login. O guichê exibido é o atribuído automaticamente ao usuário
-    no momento em que ele autenticou (ver auth.iniciar_sessao)."""
+    no momento em que ele autenticou (ver auth.iniciar_sessao).
+
+    Para o perfil "recrutador", também busca a própria empresa
+    (``empresa_recrutador``) para que o template saiba se o atendimento
+    do dia já foi finalizado (ver ``database.finalizar_atendimento_dia_empresa``)
+    e ajuste os botões exibidos de acordo."""
     configuracoes = config_manager.obter_todas()
-    return render_template("index.html", config=configuracoes)
+
+    usuario_sessao = auth.usuario_logado()
+    empresa_recrutador = None
+    if usuario_sessao and usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR:
+        empresa_id = usuario_sessao.get("empresa_id")
+        if empresa_id:
+            empresa_recrutador = database.obter_empresa_por_id(empresa_id)
+
+    return render_template("index.html", config=configuracoes, empresa_recrutador=empresa_recrutador)
 
 
 @app.route("/favicon.ico")
@@ -368,11 +381,24 @@ def configuracoes_tela():
 
 @app.route("/relatorios")
 @auth.login_required
-@auth.admin_required
+@auth.admin_ou_recrutador_required
 def relatorios_tela():
-    """Tela de geração de relatórios (CSV, Excel, PDF). Acesso restrito a administradores."""
+    """
+    Tela de geração de relatórios (CSV, Excel, PDF). Acessível a
+    administradores (veem TODAS as empresas, com filtro) e a
+    recrutadores (veem SOMENTE a própria empresa, sem filtro — ver
+    ``eh_recrutador``/``empresa_recrutador`` usados pelo template para
+    esconder o seletor "Empresa" nesse caso).
+    """
     configuracoes = config_manager.obter_todas()
-    return render_template("relatorios.html", config=configuracoes)
+    usuario_sessao = auth.usuario_logado()
+    eh_recrutador = usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
+    empresa_recrutador = None
+    if eh_recrutador and usuario_sessao.get("empresa_id"):
+        empresa_recrutador = database.obter_empresa_por_id(usuario_sessao["empresa_id"])
+    return render_template(
+        "relatorios.html", config=configuracoes, eh_recrutador=eh_recrutador, empresa_recrutador=empresa_recrutador
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -528,6 +554,13 @@ def api_emitir():
             return resposta_erro(
                 "Empresa inválida ou inativa. Atualize a página e tente novamente.", 400
             )
+        if empresa.atendimento_finalizado_em:
+            return resposta_erro(
+                "O atendimento desta empresa já foi finalizado por hoje. "
+                "Não é possível emitir novas senhas (procure um administrador "
+                "caso isso tenha sido um engano).",
+                409,
+            )
 
         usuario_sessao = auth.usuario_logado()
         guiche = f"Guichê {usuario_sessao['guiche']:02d}" if usuario_sessao.get("guiche") else None
@@ -579,10 +612,16 @@ def api_chamar():
     requisição, para evitar chamadas em nome de outro guichê).
 
     Quando o perfil logado é "recrutador", a fila é automaticamente
-    restrita à empresa vinculada ao usuário (``usuario_sessao['empresa_nome']``)
+    restrita à empresa vinculada ao usuário (``usuario_sessao['empresa_id']``)
     — um recrutador nunca chama uma senha de outra empresa. Para o perfil
     "atendente", o comportamento é o de sempre: a fila GERAL (sem filtro
     de empresa).
+
+    Se o recrutador já finalizou o atendimento do dia da própria empresa
+    (ver ``/api/finalizar-atendimento-dia``), esta rota é bloqueada — não
+    é mais possível CHAMAR uma senha nova (finalizar quem já estava em
+    atendimento no momento do encerramento continua permitido, ver
+    ``api_finalizar_atendimento``/``api_finalizar``).
     """
     try:
         usuario_sessao = auth.usuario_logado()
@@ -600,9 +639,19 @@ def api_chamar():
             )
             return resposta_erro(mensagem, 409)
 
+        empresa_id_filtro = usuario_sessao.get("empresa_id") if eh_recrutador else None
+
+        if empresa_id_filtro:
+            empresa = database.obter_empresa_por_id(empresa_id_filtro)
+            if empresa and empresa.atendimento_finalizado_em:
+                return resposta_erro(
+                    "O atendimento desta empresa já foi finalizado por hoje. "
+                    "Não é possível chamar novas senhas.",
+                    409,
+                )
+
         guiche = _guiche_formatado(usuario_sessao)
         usuario = usuario_sessao.get("nome_completo")
-        empresa_id_filtro = usuario_sessao.get("empresa_id") if eh_recrutador else None
 
         resultado = database.chamar_proxima(guiche=guiche, usuario=usuario, empresa_id=empresa_id_filtro)
         if resultado is None:
@@ -686,6 +735,70 @@ def api_finalizar_atendimento():
 
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao finalizar atendimento: {erro}", 500)
+
+
+@app.route("/api/finalizar-atendimento-dia", methods=["POST"])
+@auth.login_required
+def api_finalizar_atendimento_dia():
+    """
+    Encerra o atendimento do dia da EMPRESA do recrutador logado (ver
+    ``database.finalizar_atendimento_dia_empresa``): a partir de agora,
+    esta empresa não aceita mais emissão de novas senhas (``/api/emitir``)
+    nem chamada de senhas novas (``/api/chamar``), e todas as senhas
+    dela que ainda estavam com status 'Emitida' (nunca chamadas) são
+    canceladas automaticamente — ficam registradas como canceladas tanto
+    no relatório da própria empresa quanto no relatório do administrador.
+
+    A empresa é sempre a do PRÓPRIO recrutador logado (``usuario_sessao
+    ['empresa_id']``), nunca um id vindo do corpo da requisição — um
+    recrutador só pode encerrar o próprio dia, nunca o de outra empresa.
+
+    Restrito ao perfil "recrutador" (o botão que dispara esta ação só
+    existe na tela dele — ver index.html). Reverter um encerramento feito
+    por engano exige um administrador (ver
+    ``/api/admin/empresas/<id>/reabrir-atendimento``).
+    """
+    try:
+        usuario_sessao = auth.usuario_logado()
+        if usuario_sessao.get("perfil") != PerfilUsuario.RECRUTADOR:
+            return resposta_erro(
+                "Apenas o perfil recrutador pode finalizar o atendimento do dia de uma empresa.", 403
+            )
+
+        empresa_id = usuario_sessao.get("empresa_id")
+        if not empresa_id:
+            return resposta_erro(
+                "Você não está vinculado a nenhuma empresa no momento. Procure um administrador.", 409
+            )
+
+        resultado = database.finalizar_atendimento_dia_empresa(empresa_id)
+        if resultado is None:
+            return resposta_erro("Empresa não encontrada.", 404)
+
+        if resultado["ja_finalizado"]:
+            return resposta_sucesso(
+                {
+                    "mensagem": "O atendimento desta empresa já havia sido finalizado hoje.",
+                    "ja_finalizado": True,
+                    "quantidade_cancelada": 0,
+                    "finalizado_em": resultado["finalizado_em"],
+                }
+            )
+
+        return resposta_sucesso(
+            {
+                "mensagem": (
+                    f"Atendimento do dia finalizado. "
+                    f"{resultado['quantidade_cancelada']} senha(s) sem atendimento foram canceladas."
+                ),
+                "ja_finalizado": False,
+                "quantidade_cancelada": resultado["quantidade_cancelada"],
+                "finalizado_em": resultado["finalizado_em"],
+            }
+        )
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao finalizar atendimento do dia: {erro}", 500)
 
 
 @app.route("/api/reiniciar", methods=["POST"])
@@ -889,14 +1002,23 @@ def api_impressoras():
 @auth.login_required
 def api_empresas():
     """
-    Lista as empresas ATIVAS do feirão, usadas para popular o seletor de
-    empresa exibido ao emitir uma senha (ver index.html/index.js).
+    Lista as empresas ATIVAS e com atendimento ABERTO do feirão, usadas
+    para popular o seletor de empresa exibido ao emitir uma senha (ver
+    index.html/index.js) — uma empresa que já finalizou o atendimento do
+    dia (ver ``/api/finalizar-atendimento-dia``) some deste seletor, no
+    mesmo espírito de uma empresa desativada, para não permitir a
+    emissão de uma senha que nunca poderá ser chamada.
 
     Assim como ``/api/impressoras``, é acessível a QUALQUER usuário
     logado (não apenas administradores), pois é o perfil "emissor" — não
     o admin — quem efetivamente emite senhas.
     """
-    return resposta_sucesso({"empresas": database.listar_empresas(somente_ativas=True)})
+    empresas = [
+        empresa
+        for empresa in database.listar_empresas(somente_ativas=True)
+        if not empresa.get("atendimento_finalizado_em")
+    ]
+    return resposta_sucesso({"empresas": empresas})
 
 
 # ---------------------------------------------------------------------------
@@ -930,28 +1052,99 @@ def _sanitizar_celula_planilha(valor):
 
 
 def _parametros_periodo():
-    """Extrai e retorna os parâmetros de período (inicio/fim) e o filtro
-    opcional de empresa (nome exato) da querystring."""
+    """
+    Extrai os parâmetros de período (inicio/fim) da querystring e resolve
+    o filtro de empresa a partir do PERFIL logado, NUNCA confiando no que
+    o cliente envia livremente:
+
+        - admin: pode filtrar por qualquer empresa via querystring
+          ``empresa_id`` (ou nenhuma, para ver o relatório de TODAS).
+        - recrutador: sempre forçado à PRÓPRIA empresa (``empresa_id`` da
+          sessão) — qualquer valor de ``empresa_id`` enviado na
+          querystring é ignorado, para que um recrutador jamais consiga
+          ver dados de outra empresa só editando a URL.
+    """
     inicio = request.args.get("inicio") or None
     fim = request.args.get("fim") or None
-    empresa = request.args.get("empresa") or None
-    return inicio, fim, empresa
+
+    usuario_sessao = auth.usuario_logado() or {}
+    if usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR:
+        empresa_id = usuario_sessao.get("empresa_id")
+    else:
+        empresa_id_bruto = request.args.get("empresa_id")
+        try:
+            empresa_id = int(empresa_id_bruto) if empresa_id_bruto else None
+        except (TypeError, ValueError):
+            empresa_id = None
+
+    return inicio, fim, empresa_id
+
+
+_FORMATO_DATA_HORA = "%Y-%m-%d %H:%M:%S"
+
+
+def _formatar_duracao(segundos: float) -> str:
+    """Formata uma duração em segundos como texto "HH:MM:SS"."""
+    horas, resto = divmod(int(segundos), 3600)
+    minutos, segundos_restantes = divmod(resto, 60)
+    return f"{horas:02d}:{minutos:02d}:{segundos_restantes:02d}"
+
+
+def _tempos_relatorio_senha(item: dict):
+    """
+    Calcula as três colunas de tempo do relatório "Senhas Emitidas" —
+    hora da chamada, tempo de atendimento (chamada → finalizada) e hora
+    finalizada — a partir do dicionário de uma senha (ver
+    ``database.listar_senhas_periodo``, que já inclui ``hora_chamada`` e
+    ``hora_finalizada`` desde a migração
+    ``_migrar_tabela_senhas_adicionar_marcos_tempo``).
+
+    Para senhas CANCELADAS, retorna as três colunas VAZIAS
+    propositalmente — mesmo que ``hora_chamada`` esteja preenchida no
+    banco (ex.: uma senha que chegou a ser chamada e depois foi
+    cancelada em vez de finalizada): uma senha cancelada é tratada como
+    "sem atendimento" no relatório, por definição.
+
+    Retorna a tupla ``(hora_chamada, tempo_atendimento, hora_finalizada)``,
+    cada um como string (vazia quando não aplicável).
+    """
+    if item.get("status") == StatusSenha.CANCELADA:
+        return "", "", ""
+
+    hora_chamada = item.get("hora_chamada") or ""
+    hora_finalizada = item.get("hora_finalizada") or ""
+
+    tempo_atendimento = ""
+    if hora_chamada and hora_finalizada:
+        try:
+            inicio_dt = datetime.strptime(hora_chamada, _FORMATO_DATA_HORA)
+            fim_dt = datetime.strptime(hora_finalizada, _FORMATO_DATA_HORA)
+            tempo_atendimento = _formatar_duracao((fim_dt - inicio_dt).total_seconds())
+        except (TypeError, ValueError):
+            tempo_atendimento = ""
+
+    return hora_chamada, tempo_atendimento, hora_finalizada
 
 
 @app.route("/api/relatorios/resumo")
 @auth.login_required
-@auth.admin_required
+@auth.admin_ou_recrutador_required
 def api_relatorios_resumo():
-    """Retorna um resumo estatístico (JSON) para exibição na tela de
+    """
+    Retorna um resumo estatístico (JSON) para exibição na tela de
     relatórios: total emitidas, total chamadas, tempo médio de espera e a
-    contagem de senhas emitidas por empresa (``por_empresa``), opcional-
-    mente filtrado por uma empresa específica (querystring ``empresa``)."""
+    contagem de senhas emitidas por empresa (``por_empresa``).
+
+    Acessível a administradores (todas as empresas, ou uma específica via
+    querystring ``empresa_id``) e a recrutadores (sempre restrito à
+    própria empresa — ver ``_parametros_periodo``).
+    """
     try:
-        inicio, fim, empresa = _parametros_periodo()
-        emitidas = database.listar_senhas_periodo(inicio, fim, empresa=empresa)
-        chamadas = database.listar_chamadas_periodo(inicio, fim, empresa=empresa)
-        tempo_medio = database.tempo_medio_atendimento(inicio, fim, empresa=empresa)
-        por_empresa = database.listar_contagem_por_empresa(inicio, fim)
+        inicio, fim, empresa_id = _parametros_periodo()
+        emitidas = database.listar_senhas_periodo(inicio, fim, empresa_id=empresa_id)
+        chamadas = database.listar_chamadas_periodo(inicio, fim, empresa_id=empresa_id)
+        tempo_medio = database.tempo_medio_atendimento(inicio, fim, empresa_id=empresa_id)
+        por_empresa = database.listar_contagem_por_empresa(inicio, fim, empresa_id=empresa_id)
 
         return resposta_sucesso(
             {
@@ -967,19 +1160,21 @@ def api_relatorios_resumo():
 
 @app.route("/api/relatorios/csv")
 @auth.login_required
-@auth.admin_required
+@auth.admin_ou_recrutador_required
 def api_relatorios_csv():
-    """Gera e retorna um relatório em formato CSV para download."""
+    """Gera e retorna um relatório em formato CSV para download. Acessível
+    a administradores e recrutadores (ver ``_parametros_periodo`` para o
+    recorte por empresa)."""
     try:
         tipo = request.args.get("tipo", "emitidas")
-        inicio, fim, empresa = _parametros_periodo()
+        inicio, fim, empresa_id = _parametros_periodo()
 
         buffer_texto = io.StringIO()
         escritor = csv.writer(buffer_texto, delimiter=";")
 
         if tipo == "chamadas":
             escritor.writerow(["ID Evento", "ID Senha", "Número", "Empresa", "Guichê", "Usuário", "Data/Hora"])
-            for item in database.listar_chamadas_periodo(inicio, fim, empresa=empresa):
+            for item in database.listar_chamadas_periodo(inicio, fim, empresa_id=empresa_id):
                 escritor.writerow(
                     [
                         item["id"], item["senha_id"], item["numero"],
@@ -989,13 +1184,20 @@ def api_relatorios_csv():
                 )
             nome_arquivo = "relatorio_chamadas.csv"
         else:
-            escritor.writerow(["ID", "Número", "Status", "Empresa", "Data/Hora", "Guichê", "Usuário"])
-            for item in database.listar_senhas_periodo(inicio, fim, empresa=empresa):
+            escritor.writerow(
+                [
+                    "ID", "Número", "Status", "Empresa", "Hora Emissão", "Hora Chamada",
+                    "Tempo de Atendimento", "Hora Finalizada", "Guichê", "Usuário",
+                ]
+            )
+            for item in database.listar_senhas_periodo(inicio, fim, empresa_id=empresa_id):
+                hora_chamada, tempo_atendimento, hora_finalizada = _tempos_relatorio_senha(item)
                 escritor.writerow(
                     [
                         item["id"], item["numero"], item["status"],
                         _sanitizar_celula_planilha(item.get("empresa") or "-"),
-                        item["data_hora"], item["guiche"], _sanitizar_celula_planilha(item["usuario"]),
+                        item["data_hora"], hora_chamada, tempo_atendimento, hora_finalizada,
+                        item["guiche"], _sanitizar_celula_planilha(item["usuario"]),
                     ]
                 )
             nome_arquivo = "relatorio_emitidas.csv"
@@ -1017,9 +1219,11 @@ def api_relatorios_csv():
 
 @app.route("/api/relatorios/excel")
 @auth.login_required
-@auth.admin_required
+@auth.admin_ou_recrutador_required
 def api_relatorios_excel():
-    """Gera e retorna um relatório em formato Excel (.xlsx) para download."""
+    """Gera e retorna um relatório em formato Excel (.xlsx) para download.
+    Acessível a administradores e recrutadores (ver ``_parametros_periodo``
+    para o recorte por empresa)."""
     try:
         # Importação local para não exigir openpyxl caso o relatório em
         # Excel nunca seja utilizado (reduz acoplamento e tempo de boot).
@@ -1027,7 +1231,7 @@ def api_relatorios_excel():
         from openpyxl.styles import Font
 
         tipo = request.args.get("tipo", "emitidas")
-        inicio, fim, empresa = _parametros_periodo()
+        inicio, fim, empresa_id = _parametros_periodo()
 
         pasta = Workbook()
         planilha = pasta.active
@@ -1036,7 +1240,7 @@ def api_relatorios_excel():
             planilha.title = "Chamadas"
             cabecalho = ["ID Evento", "ID Senha", "Número", "Empresa", "Guichê", "Usuário", "Data/Hora"]
             planilha.append(cabecalho)
-            for item in database.listar_chamadas_periodo(inicio, fim, empresa=empresa):
+            for item in database.listar_chamadas_periodo(inicio, fim, empresa_id=empresa_id):
                 planilha.append(
                     [
                         item["id"], item["senha_id"], item["numero"],
@@ -1047,14 +1251,19 @@ def api_relatorios_excel():
             nome_arquivo = "relatorio_chamadas.xlsx"
         else:
             planilha.title = "Emitidas"
-            cabecalho = ["ID", "Número", "Status", "Empresa", "Data/Hora", "Guichê", "Usuário"]
+            cabecalho = [
+                "ID", "Número", "Status", "Empresa", "Hora Emissão", "Hora Chamada",
+                "Tempo de Atendimento", "Hora Finalizada", "Guichê", "Usuário",
+            ]
             planilha.append(cabecalho)
-            for item in database.listar_senhas_periodo(inicio, fim, empresa=empresa):
+            for item in database.listar_senhas_periodo(inicio, fim, empresa_id=empresa_id):
+                hora_chamada, tempo_atendimento, hora_finalizada = _tempos_relatorio_senha(item)
                 planilha.append(
                     [
                         item["id"], item["numero"], item["status"],
                         _sanitizar_celula_planilha(item.get("empresa") or "-"),
-                        item["data_hora"], item["guiche"], _sanitizar_celula_planilha(item["usuario"]),
+                        item["data_hora"], hora_chamada, tempo_atendimento, hora_finalizada,
+                        item["guiche"], _sanitizar_celula_planilha(item["usuario"]),
                     ]
                 )
             nome_arquivo = "relatorio_emitidas.xlsx"
@@ -1079,9 +1288,12 @@ def api_relatorios_excel():
 
 @app.route("/api/relatorios/pdf")
 @auth.login_required
-@auth.admin_required
+@auth.admin_ou_recrutador_required
 def api_relatorios_pdf():
     """Gera e retorna um relatório em formato PDF para download.
+
+    Acessível a administradores e recrutadores (ver ``_parametros_periodo``
+    para o recorte por empresa).
 
     Importante: este PDF é exclusivamente um RELATÓRIO GERENCIAL, e não
     deve ser confundido com o ticket de senha — o ticket impresso ao
@@ -1098,7 +1310,7 @@ def api_relatorios_pdf():
         from reportlab.lib.styles import getSampleStyleSheet
 
         tipo = request.args.get("tipo", "emitidas")
-        inicio, fim, empresa = _parametros_periodo()
+        inicio, fim, empresa_id = _parametros_periodo()
 
         buffer_bytes = io.BytesIO()
         documento = SimpleDocTemplate(buffer_bytes, pagesize=A4)
@@ -1111,7 +1323,7 @@ def api_relatorios_pdf():
 
         if tipo == "chamadas":
             dados_tabela = [["ID Evento", "ID Senha", "Número", "Empresa", "Guichê", "Usuário", "Data/Hora"]]
-            for item in database.listar_chamadas_periodo(inicio, fim, empresa=empresa):
+            for item in database.listar_chamadas_periodo(inicio, fim, empresa_id=empresa_id):
                 dados_tabela.append(
                     [
                         str(item["id"]),
@@ -1125,8 +1337,14 @@ def api_relatorios_pdf():
                 )
             nome_arquivo = "relatorio_chamadas.pdf"
         else:
-            dados_tabela = [["ID", "Número", "Status", "Empresa", "Data/Hora", "Guichê", "Usuário"]]
-            for item in database.listar_senhas_periodo(inicio, fim, empresa=empresa):
+            dados_tabela = [
+                [
+                    "ID", "Número", "Status", "Empresa", "Hora Emissão", "Hora Chamada",
+                    "Tempo Atend.", "Hora Finalizada", "Guichê", "Usuário",
+                ]
+            ]
+            for item in database.listar_senhas_periodo(inicio, fim, empresa_id=empresa_id):
+                hora_chamada, tempo_atendimento, hora_finalizada = _tempos_relatorio_senha(item)
                 dados_tabela.append(
                     [
                         str(item["id"]),
@@ -1134,6 +1352,9 @@ def api_relatorios_pdf():
                         item["status"],
                         item.get("empresa") or "-",
                         item["data_hora"],
+                        hora_chamada,
+                        tempo_atendimento,
+                        hora_finalizada,
                         item["guiche"] or "-",
                         item["usuario"] or "-",
                     ]
@@ -1141,7 +1362,7 @@ def api_relatorios_pdf():
             nome_arquivo = "relatorio_emitidas.pdf"
 
         # Inclui o resumo de tempo médio de atendimento ao final do relatório.
-        tempo_medio = database.tempo_medio_atendimento(inicio, fim, empresa=empresa)
+        tempo_medio = database.tempo_medio_atendimento(inicio, fim, empresa_id=empresa_id)
 
         tabela = Table(dados_tabela, repeatRows=1)
         tabela.setStyle(
@@ -1470,6 +1691,31 @@ def api_admin_reiniciar_contador_empresa(empresa_id: int):
 
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao reiniciar contador da empresa: {erro}", 500)
+
+
+@app.route("/api/admin/empresas/<int:empresa_id>/reabrir-atendimento", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_reabrir_atendimento_empresa(empresa_id: int):
+    """
+    Reabre o atendimento de uma empresa cujo dia foi finalizado por
+    engano (ver ``/api/finalizar-atendimento-dia`` e
+    ``database.reabrir_atendimento_empresa``) — volta a permitir emissão
+    e chamada de novas senhas para ela.
+
+    Restrito a administradores: propositalmente, o próprio recrutador
+    que finalizou não pode reabrir sozinho.
+
+    NÃO restaura as senhas que foram canceladas automaticamente pelo
+    encerramento — o cancelamento fica preservado no histórico/relatório.
+    """
+    try:
+        if database.reabrir_atendimento_empresa(empresa_id):
+            return resposta_sucesso({"mensagem": "Atendimento da empresa reaberto."})
+        return resposta_erro("Empresa não encontrada, ou o atendimento dela já estava aberto.", 404)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao reabrir atendimento da empresa: {erro}", 500)
 
 
 # ---------------------------------------------------------------------------

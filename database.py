@@ -325,6 +325,17 @@ def inicializar_banco() -> None:
         # (a coluna "empresa" precisa existir para o backfill funcionar).
         _migrar_tabela_senhas_adicionar_empresa_id(conexao)
 
+        # Adiciona as colunas "hora_chamada" e "hora_finalizada" à tabela
+        # "senhas" (marcos de tempo do ciclo de vida de uma senha, usados
+        # pelos relatórios — ver ``chamar_proxima``/``finalizar_senha`` e
+        # ``app.py:api_relatorios_*``).
+        _migrar_tabela_senhas_adicionar_marcos_tempo(conexao)
+
+        # Adiciona a coluna "atendimento_finalizado_em" à tabela
+        # "empresas" (controla o encerramento do atendimento do dia POR
+        # EMPRESA — ver ``finalizar_atendimento_dia_empresa``).
+        _migrar_tabela_empresas_adicionar_atendimento_finalizado(conexao)
+
         # Só agora a coluna "empresa_id" está garantidamente presente
         # (bancos novos já a criam direto; bancos antigos acabaram de
         # recebê-la na migração acima), então é seguro criar o índice.
@@ -573,6 +584,97 @@ def _migrar_tabela_senhas_adicionar_empresa_id(conexao: sqlite3.Connection) -> N
         "'empresa_id' (referência estável, usada para escopo de fila e "
         "permissões por empresa). Backfill best-effort aplicado a partir "
         "do nome já gravado em 'empresa'."
+    )
+
+
+def _migrar_tabela_senhas_adicionar_marcos_tempo(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona as colunas ``hora_chamada`` e ``hora_finalizada`` (ambas
+    TEXT, opcionais) à tabela ``senhas``.
+
+    ``hora_chamada`` é gravada uma única vez, no momento em que a senha é
+    chamada pela PRIMEIRA vez (transição Emitida -> Chamada, ver
+    ``chamar_proxima``) — repetições de chamada (``repetir_ultima_chamada``)
+    NÃO alteram este valor, pois representam apenas um novo anúncio
+    sonoro/visual da MESMA chamada, não uma nova chamada.
+
+    ``hora_finalizada`` é gravada quando a senha é marcada como
+    'Finalizada' (ver ``finalizar_senha``).
+
+    As duas juntas permitem calcular o "tempo de atendimento" (hora
+    finalizada − hora chamada) nos relatórios — ver
+    ``app.py:_montar_linha_relatorio_emitidas``. Senhas canceladas
+    exibem estes campos como vazios no relatório, independentemente do
+    que estiver gravado aqui (ver a mesma função) — ex.: uma senha que
+    chegou a ser chamada e depois foi cancelada em vez de finalizada
+    mantém ``hora_chamada`` preenchida no banco (útil para auditoria),
+    mas o relatório a trata como "sem atendimento" por estar cancelada.
+
+    Senhas emitidas ANTES desta migração simplesmente ficam com os dois
+    campos ``NULL`` (não há como reconstruir esses horários
+    retroativamente a partir do histórico existente).
+
+    Não faz nada se as colunas já existirem (portanto é seguro chamar
+    esta função toda vez que o sistema inicia).
+    """
+    colunas = conexao.execute("PRAGMA table_info(senhas)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "hora_chamada" in nomes_colunas and "hora_finalizada" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    logger.warning(
+        "Esquema antigo da tabela 'senhas' detectado (sem as colunas de "
+        "marcos de tempo). Adicionando automaticamente..."
+    )
+
+    if "hora_chamada" not in nomes_colunas:
+        conexao.execute("ALTER TABLE senhas ADD COLUMN hora_chamada TEXT")
+    if "hora_finalizada" not in nomes_colunas:
+        conexao.execute("ALTER TABLE senhas ADD COLUMN hora_finalizada TEXT")
+    conexao.commit()
+
+    logger.warning(
+        "Migração concluída: a tabela 'senhas' agora possui as colunas "
+        "'hora_chamada' e 'hora_finalizada', usadas para calcular o "
+        "tempo de atendimento nos relatórios."
+    )
+
+
+def _migrar_tabela_empresas_adicionar_atendimento_finalizado(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona a coluna ``atendimento_finalizado_em`` (TEXT, opcional) à
+    tabela ``empresas``.
+
+    ``NULL`` (padrão) significa que o atendimento da empresa está ABERTO
+    normalmente. Um timestamp gravado nesta coluna significa que um
+    recrutador daquela empresa clicou em "Finalizar Atendimento do Dia"
+    (ver ``finalizar_atendimento_dia_empresa``) — a partir daí, a
+    empresa para de aceitar novas emissões e novas chamadas (ver
+    ``app.py:api_emitir``/``api_chamar``) até um administrador reabrir
+    (ver ``reabrir_atendimento_empresa``).
+
+    Não faz nada se a coluna já existir (portanto é seguro chamar esta
+    função toda vez que o sistema inicia).
+    """
+    colunas = conexao.execute("PRAGMA table_info(empresas)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "atendimento_finalizado_em" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    logger.warning(
+        "Esquema antigo da tabela 'empresas' detectado (sem a coluna "
+        "'atendimento_finalizado_em'). Adicionando automaticamente..."
+    )
+
+    conexao.execute("ALTER TABLE empresas ADD COLUMN atendimento_finalizado_em TEXT")
+    conexao.commit()
+
+    logger.warning(
+        "Migração concluída: a tabela 'empresas' agora possui a coluna "
+        "'atendimento_finalizado_em', usada para encerrar o atendimento "
+        "do dia por empresa."
     )
 
 
@@ -936,9 +1038,14 @@ def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) 
 
         data_hora = _agora_iso()
         with get_connection() as conexao:
+            # "hora_chamada" é gravada aqui, na PRIMEIRA (e única) vez que
+            # esta senha transiciona de Emitida para Chamada — repetições
+            # de chamada não passam por aqui (ver repetir_ultima_chamada),
+            # então este valor nunca é sobrescrito. Usado pelos relatórios
+            # para calcular o tempo de atendimento.
             conexao.execute(
-                "UPDATE senhas SET status = ?, guiche = ?, usuario = ? WHERE id = ?",
-                (StatusSenha.CHAMADA, guiche, usuario, proxima.id),
+                "UPDATE senhas SET status = ?, guiche = ?, usuario = ?, hora_chamada = ? WHERE id = ?",
+                (StatusSenha.CHAMADA, guiche, usuario, data_hora, proxima.id),
             )
             cursor = conexao.execute(
                 """
@@ -1172,11 +1279,16 @@ def contar_aguardando(empresa_id: Optional[int] = None) -> int:
 # ---------------------------------------------------------------------------
 
 def finalizar_senha(senha_id: int) -> bool:
-    """Marca uma senha como 'Finalizada' (atendimento concluído)."""
+    """
+    Marca uma senha como 'Finalizada' (atendimento concluído) e grava
+    ``hora_finalizada`` — junto com ``hora_chamada`` (ver
+    ``chamar_proxima``), permite calcular o tempo de atendimento nos
+    relatórios.
+    """
     with get_connection() as conexao:
         cursor = conexao.execute(
-            "UPDATE senhas SET status = ? WHERE id = ?",
-            (StatusSenha.FINALIZADA, senha_id),
+            "UPDATE senhas SET status = ?, hora_finalizada = ? WHERE id = ?",
+            (StatusSenha.FINALIZADA, _agora_iso(), senha_id),
         )
         conexao.commit()
         alterou = cursor.rowcount > 0
@@ -1243,13 +1355,18 @@ def listar_senhas_periodo(
     inicio: Optional[str] = None,
     fim: Optional[str] = None,
     status: Optional[str] = None,
-    empresa: Optional[str] = None,
+    empresa_id: Optional[int] = None,
 ) -> List[Dict]:
     """
     Retorna as senhas emitidas dentro de um período (datas no formato
-    'YYYY-MM-DD'), opcionalmente filtradas por status e/ou por empresa
-    (nome exato, conforme cadastrado em "Empresas"). Utilizado pela
-    geração de relatórios (CSV, Excel, PDF).
+    'YYYY-MM-DD'), opcionalmente filtradas por status e/ou por empresa.
+    Utilizado pela geração de relatórios (CSV, Excel, PDF).
+
+    ``empresa_id`` (não o nome) é usado no filtro — importante para o
+    relatório do recrutador (``app.py:api_relatorios_*``), que SEMPRE
+    força o próprio ``empresa_id`` da sessão, nunca confiando em um nome
+    vindo do cliente (ver motivo em
+    ``_migrar_tabela_senhas_adicionar_empresa_id``).
     """
     condicoes = []
     parametros: List = []
@@ -1263,9 +1380,9 @@ def listar_senhas_periodo(
     if status:
         condicoes.append("status = ?")
         parametros.append(status)
-    if empresa:
-        condicoes.append("empresa = ?")
-        parametros.append(empresa)
+    if empresa_id:
+        condicoes.append("empresa_id = ?")
+        parametros.append(empresa_id)
 
     where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
 
@@ -1281,13 +1398,13 @@ def listar_senhas_periodo(
 def listar_chamadas_periodo(
     inicio: Optional[str] = None,
     fim: Optional[str] = None,
-    empresa: Optional[str] = None,
+    empresa_id: Optional[int] = None,
 ) -> List[Dict]:
     """
     Retorna todos os eventos de chamada realizados dentro de um período,
-    opcionalmente filtrados pela empresa da senha chamada (obtida via
-    JOIN com ``senhas``, já que ``eventos_chamada`` não duplica esse
-    dado).
+    opcionalmente filtrados pela empresa da senha chamada (por
+    ``empresa_id``, via JOIN com ``senhas``, já que ``eventos_chamada``
+    não duplica esse dado).
     """
     condicoes = []
     parametros: List = []
@@ -1298,9 +1415,9 @@ def listar_chamadas_periodo(
     if fim:
         condicoes.append("date(e.data_hora) <= date(?)")
         parametros.append(fim)
-    if empresa:
-        condicoes.append("s.empresa = ?")
-        parametros.append(empresa)
+    if empresa_id:
+        condicoes.append("s.empresa_id = ?")
+        parametros.append(empresa_id)
 
     where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
 
@@ -1324,12 +1441,17 @@ def listar_chamadas_periodo(
     return resultado
 
 
-def listar_contagem_por_empresa(inicio: Optional[str] = None, fim: Optional[str] = None) -> List[Dict]:
+def listar_contagem_por_empresa(
+    inicio: Optional[str] = None, fim: Optional[str] = None, empresa_id: Optional[int] = None
+) -> List[Dict]:
     """
     Retorna a quantidade de senhas emitidas por empresa dentro de um
     período, ordenada da mais requisitada para a menos requisitada.
     Senhas sem empresa associada (emitidas antes desta funcionalidade
     existir) são agrupadas sob o rótulo "Não informado".
+
+    ``empresa_id``, quando informado, restringe o resultado a UMA única
+    empresa (usado pelo relatório do recrutador, que só vê a própria).
     """
     condicoes = []
     parametros: List = []
@@ -1340,6 +1462,9 @@ def listar_contagem_por_empresa(inicio: Optional[str] = None, fim: Optional[str]
     if fim:
         condicoes.append("date(data_hora) <= date(?)")
         parametros.append(fim)
+    if empresa_id:
+        condicoes.append("empresa_id = ?")
+        parametros.append(empresa_id)
 
     where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
 
@@ -1420,7 +1545,7 @@ def resumo_geral_senhas() -> Dict:
 def tempo_medio_atendimento(
     inicio: Optional[str] = None,
     fim: Optional[str] = None,
-    empresa: Optional[str] = None,
+    empresa_id: Optional[int] = None,
 ) -> Dict:
     """
     Calcula o tempo médio de espera entre a emissão da senha e a sua
@@ -1439,9 +1564,9 @@ def tempo_medio_atendimento(
     if fim:
         condicoes.append("date(s.data_hora) <= date(?)")
         parametros.append(fim)
-    if empresa:
-        condicoes.append("s.empresa = ?")
-        parametros.append(empresa)
+    if empresa_id:
+        condicoes.append("s.empresa_id = ?")
+        parametros.append(empresa_id)
 
     where = " AND ".join(condicoes)
 
@@ -2050,6 +2175,107 @@ def definir_status_empresa(empresa_id: int, ativa: bool) -> bool:
     if alterou:
         estado = "ativada" if ativa else "desativada"
         registrar_log("WARNING", f"Empresa id={empresa_id} {estado}.")
+    return alterou
+
+
+def finalizar_atendimento_dia_empresa(empresa_id: int) -> Optional[Dict]:
+    """
+    Encerra o atendimento do dia de UMA empresa: marca
+    ``empresas.atendimento_finalizado_em`` com o horário atual e cancela
+    automaticamente todas as senhas dela que ainda estavam "sem
+    atendimento" (status 'Emitida' — nunca chegaram a ser chamadas).
+
+    Senhas com status 'Chamada' (já chamadas, atendimento em andamento
+    no momento do encerramento) NÃO são canceladas por esta função — o
+    recrutador ainda pode finalizar normalmente quem já estava sendo
+    atendido; o que passa a ser bloqueado é CHAMAR uma senha NOVA e
+    EMITIR novas senhas para esta empresa (ver
+    ``app.py:api_chamar``/``api_emitir``).
+
+    Usa o mesmo lock por empresa de ``criar_senha``
+    (``_lock_da_empresa``): evita que uma emissão consiga "passar" entre
+    a checagem de que a empresa ainda está aberta e a gravação do
+    encerramento (condição de corrida).
+
+    Retorna ``None`` se a empresa não existir. Caso exista, retorna um
+    dicionário:
+        - "ja_finalizado": ``True`` se a empresa JÁ estava finalizada
+          (clique duplicado/repetido) — neste caso nada é alterado.
+        - "quantidade_cancelada": quantas senhas 'Emitida' foram
+          canceladas por esta chamada (0 se já estava finalizada).
+        - "finalizado_em": o timestamp do encerramento (o já existente,
+          se ``ja_finalizado``, ou o novo, gravado agora).
+    """
+    with _lock_da_empresa(empresa_id):
+        with get_connection() as conexao:
+            linha_empresa = conexao.execute(
+                "SELECT atendimento_finalizado_em FROM empresas WHERE id = ?", (empresa_id,)
+            ).fetchone()
+            if linha_empresa is None:
+                return None
+
+            if linha_empresa["atendimento_finalizado_em"]:
+                return {
+                    "ja_finalizado": True,
+                    "quantidade_cancelada": 0,
+                    "finalizado_em": linha_empresa["atendimento_finalizado_em"],
+                }
+
+            agora = _agora_iso()
+            cursor = conexao.execute(
+                "UPDATE senhas SET status = ? WHERE empresa_id = ? AND status = ?",
+                (StatusSenha.CANCELADA, empresa_id, StatusSenha.EMITIDA),
+            )
+            quantidade_cancelada = cursor.rowcount
+
+            conexao.execute(
+                "UPDATE empresas SET atendimento_finalizado_em = ? WHERE id = ?",
+                (agora, empresa_id),
+            )
+            conexao.commit()
+
+    registrar_log(
+        "WARNING",
+        f"Atendimento do dia finalizado para empresa id={empresa_id}: "
+        f"{quantidade_cancelada} senha(s) sem atendimento cancelada(s).",
+    )
+    return {
+        "ja_finalizado": False,
+        "quantidade_cancelada": quantidade_cancelada,
+        "finalizado_em": agora,
+    }
+
+
+def reabrir_atendimento_empresa(empresa_id: int) -> bool:
+    """
+    Reabre o atendimento de uma empresa cujo dia havia sido finalizado
+    por engano (ver ``finalizar_atendimento_dia_empresa``), voltando a
+    permitir emissão e chamada de senhas para ela.
+
+    Restrito a administradores (ver ``app.py``) — propositalmente, o
+    próprio recrutador que finalizou não pode reabrir sozinho, evitando
+    que o encerramento perca o efeito de "fechamento do expediente" que
+    ele deveria ter.
+
+    NÃO restaura as senhas que foram canceladas automaticamente pelo
+    encerramento (o cancelamento é definitivo, preservado no histórico/
+    relatório) — reabrir apenas permite que NOVAS senhas voltem a ser
+    emitidas e chamadas a partir de agora.
+
+    Retorna ``True`` se a empresa existia e estava finalizada (e foi
+    reaberta), ou ``False`` se não existe ou já estava aberta.
+    """
+    with get_connection() as conexao:
+        cursor = conexao.execute(
+            "UPDATE empresas SET atendimento_finalizado_em = NULL "
+            "WHERE id = ? AND atendimento_finalizado_em IS NOT NULL",
+            (empresa_id,),
+        )
+        conexao.commit()
+        alterou = cursor.rowcount > 0
+
+    if alterou:
+        registrar_log("WARNING", f"Atendimento da empresa id={empresa_id} reaberto por um administrador.")
     return alterou
 
 
