@@ -441,7 +441,22 @@ def login_tela():
     # Em caso de erro, o login digitado é reenviado ao template para que o
     # campo não precise ser redigitado — apenas a senha é sempre limpa por
     # segurança (nunca reenviamos senha de volta ao HTML).
-    return render_template("login.html", erro=erro, login_informado=login_informado)
+    #
+    # IMPORTANTE: é preciso passar "config" explicitamente aqui, como toda
+    # outra rota do sistema faz. Sem isso, o Flask injeta automaticamente
+    # sua PRÓPRIA variável global "config" (app.config, as configurações
+    # internas do Flask) no lugar — que não possui "cor_principal", fazendo
+    # layout.html calcular "--cor-principal: ;" (vazio). Isso invalidava a
+    # propriedade CSS "background" do botão "Entrar" (voltando ao branco
+    # padrão do navegador), enquanto o texto branco (--cor-branco) permanecia
+    # aplicado — resultando em texto branco sobre fundo branco, ou seja,
+    # botão "sem texto" visível. Bug real corrigido em 2026-08-16.
+    return render_template(
+        "login.html",
+        erro=erro,
+        login_informado=login_informado,
+        config=config_manager.obter_todas(),
+    )
 
 
 @app.route("/logout", methods=["POST"])
