@@ -1098,6 +1098,11 @@ def repetir_ultima_chamada(guiche: Optional[str] = None) -> Optional[Dict]:
 
     Retorna ``None`` se ainda não houve nenhuma chamada (naquele
     guichê/mesa, quando informado).
+
+    Levanta ``ValueError`` se a última senha chamada NAQUELE guichê/mesa já
+    estiver com status 'Finalizada' ou 'Cancelada' — o atendimento dela já
+    terminou, então não faz sentido repetir a chamada (ver comentário mais
+    abaixo).
     """
     with get_connection() as conexao:
         if guiche:
@@ -1112,6 +1117,27 @@ def repetir_ultima_chamada(guiche: Optional[str] = None) -> Optional[Dict]:
 
     if ultimo is None:
         return None
+
+    # Uma senha cujo atendimento já foi FINALIZADO (ver ``finalizar_senha``)
+    # ou CANCELADO não deve ser "rechamada": o atendimento dela já
+    # terminou, então gerar um novo evento de chamada confundiria quem
+    # está aguardando (o painel voltaria a exibir/anunciar uma senha que
+    # já não está mais em atendimento). A checagem fica aqui, na camada de
+    # dados compartilhada por TODOS os perfis (atendente e recrutador),
+    # para que a regra valha igualmente para qualquer usuário que use o
+    # botão "Repetir Chamada" — não apenas para um perfil específico.
+    with get_connection() as conexao:
+        senha_atual = conexao.execute(
+            "SELECT status FROM senhas WHERE id = ?", (ultimo["senha_id"],)
+        ).fetchone()
+
+    if senha_atual is not None:
+        if senha_atual["status"] == StatusSenha.FINALIZADA:
+            raise ValueError(
+                "Não é possível repetir: o atendimento desta senha já foi finalizado."
+            )
+        if senha_atual["status"] == StatusSenha.CANCELADA:
+            raise ValueError("Não é possível repetir: esta senha foi cancelada.")
 
     data_hora = _agora_iso()
     with get_connection() as conexao:

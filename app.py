@@ -717,6 +717,13 @@ def api_repetir():
 
         return resposta_sucesso({"chamada": resultado})
 
+    # A senha já finalizada/cancelada não pode ser rechamada (ver regra em
+    # database.repetir_ultima_chamada) — vale para qualquer perfil
+    # (atendente ou recrutador), por isso a checagem fica lá, compartilhada
+    # por todos que passam por esta mesma rota.
+    except ValueError as erro:
+        return resposta_erro(str(erro), 409)
+
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao repetir chamada: {erro}", 500)
 

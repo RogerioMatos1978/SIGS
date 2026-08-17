@@ -118,6 +118,16 @@
                                href="{{ url_for('painel_empresa', empresa_id=empresa.id) }}" target="_blank">
                                 🖥️ Abrir Painel
                             </a>
+                            <!-- Compartilha o link do painel público desta empresa via
+                                 WhatsApp (wa.me abre o app/web do WhatsApp com o texto já
+                                 preenchido, bastando escolher o contato). Usa
+                                 _external=True para gerar a URL completa (com domínio),
+                                 já que o link será aberto fora deste navegador/sessão. -->
+                            <a class="botao botao-secundario botao-acao-pequeno"
+                               href="https://wa.me/?text={{ ('Painel de Chamadas — ' + empresa.nome + ': ' + url_for('painel_empresa', empresa_id=empresa.id, _external=True)) | urlencode }}"
+                               target="_blank" rel="noopener">
+                                📲 WhatsApp
+                            </a>
                             <button class="botao botao-secundario botao-acao-pequeno btn-renomear-empresa" data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}">
                                 ✏️ Renomear
                             </button>

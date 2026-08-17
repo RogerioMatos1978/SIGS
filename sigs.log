@@ -93,3 +93,65 @@
 2026-08-16 20:34:42 | INFO     | SIGS | Logout realizado: 'comigo'.
 2026-08-16 20:34:50 | INFO     | SIGS | Logout realizado: 'comigo2'.
 2026-08-16 20:35:12 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 20:47:04 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 20:47:27 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-16 20:47:51 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 20:52:51 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 20:54:19 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 20:57:23 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-16 20:57:45 | INFO     | SIGS | Senha emitida: número 009 (id=9, empresa='COMIGO')
+2026-08-16 20:57:54 | INFO     | SIGS | Ticket impresso com sucesso: senha 009 na impressora 'Microsoft Print to PDF'.
+2026-08-16 21:00:33 | INFO     | SIGS | Usuário 'alicya' cadastrado com perfil 'atendente'.
+2026-08-16 21:00:56 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-16 21:01:13 | INFO     | SIGS | Guichê 1 atribuído automaticamente a 'Alicya Matos'.
+2026-08-16 21:01:13 | INFO     | SIGS | Login realizado: 'alicya' (perfil atendente, guichê 1).
+2026-08-16 21:01:40 | INFO     | SIGS | Senha 009 chamada no guichê 'Guichê 01' por 'Alicya Matos'.
+2026-08-16 21:01:42 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:01:43 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:01:44 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:01:44 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:01:45 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:01:46 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:01:46 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:03:16 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 21:03:27 | INFO     | SIGS | Login realizado: 'mariamatos' (perfil emissor, guichê None).
+2026-08-16 21:06:14 | INFO     | SIGS | Logout realizado: 'alicya'.
+2026-08-16 21:06:50 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 21:07:00 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 21:07:09 | INFO     | SIGS | Mesa 1 (empresa id=1) atribuída automaticamente a 'Recrutador COMIGO'.
+2026-08-16 21:07:09 | INFO     | SIGS | Login realizado: 'comigo' (perfil recrutador, guichê 1).
+2026-08-16 21:13:36 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 21:15:04 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 21:15:42 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-16 21:15:55 | INFO     | SIGS | Empresa 'Impasa' cadastrada (id=2).
+2026-08-16 21:17:36 | INFO     | SIGS | Logo da empresa id=2 atualizado (cor extraída automaticamente: #C3CAD6).
+2026-08-16 21:19:10 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:19:11 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:19:11 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:19:43 | INFO     | SIGS | Empresa id=2 renomeada para 'Inpasa'.
+2026-08-16 21:19:57 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-16 21:20:15 | INFO     | SIGS | Logout realizado: 'mariamatos'.
+2026-08-16 21:20:45 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:20:47 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:20:48 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:20:49 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:20:49 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:20:50 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:20:51 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:20:52 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:20:53 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:20:54 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:21:01 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:21:05 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:21:08 | INFO     | SIGS | Repetição de chamada da senha 008.
+2026-08-16 21:26:45 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-16 21:26:56 | ERROR    | SIGS | Não é possível repetir: o atendimento desta senha já foi finalizado.
+2026-08-16 21:26:59 | ERROR    | SIGS | Não é possível repetir: o atendimento desta senha já foi finalizado.
+2026-08-16 21:27:01 | ERROR    | SIGS | Não é possível repetir: o atendimento desta senha já foi finalizado.
+2026-08-16 21:27:02 | ERROR    | SIGS | Não é possível repetir: o atendimento desta senha já foi finalizado.
+2026-08-16 21:27:02 | ERROR    | SIGS | Não é possível repetir: o atendimento desta senha já foi finalizado.
+2026-08-16 21:27:03 | ERROR    | SIGS | Não é possível repetir: o atendimento desta senha já foi finalizado.
+2026-08-16 21:29:57 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:29:58 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:30:00 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-16 21:30:47 | INFO     | SIGS | Logout realizado: 'comigo'.

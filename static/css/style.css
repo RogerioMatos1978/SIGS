@@ -930,9 +930,40 @@ input:focus, select:focus {
         grid-template-columns: 1fr;
     }
 
+    /* Menu superior (barra-usuario) compacto no celular: empilha as duas
+       metades (info do usuário / links de ação) mas reduz padding, fontes
+       e espaçamentos para ocupar bem menos altura de tela. */
     .barra-usuario {
         flex-direction: column;
         align-items: flex-start;
+        gap: 6px;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    .barra-usuario-info {
+        gap: 6px;
+        font-size: 0.85rem;
+    }
+
+    .barra-usuario-perfil, .barra-usuario-guiche {
+        padding: 2px 8px;
+        font-size: 0.75rem;
+    }
+
+    .barra-usuario-acoes {
+        gap: 10px;
+        font-size: 0.85rem;
+    }
+
+    .botao-sair {
+        padding: 5px 10px;
+        font-size: 0.8rem;
+    }
+
+    .barra-mensagem {
+        padding: 4px 12px;
+        font-size: 0.8rem;
     }
 
     .identificacao-sessao {

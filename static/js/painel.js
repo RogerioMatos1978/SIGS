@@ -96,6 +96,21 @@ function dispararAnimacaoEChamada() {
     tocarBip();
 }
 
+/**
+ * Extrai apenas o "Mesa NN" (ou "Guichê NN") do texto completo gravado em
+ * ``senha.guiche`` (ex.: "Mesa 01 — Empresa A") — descarta o nome da
+ * empresa aqui porque ele já é exibido separadamente (ver
+ * ``senha.empresa`` em ``atualizarListaEmitidas``), evitando repetição.
+ * Retorna ``null`` se a senha ainda não foi chamada (``guiche`` só é
+ * preenchido no momento da chamada — ver ``database.chamar_proxima``).
+ */
+function extrairMesa(guiche) {
+    if (!guiche) {
+        return null;
+    }
+    return guiche.split("—")[0].trim();
+}
+
 /** Atualiza a lista das últimas senhas emitidas exibida no painel. */
 function atualizarListaEmitidas(lista) {
     elementoListaEmitidas.innerHTML = "";
@@ -110,13 +125,33 @@ function atualizarListaEmitidas(lista) {
 
         const numero = document.createElement("span");
         numero.textContent = `Senha ${String(senha.numero).padStart(3, "0")}`;
+        item.appendChild(numero);
+
+        // Nome da empresa para a qual a senha foi emitida (ex.: "Comigo"),
+        // sempre presente desde que a emissão exige a escolha de uma
+        // empresa (ver modal-empresa-select em index.html).
+        if (senha.empresa) {
+            const empresa = document.createElement("span");
+            empresa.className = "painel-guiche-info";
+            empresa.textContent = senha.empresa;
+            item.appendChild(empresa);
+        }
+
+        // Mesa/guichê que realizou a chamada (só existe depois que a senha
+        // é efetivamente chamada — ver extrairMesa acima).
+        const mesa = extrairMesa(senha.guiche);
+        if (mesa) {
+            const elementoMesa = document.createElement("span");
+            elementoMesa.className = "painel-guiche-info";
+            elementoMesa.textContent = mesa;
+            item.appendChild(elementoMesa);
+        }
 
         const status = document.createElement("span");
         status.className = "status-badge";
         status.textContent = ROTULOS_STATUS[senha.status] || senha.status;
-
-        item.appendChild(numero);
         item.appendChild(status);
+
         elementoListaEmitidas.appendChild(item);
     });
 }
