@@ -12,6 +12,7 @@
 
 const elementoChamadaAtual = document.getElementById("painel-chamada-atual");
 const elementoNumeroAtual = document.getElementById("painel-numero-atual");
+const elementoEmpresaAtual = document.getElementById("painel-empresa-atual");
 const elementoGuicheAtual = document.getElementById("painel-guiche-atual");
 const elementoListaEmitidas = document.getElementById("painel-lista-emitidas");
 const elementoData = document.getElementById("painel-data");
@@ -64,11 +65,15 @@ async function atualizarPainel() {
 function atualizarChamadaAtual(chamada) {
     if (!chamada) {
         elementoNumeroAtual.textContent = "---";
+        elementoEmpresaAtual.textContent = "";
         elementoGuicheAtual.textContent = "Aguardando primeira chamada";
         return;
     }
 
     elementoNumeroAtual.textContent = String(chamada.numero).padStart(3, "0");
+    // Fica vazio (e some via CSS ":empty") para senhas emitidas antes da
+    // funcionalidade de empresas existir, que não têm esse dado.
+    elementoEmpresaAtual.textContent = chamada.empresa || "";
     elementoGuicheAtual.textContent = `${chamada.guiche} — ${chamada.usuario}`;
 
     const eventoMudou = ultimoEventoAnunciadoId !== null && ultimoEventoAnunciadoId !== chamada.id;

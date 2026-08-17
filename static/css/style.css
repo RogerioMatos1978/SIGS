@@ -130,6 +130,22 @@ input:focus, select:focus {
     box-shadow: 0 0 0 3px rgba(31, 95, 168, 0.2);
 }
 
+/* Campo de busca simples exibido acima das tabelas de Usuários e
+   Empresas (filtro client-side, ver usuarios.js/empresas.js). Largura
+   limitada para não esticar por toda a largura do card em telas
+   grandes, mas ocupa 100% em telas estreitas (ver media query abaixo). */
+.campo-busca-tabela {
+    width: 100%;
+    max-width: 360px;
+    margin-bottom: 14px;
+}
+
+@media (max-width: 600px) {
+    .campo-busca-tabela {
+        max-width: 100%;
+    }
+}
+
 /* -------------------- Senha em destaque (tela principal) -------------------- */
 .card-senha-atual {
     text-align: center;
@@ -406,6 +422,20 @@ input:focus, select:focus {
     font-weight: 900;
     line-height: 1;
     margin: 10px 0;
+}
+
+.painel-empresa {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--cor-branco);
+    margin-bottom: 4px;
+}
+
+/* Some completamente quando não há empresa associada (senhas emitidas
+   antes da funcionalidade de empresas existir, ou nenhuma chamada
+   realizada ainda), em vez de deixar um espaço vazio no layout. */
+.painel-empresa:empty {
+    display: none;
 }
 
 .painel-guiche {

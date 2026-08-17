@@ -11,6 +11,7 @@
 
 const formularioNovaEmpresa = document.getElementById("form-nova-empresa");
 const mensagemNovaEmpresa = document.getElementById("nova-empresa-mensagem");
+const campoBuscaEmpresas = document.getElementById("busca-empresas");
 
 /** Executa uma chamada à API, tratando erros de forma padronizada. */
 async function chamarApiAdmin(url, opcoes = {}) {
@@ -250,9 +251,29 @@ async function alternarStatusEmpresa(empresaId, ativaAtual) {
     }
 }
 
+/**
+ * Filtra as linhas da tabela "Empresas Cadastradas" pelo texto digitado
+ * no campo de busca, comparando com o nome da empresa. Filtro simples
+ * client-side, no mesmo padrão de ``filtrarTabelaUsuarios`` em
+ * usuarios.js.
+ */
+function filtrarTabelaEmpresas() {
+    const termo = campoBuscaEmpresas.value.trim().toLowerCase();
+    const linhas = document.querySelectorAll("#empresas-corpo tr[data-empresa-id]");
+
+    linhas.forEach((linha) => {
+        const nome = linha.querySelector(".celula-nome-empresa")?.textContent.toLowerCase() || "";
+        linha.style.display = !termo || nome.includes(termo) ? "" : "none";
+    });
+}
+
 function inicializar() {
     if (formularioNovaEmpresa) {
         formularioNovaEmpresa.addEventListener("submit", criarEmpresa);
+    }
+
+    if (campoBuscaEmpresas) {
+        campoBuscaEmpresas.addEventListener("input", filtrarTabelaEmpresas);
     }
 
     document.querySelectorAll(".btn-renomear-empresa").forEach((botao) => {

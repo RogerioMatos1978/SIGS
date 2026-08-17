@@ -336,6 +336,10 @@ def inicializar_banco() -> None:
         # EMPRESA — ver ``finalizar_atendimento_dia_empresa``).
         _migrar_tabela_empresas_adicionar_atendimento_finalizado(conexao)
 
+        # Fecha a brecha de cadastrar duas empresas cujo nome só difere em
+        # maiúsculas/minúsculas (ex.: "Empresa Alfa" e "empresa alfa").
+        _migrar_indice_empresas_nome_nocase(conexao)
+
         # Só agora a coluna "empresa_id" está garantidamente presente
         # (bancos novos já a criam direto; bancos antigos acabaram de
         # recebê-la na migração acima), então é seguro criar o índice.
@@ -679,6 +683,55 @@ def _migrar_tabela_empresas_adicionar_atendimento_finalizado(conexao: sqlite3.Co
         "'atendimento_finalizado_em', usada para encerrar o atendimento "
         "do dia por empresa."
     )
+
+
+def _migrar_indice_empresas_nome_nocase(conexao: sqlite3.Connection) -> None:
+    """
+    Cria um índice UNIQUE adicional em ``empresas.nome`` usando a colação
+    ``NOCASE`` (comparação sem diferenciar maiúsculas/minúsculas).
+
+    A coluna ``nome`` já possui uma restrição UNIQUE "de fábrica" (na
+    definição da tabela), mas o SQLite usa colação BINARY por padrão —
+    ou seja, "Empresa Alfa" e "empresa alfa" são consideradas nomes
+    DIFERENTES e ambas seriam aceitas, permitindo cadastros duplicados
+    por um simples descuido de digitação do administrador (diferente do
+    login de usuário, já normalizado para minúsculas em
+    ``criar_usuario``). Este índice extra fecha essa brecha sem precisar
+    recriar a tabela (não é possível alterar a colação de uma coluna já
+    existente via ``ALTER TABLE``) — ``criar_empresa``/``renomear_empresa``
+    já tratam genericamente qualquer violação UNIQUE (looking for
+    "UNIQUE" na mensagem do erro), então nenhuma mudança foi necessária
+    nelas para que a mensagem amigável de "nome já cadastrado" também
+    cubra este novo índice.
+
+    Defensivo: se o banco JÁ tiver duas empresas cujos nomes só diferem
+    em maiúsculas/minúsculas (cadastradas antes desta migração existir),
+    a criação do índice falha com ``IntegrityError`` — nesse caso, a
+    migração é pulada (com um aviso claro no log orientando o
+    administrador a renomear manualmente uma delas) em vez de impedir o
+    sistema de iniciar. A proteção passa a valer automaticamente na
+    primeira inicialização em que não houver mais conflito.
+
+    Não faz nada (é uma operação rápida e idempotente) se o índice já
+    existir.
+    """
+    try:
+        conexao.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_empresas_nome_nocase "
+            "ON empresas (nome COLLATE NOCASE)"
+        )
+        conexao.commit()
+    except sqlite3.IntegrityError:
+        conexao.rollback()
+        logger.warning(
+            "Não foi possível ativar a proteção contra nomes de empresa "
+            "duplicados por maiúsculas/minúsculas: já existem duas ou "
+            "mais empresas cadastradas com nomes que só diferem nisso "
+            "(ex.: 'Empresa Alfa' e 'empresa alfa'). Renomeie manualmente "
+            "uma delas na tela Empresas para eliminar a duplicidade; a "
+            "proteção será ativada automaticamente assim que não houver "
+            "mais conflito."
+        )
 
 
 def _migrar_tabela_usuarios_adicionar_empresa_id(conexao: sqlite3.Connection) -> None:
@@ -1072,6 +1125,13 @@ def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) 
         "guiche": guiche,
         "usuario": usuario,
         "data_hora": data_hora,
+        # "proxima" já é a Senha completa (obtida por obter_proxima_emitida),
+        # então a empresa selecionada na emissão já está disponível aqui
+        # sem precisar de nenhuma consulta extra. Usada pela tela principal
+        # (destaque "Última Senha Chamada") e pelo painel geral (/painel),
+        # onde a fila mistura senhas de várias empresas — sem isso, quem
+        # acabou de chamar não sabia para qual empresa era a senha.
+        "empresa": proxima.empresa,
     }
 
 
@@ -1127,8 +1187,13 @@ def repetir_ultima_chamada(guiche: Optional[str] = None) -> Optional[Dict]:
     # para que a regra valha igualmente para qualquer usuário que use o
     # botão "Repetir Chamada" — não apenas para um perfil específico.
     with get_connection() as conexao:
+        # Também traz "empresa" nesta mesma consulta (em vez de um JOIN
+        # separado nas duas variações da consulta de "ultimo" acima) para
+        # incluir no retorno abaixo — usada pela tela principal (destaque
+        # "Última Senha Chamada") e pelo painel geral, onde a fila mistura
+        # senhas de várias empresas.
         senha_atual = conexao.execute(
-            "SELECT status FROM senhas WHERE id = ?", (ultimo["senha_id"],)
+            "SELECT status, empresa FROM senhas WHERE id = ?", (ultimo["senha_id"],)
         ).fetchone()
 
     if senha_atual is not None:
@@ -1138,6 +1203,8 @@ def repetir_ultima_chamada(guiche: Optional[str] = None) -> Optional[Dict]:
             )
         if senha_atual["status"] == StatusSenha.CANCELADA:
             raise ValueError("Não é possível repetir: esta senha foi cancelada.")
+
+    empresa_da_senha = senha_atual["empresa"] if senha_atual is not None else None
 
     data_hora = _agora_iso()
     with get_connection() as conexao:
@@ -1160,6 +1227,7 @@ def repetir_ultima_chamada(guiche: Optional[str] = None) -> Optional[Dict]:
         "guiche": ultimo["guiche"],
         "usuario": ultimo["usuario"],
         "data_hora": data_hora,
+        "empresa": empresa_da_senha,
     }
 
 
@@ -1237,7 +1305,8 @@ def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
         if empresa_id:
             linha = conexao.execute(
                 """
-                SELECT e.* FROM eventos_chamada e
+                SELECT e.*, s.empresa AS empresa
+                FROM eventos_chamada e
                 JOIN senhas s ON s.id = e.senha_id
                 WHERE s.empresa_id = ?
                 ORDER BY e.id DESC
@@ -1246,8 +1315,17 @@ def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
                 (empresa_id,),
             ).fetchone()
         else:
+            # JOIN com "senhas" para trazer também a empresa associada
+            # (usado pelo painel GERAL, /painel, onde a fila mistura
+            # senhas de várias empresas — ver ChamadaEvento.empresa).
             linha = conexao.execute(
-                "SELECT * FROM eventos_chamada ORDER BY id DESC LIMIT 1"
+                """
+                SELECT e.*, s.empresa AS empresa
+                FROM eventos_chamada e
+                JOIN senhas s ON s.id = e.senha_id
+                ORDER BY e.id DESC
+                LIMIT 1
+                """
             ).fetchone()
 
     if linha is None:

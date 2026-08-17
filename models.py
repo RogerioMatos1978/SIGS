@@ -215,12 +215,23 @@ class ChamadaEvento:
     guiche: Optional[str]
     usuario: Optional[str]
     data_hora: str
+    empresa: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @staticmethod
     def from_row(linha: sqlite3.Row) -> "ChamadaEvento":
+        """
+        Constrói um ``ChamadaEvento`` a partir de uma linha do banco.
+
+        ``empresa`` só está presente quando a consulta original faz um
+        JOIN com a tabela ``senhas`` (ver database.obter_chamada_atual e
+        database.listar_chamadas_periodo); ``eventos_chamada`` sozinha não
+        possui essa coluna. Por isso a leitura é defensiva (``"empresa" in
+        linha.keys()``), igual ao já feito em ``Senha.from_row``.
+        """
+        chaves = linha.keys()
         return ChamadaEvento(
             id=linha["id"],
             senha_id=linha["senha_id"],
@@ -228,6 +239,7 @@ class ChamadaEvento:
             guiche=linha["guiche"],
             usuario=linha["usuario"],
             data_hora=linha["data_hora"],
+            empresa=linha["empresa"] if "empresa" in chaves else None,
         )
 
 

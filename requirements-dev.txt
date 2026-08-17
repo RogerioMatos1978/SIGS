@@ -1,0 +1,16 @@
+# =============================================================
+# requirements-dev.txt - SIGS (dependências apenas de desenvolvimento)
+# =============================================================
+# Instalação (além de requirements.txt):
+#     pip install -r requirements-dev.txt
+#
+# Execução dos testes automatizados (a partir da raiz do projeto):
+#     pytest
+#
+# Os testes usam um banco SQLite temporário isolado por teste — nunca o
+# banco real de produção (database/senhas.db). Não é necessário Flask
+# nem pywin32 instalados para rodar a suíte atual (ela cobre a camada
+# database.py/models.py: migrações, empresas e fluxo de chamada).
+# =============================================================
+
+pytest>=8.0.0

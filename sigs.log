@@ -20,3 +20,8 @@
 2026-08-17 09:21:15 | INFO     | SIGS | Repetição de chamada da senha 001.
 2026-08-17 09:21:17 | INFO     | SIGS | Senha id=1 finalizada.
 2026-08-17 09:21:22 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-17 12:58:51 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-17 12:59:11 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-17 13:04:46 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-17 13:23:18 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-17 13:23:46 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).

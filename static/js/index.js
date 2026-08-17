@@ -360,7 +360,13 @@ function atualizarDestaqueSenha(chamada) {
         return;
     }
     elementoSenhaDestaque.textContent = String(chamada.numero).padStart(3, "0");
-    elementoSenhaInfo.textContent = `${chamada.guiche} — ${chamada.usuario} (${chamada.data_hora})`;
+    // Para o atendente (fila GERAL, com senhas de várias empresas
+    // misturadas), mostrar a empresa aqui é essencial — sem isso não há
+    // como saber para qual empresa é a senha que acabou de ser chamada.
+    // Para o recrutador (fila já restrita à própria empresa), o dado é
+    // redundante mas inofensivo.
+    const empresaTexto = chamada.empresa ? ` — ${chamada.empresa}` : "";
+    elementoSenhaInfo.textContent = `${chamada.guiche} — ${chamada.usuario}${empresaTexto} (${chamada.data_hora})`;
 }
 
 /**

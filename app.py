@@ -1002,6 +1002,47 @@ def api_config_obter():
     return resposta_sucesso({"config": config_manager.obter_todas()})
 
 
+# Faixas aceitas para cada campo numérico de configuração, espelhando os
+# atributos min/max/step já usados nos <input type="number"> de
+# templates/configuracoes.html. Validar aqui também (e não só no HTML) é
+# necessário porque o campo do formulário pode ser contornado por quem
+# chamar a API diretamente (ex.: valor negativo, texto, ou um número
+# absurdamente grande que travaria o painel/atualização em polling).
+_FAIXAS_CONFIG_NUMERICAS = {
+    "qtd_senhas_exibidas": (1, 50),
+    "tempo_atualizacao_ms": (500, 300_000),  # 300.000 ms = 5 minutos
+    "qtd_guiches": (1, 50),
+    "qtd_guiches_por_empresa": (1, 50),
+}
+
+
+def _validar_configuracoes_numericas(dados: dict) -> Optional[str]:
+    """
+    Valida os campos numéricos de configuração presentes em ``dados``.
+
+    Retorna uma mensagem de erro (em português, pronta para exibir ao
+    usuário) descrevendo o PRIMEIRO campo inválido encontrado, ou
+    ``None`` se todos os campos numéricos enviados estiverem OK. Campos
+    não numéricos (ex.: ``nome_evento``, ``cor_principal``) e campos
+    numéricos que simplesmente não foram enviados neste POST não são
+    validados aqui.
+    """
+    for chave, (minimo, maximo) in _FAIXAS_CONFIG_NUMERICAS.items():
+        if chave not in dados:
+            continue
+
+        valor_bruto = dados[chave]
+        try:
+            valor = int(valor_bruto)
+        except (TypeError, ValueError):
+            return f"O campo '{chave}' deve ser um número inteiro (recebido: {valor_bruto!r})."
+
+        if valor < minimo or valor > maximo:
+            return f"O campo '{chave}' deve estar entre {minimo} e {maximo} (recebido: {valor})."
+
+    return None
+
+
 @app.route("/api/config", methods=["POST"])
 @auth.login_required
 @auth.admin_required
@@ -1011,6 +1052,10 @@ def api_config_salvar():
         dados = request.get_json(silent=True) or {}
         if not dados:
             return resposta_erro("Nenhum dado de configuração foi enviado.", 400)
+
+        erro_validacao = _validar_configuracoes_numericas(dados)
+        if erro_validacao:
+            return resposta_erro(erro_validacao, 400)
 
         config_manager.salvar(dados)
         return resposta_sucesso({"config": config_manager.obter_todas()})

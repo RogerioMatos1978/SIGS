@@ -323,10 +323,16 @@ class ImpressoraTermica:
             )
 
             # Empresa selecionada no momento da emissão (feirão do emprego).
+            # Prefixada com o rótulo "Empresa:" para deixar claro do que se
+            # trata esse texto no ticket (sem o rótulo, o nome aparecia
+            # "solto" logo abaixo de "SENHA 001", podendo ser confundido
+            # com parte do nome do evento por quem lê o cupom).
             if nome_empresa:
                 hdc.SelectObject(fonte_padrao)
                 y += (
-                    self._desenhar_texto_centralizado(hdc, nome_empresa, y, largura_pagina)
+                    self._desenhar_texto_centralizado(
+                        hdc, f"Empresa: {nome_empresa}", y, largura_pagina
+                    )
                     + espacamento
                 )
 

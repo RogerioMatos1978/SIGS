@@ -15,6 +15,7 @@ const mensagemNovoUsuario = document.getElementById("novo-usuario-mensagem");
 const selectNovoPerfil = document.getElementById("novo-perfil");
 const campoNovaEmpresa = document.getElementById("campo-novo-empresa");
 const selectNovaEmpresa = document.getElementById("novo-empresa-id");
+const campoBuscaUsuarios = document.getElementById("busca-usuarios");
 
 /** Executa uma chamada à API, tratando erros de forma padronizada. */
 async function chamarApiAdmin(url, opcoes = {}) {
@@ -228,9 +229,32 @@ async function resetarSenhasEmitidas() {
     }
 }
 
+/**
+ * Filtra as linhas da tabela "Usuários Cadastrados" pelo texto digitado
+ * no campo de busca, comparando com o nome completo e o login (ambas as
+ * primeiras colunas da linha). Filtro simples client-side — não faz
+ * nenhuma chamada à API, já que a lista de usuários é tipicamente
+ * pequena (dezenas, não milhares).
+ */
+function filtrarTabelaUsuarios() {
+    const termo = campoBuscaUsuarios.value.trim().toLowerCase();
+    const linhas = document.querySelectorAll("#usuarios-corpo tr[data-usuario-id]");
+
+    linhas.forEach((linha) => {
+        const nome = linha.children[0]?.textContent.toLowerCase() || "";
+        const login = linha.children[1]?.textContent.toLowerCase() || "";
+        const corresponde = !termo || nome.includes(termo) || login.includes(termo);
+        linha.style.display = corresponde ? "" : "none";
+    });
+}
+
 function inicializar() {
     if (formularioNovoUsuario) {
         formularioNovoUsuario.addEventListener("submit", criarUsuario);
+    }
+
+    if (campoBuscaUsuarios) {
+        campoBuscaUsuarios.addEventListener("input", filtrarTabelaUsuarios);
     }
 
     if (selectNovoPerfil) {
