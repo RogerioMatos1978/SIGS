@@ -22,9 +22,11 @@ const elementoFilaCorpo = document.getElementById("fila-corpo");
 const elementoFilaTotal = document.getElementById("fila-total");
 const elementoNotificacoes = document.getElementById("area-notificacoes");
 const elementoModalImpressao = document.getElementById("modal-impressao");
-const elementoModalImpressoraSelect = document.getElementById("modal-impressora-select");
 const elementoModalEmpresaSelect = document.getElementById("modal-empresa-select");
 const elementoModalEmpresaAviso = document.getElementById("modal-empresa-aviso");
+const elementoModalImpressoraSelect = document.getElementById("modal-impressora-select");
+const elementoModalImpressoraAviso = document.getElementById("modal-impressora-aviso");
+const elementoModalNomePessoa = document.getElementById("modal-nome-pessoa");
 
 const TEMPO_ATUALIZACAO_MS = (window.SIGS_CONFIG && window.SIGS_CONFIG.tempoAtualizacaoMs) || 2000;
 
@@ -99,17 +101,24 @@ function vincularClique(idElemento, manipulador) {
  * são resolvidos no servidor a partir da sessão de login (ver
  * app.py:api_emitir) — não são mais informados manualmente aqui.
  *
- * @param {string} [nomeImpressora] - Impressora escolhida na janela de
- *   impressão (ver abrirModalImpressao). Se vazio/omitido, o servidor usa
- *   a impressora padrão configurada em Configurações.
  * @param {string} empresaId - Id da empresa selecionada (obrigatório —
  *   o servidor rejeita a emissão se este campo estiver ausente/inválido).
+ * @param {string} nomeImpressora - Impressora local escolhida na janela
+ *   de emissão (ver abrirModalImpressao), sempre uma das listadas ao
+ *   vivo via /api/impressoras nesta máquina.
+ * @param {string} nomePessoa - "Primeiro Nome" OPCIONAL digitado na
+ *   janela de emissão; pode vir vazio, o servidor simplesmente não
+ *   imprime a linha "Nome:" nesse caso.
  */
-async function emitirSenha(nomeImpressora = "", empresaId = "") {
+async function emitirSenha(empresaId = "", nomeImpressora = "", nomePessoa = "") {
     try {
         const dados = await chamarApi("/api/emitir", {
             method: "POST",
-            body: JSON.stringify({ impressora: nomeImpressora, empresa_id: empresaId }),
+            body: JSON.stringify({
+                empresa_id: empresaId,
+                impressora: nomeImpressora,
+                nome_pessoa: nomePessoa,
+            }),
         });
 
         const numero = String(dados.senha.numero).padStart(3, "0");
@@ -127,9 +136,9 @@ async function emitirSenha(nomeImpressora = "", empresaId = "") {
 
 /**
  * Abre a janela (modal) de escolha de empresa/impressora, exibida sempre
- * que o usuário clica em "Emitir Senha". Busca a lista de empresas ATIVAS
- * via /api/empresas (seleção obrigatória) e a lista de impressoras
- * instaladas no Windows via /api/impressoras (opcional), populando os
+ * que o usuário clica em "Emitir Senha". Busca a lista de empresas
+ * ATIVAS via /api/empresas e a lista de impressoras instaladas NESTA
+ * máquina via /api/impressoras (ambas obrigatórias), populando os
  * respectivos seletores.
  */
 async function abrirModalImpressao() {
@@ -139,28 +148,65 @@ async function abrirModalImpressao() {
         return;
     }
 
-    // Reseta o seletor de impressora para apenas a opção padrão enquanto
-    // carrega a lista, evitando mostrar impressoras de uma abertura
-    // anterior do modal.
-    elementoModalImpressoraSelect.innerHTML = '<option value="">Impressora padrão do sistema</option>';
+    // Limpa o "Primeiro Nome" de uma abertura anterior do modal — sem
+    // isso, o nome da última pessoa emitida ficaria sugerido (e fácil de
+    // esquecer de trocar) na próxima emissão.
+    if (elementoModalNomePessoa) {
+        elementoModalNomePessoa.value = "";
+    }
+
+    await Promise.all([carregarEmpresasNoModal(), carregarImpressorasNoModal()]);
+
+    elementoModalImpressao.classList.remove("modal-oculto");
+}
+
+/**
+ * Busca as impressoras instaladas NESTA máquina via /api/impressoras
+ * (win32print.EnumPrinters no servidor — nunca um nome digitado à mão,
+ * evitando o erro clássico de "StartDoc failed" por um nome configurado
+ * que não bate exatamente com o nome real da impressora no Windows) e
+ * popula o seletor de impressora do modal de emissão.
+ *
+ * Se a impressora configurada em Configurações (``window.SIGS_CONFIG.
+ * impressoraPadrao``) estiver entre as listadas, ela já vem
+ * pré-selecionada — o Emissor só precisa confirmar. A seleção é
+ * obrigatória: se não houver nenhuma impressora instalada, exibe um
+ * aviso e desabilita o seletor.
+ */
+async function carregarImpressorasNoModal() {
+    if (!elementoModalImpressoraSelect) {
+        return;
+    }
+
+    elementoModalImpressoraSelect.innerHTML = '<option value="" disabled selected>Selecione a impressora...</option>';
+    elementoModalImpressoraAviso.textContent = "";
 
     try {
         const dados = await chamarApi("/api/impressoras");
-        (dados.impressoras || []).forEach((nomeImpressora) => {
+        const impressoras = dados.impressoras || [];
+        const impressoraPadrao = (window.SIGS_CONFIG && window.SIGS_CONFIG.impressoraPadrao) || "";
+
+        impressoras.forEach((nomeImpressora) => {
             const opcao = document.createElement("option");
             opcao.value = nomeImpressora;
             opcao.textContent = nomeImpressora;
+            if (nomeImpressora === impressoraPadrao) {
+                opcao.selected = true;
+            }
             elementoModalImpressoraSelect.appendChild(opcao);
         });
+
+        if (impressoras.length === 0) {
+            elementoModalImpressoraAviso.textContent =
+                "Nenhuma impressora encontrada nesta máquina. Verifique se há uma impressora instalada no Windows.";
+            elementoModalImpressoraSelect.disabled = true;
+        } else {
+            elementoModalImpressoraSelect.disabled = false;
+        }
     } catch (erro) {
-        // Mesmo se a listagem falhar (ex.: ambiente sem pywin32), o modal
-        // continua utilizável com a opção de impressora padrão.
-        console.error("Não foi possível listar impressoras:", erro);
+        elementoModalImpressoraAviso.textContent = `Não foi possível listar as impressoras: ${erro.message}`;
+        elementoModalImpressoraSelect.disabled = true;
     }
-
-    await carregarEmpresasNoModal();
-
-    elementoModalImpressao.classList.remove("modal-oculto");
 }
 
 /**
@@ -210,20 +256,27 @@ function fecharModalImpressao() {
 
 /**
  * Confirma a empresa e a impressora escolhidas na janela e emite a
- * senha. A empresa é obrigatória: se nenhuma estiver selecionada, a
- * janela permanece aberta e um aviso é exibido, sem chamar a API.
+ * senha, junto com o "Primeiro Nome" (opcional). Empresa e impressora
+ * são obrigatórias: se alguma não estiver selecionada, a janela
+ * permanece aberta e um aviso é exibido, sem chamar a API.
  */
 async function confirmarImpressaoEEmitir() {
     const empresaId = elementoModalEmpresaSelect ? elementoModalEmpresaSelect.value : "";
+    const nomeImpressora = elementoModalImpressoraSelect ? elementoModalImpressoraSelect.value : "";
+    const nomePessoa = elementoModalNomePessoa ? elementoModalNomePessoa.value.trim() : "";
 
     if (!empresaId) {
         elementoModalEmpresaAviso.textContent = "Selecione a empresa antes de emitir a senha.";
         return;
     }
 
-    const nomeImpressora = elementoModalImpressoraSelect ? elementoModalImpressoraSelect.value : "";
+    if (!nomeImpressora) {
+        elementoModalImpressoraAviso.textContent = "Selecione a impressora antes de emitir a senha.";
+        return;
+    }
+
     fecharModalImpressao();
-    await emitirSenha(nomeImpressora, empresaId);
+    await emitirSenha(empresaId, nomeImpressora, nomePessoa);
 }
 
 /**
@@ -438,6 +491,22 @@ function renderizarFila(fila, total) {
 
         const celulaAcoes = document.createElement("td");
 
+        // "Reimprimir" só para o perfil Emissor (ver window.SIGS_CONFIG,
+        // definido em index.html). A Fila de Espera só lista senhas com
+        // status 'Emitida' (ver database.listar_fila_atual) — uma senha
+        // já chamada, finalizada ou cancelada simplesmente some desta
+        // lista, então toda linha aqui já é elegível para reimpressão; a
+        // validação de status é repetida no servidor mesmo assim, para
+        // cobrir o caso de a lista estar desatualizada no instante do
+        // clique (ver app.py:api_reimprimir).
+        if (window.SIGS_CONFIG && window.SIGS_CONFIG.perfilUsuario === "emissor") {
+            const botaoReimprimir = document.createElement("button");
+            botaoReimprimir.className = "botao botao-secundario botao-acao-pequeno";
+            botaoReimprimir.textContent = "🖨️ Reimprimir";
+            botaoReimprimir.addEventListener("click", () => reimprimirSenha(senha.id, senha.numero));
+            celulaAcoes.appendChild(botaoReimprimir);
+        }
+
         const botaoCancelar = document.createElement("button");
         botaoCancelar.className = "botao botao-alerta botao-acao-pequeno";
         botaoCancelar.textContent = "Cancelar";
@@ -452,6 +521,27 @@ function renderizarFila(fila, total) {
 
         elementoFilaCorpo.appendChild(linha);
     });
+}
+
+/**
+ * Reimprime o ticket de uma senha que ainda está aguardando na fila
+ * (segunda via, marcada com "REIMPRESSO" no papel — ver
+ * app.py:api_reimprimir). Só disponível para o perfil Emissor (ver
+ * renderizarFila).
+ */
+async function reimprimirSenha(senhaId, numeroSenha) {
+    const numeroFormatado = String(numeroSenha).padStart(3, "0");
+    const confirmado = window.confirm(`Reimprimir a senha ${numeroFormatado}?`);
+    if (!confirmado) {
+        return;
+    }
+
+    try {
+        await chamarApi(`/api/senha/${senhaId}/reimprimir`, { method: "POST" });
+        exibirNotificacao(`Senha ${numeroFormatado} reimpressa.`, "sucesso");
+    } catch (erro) {
+        exibirNotificacao(`Erro ao reimprimir: ${erro.message}`, "erro");
+    }
 }
 
 /** Cancela uma senha específica da fila. */

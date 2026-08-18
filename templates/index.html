@@ -200,10 +200,21 @@
     </main>
 
     {% if usuario_logado.perfil == 'emissor' %}
-    <!-- Janela (modal) de escolha de impressora, exibida ao clicar em
-         "Emitir Senha". Permite trocar a impressora usada apenas para
-         este ticket, sem alterar a impressora padrão do sistema
-         (configurada em Configurações, acessível somente a admins). -->
+    <!-- Janela (modal) de escolha de empresa/impressora, exibida ao clicar
+         em "Emitir Senha". A impressora é sempre uma das instaladas NESTA
+         MÁQUINA (listadas ao vivo via /api/impressoras, que usa
+         win32print.EnumPrinters — nunca um nome digitado à mão), e a
+         escolha é OBRIGATÓRIA: o Emissor confirma explicitamente qual
+         impressora local usar a cada ticket, em vez de confiar cegamente
+         num nome salvo em Configurações que pode ficar desatualizado
+         (ex.: impressora renomeada/trocada), o que já causou falhas de
+         impressão ("StartDoc failed") quando o nome configurado não
+         batia exatamente com o nome real da impressora no Windows. Por
+         padrão, já vem pré-selecionada a impressora configurada em
+         Configurações (se ela existir na lista), então na maioria das
+         vezes basta conferir e confirmar. O campo "Primeiro Nome" é
+         OPCIONAL — só sai no ticket se o Emissor preencher (ver
+         app.py:api_emitir/printer.py:imprimir_senha). -->
     <div id="modal-impressao" class="modal-overlay modal-oculto">
         <div class="modal-caixa">
             <h2>Emitir Senha</h2>
@@ -214,13 +225,17 @@
                 </select>
             </label>
             <div id="modal-empresa-aviso" class="mensagem-status erro"></div>
-            <p>Selecione a impressora para imprimir este ticket:</p>
             <label>
-                Impressora
-                <select id="modal-impressora-select">
-                    <option value="">Impressora padrão do sistema</option>
+                Primeiro Nome (opcional)
+                <input type="text" id="modal-nome-pessoa" placeholder="Ex.: Maria" maxlength="60">
+            </label>
+            <label>
+                Impressora local <span class="campo-obrigatorio">*</span>
+                <select id="modal-impressora-select" required>
+                    <option value="" disabled selected>Carregando impressoras...</option>
                 </select>
             </label>
+            <div id="modal-impressora-aviso" class="mensagem-status erro"></div>
             <div class="acoes-formulario">
                 <button id="btn-confirmar-impressao" class="botao botao-primario">🖨️ Imprimir e Emitir</button>
                 <button id="btn-cancelar-impressao" class="botao botao-terciario">Cancelar</button>
@@ -239,6 +254,16 @@
 <script>
     window.SIGS_CONFIG = {
         tempoAtualizacaoMs: {{ config.tempo_atualizacao_ms | default(2000) }},
+        // Perfil do usuário logado, usado por index.js para decidir se
+        // mostra o botão "Reimprimir" na Fila de Espera (só para o
+        // perfil Emissor — ver renderizarFila).
+        perfilUsuario: {{ usuario_logado.perfil | tojson }},
+        // Impressora configurada em Configurações > Impressora, usada
+        // apenas para PRÉ-SELECIONAR uma opção no seletor de impressora
+        // da janela "Emitir Senha" (ver index.js:abrirModalImpressao) —
+        // o Emissor ainda precisa confirmar/escolher explicitamente, essa
+        // é só uma conveniência para não começar sempre em branco.
+        impressoraPadrao: {{ (config.nome_impressora or "") | tojson }},
         // Para o recrutador, "Abrir Painel" leva direto ao painel da SUA
         // empresa (não ao painel geral) — ver templates/painel_empresa.html.
         painelUrl: {% if usuario_logado.perfil == 'recrutador' and usuario_logado.empresa_id %}"{{ url_for('painel_empresa', empresa_id=usuario_logado.empresa_id) }}"{% else %}"{{ url_for('painel') }}"{% endif %},

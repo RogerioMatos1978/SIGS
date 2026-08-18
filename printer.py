@@ -72,13 +72,20 @@ class ErroImpressora(Exception):
 # Constantes de layout do ticket (conforme especificação)
 # ---------------------------------------------------------------------------
 
+# Reduzidos em relação à versão original (65/45/35pt) — nesses tamanhos o
+# ticket saía grande demais e gastando papel em excesso no rolo estreito
+# da impressora térmica (58/80mm). A proporção entre os três tamanhos foi
+# mantida (SENHA continua sendo o maior texto do ticket, seguido da
+# saudação e por fim o texto padrão), só a escala geral diminuiu. Ajuste
+# estes números se o ticket físico ainda sair grande/pequeno demais — o
+# efeito só é visível numa impressão real, não há como simular aqui.
 FONTE_NOME = "Arial"
-TAMANHO_FONTE_SENHA = 65     # Palavra "SENHA" + número
-TAMANHO_FONTE_SAUDACAO = 45  # "Bom Dia.", "Boa Tarde.", "Boa Noite."
-TAMANHO_FONTE_PADRAO = 35    # Demais textos (cabeçalho, data, hora, evento)
+TAMANHO_FONTE_SENHA = 28     # Palavra "SENHA" + número
+TAMANHO_FONTE_SAUDACAO = 20  # "Bom Dia.", "Boa Tarde.", "Boa Noite."
+TAMANHO_FONTE_PADRAO = 16    # Demais textos (cabeçalho, data, hora, evento)
 
-MARGEM_SUPERIOR_MM = 5
-ESPACAMENTO_LINHA_MM = 3
+MARGEM_SUPERIOR_MM = 2
+ESPACAMENTO_LINHA_MM = 2
 
 
 def obter_saudacao(momento: Optional[datetime] = None) -> str:
@@ -182,19 +189,55 @@ class ImpressoraTermica:
         )
 
     @staticmethod
-    def _desenhar_texto_centralizado(hdc, texto: str, y: int, largura_pagina: int) -> int:
+    def _centro_fisico_da_pagina(hdc) -> int:
+        """
+        Calcula o centro horizontal do PAPEL FÍSICO, expresso no sistema de
+        coordenadas usado por TextOut/DIB (que tem origem no canto superior
+        esquerdo da ÁREA IMPRIMÍVEL, não do papel físico).
+
+        Por que não basta usar ``HORZRES / 2``: ``HORZRES`` é a largura da
+        área imprimível segundo o driver da impressora, que pode ser
+        MAIOR ou MENOR que o papel realmente carregado (ex.: driver
+        configurado para bobina de 80mm com uma bobina de 58mm instalada)
+        e pode não estar centralizada dentro do papel físico
+        (``PHYSICALOFFSETX`` — a margem não-imprimível à esquerda). Centrar
+        só em cima de ``HORZRES`` nesses casos resulta em texto correto
+        DENTRO da área imprimível, mas deslocado para um dos lados quando
+        olhado no papel físico real — foi exatamente o problema relatado
+        ("o texto está mais para a direita").
+
+        Usando ``PHYSICALWIDTH`` (largura do papel físico) e
+        ``PHYSICALOFFSETX`` (deslocamento da área imprimível em relação à
+        borda esquerda do papel), chegamos ao centro verdadeiro do papel,
+        já convertido para as coordenadas que TextOut/DIB entendem.
+        """
+        largura_fisica = hdc.GetDeviceCaps(win32con.PHYSICALWIDTH)
+        deslocamento_x = hdc.GetDeviceCaps(win32con.PHYSICALOFFSETX)
+
+        # Alguns drivers (sobretudo de impressora térmica) retornam 0 para
+        # PHYSICALWIDTH quando não implementam essa capability — nesse
+        # caso, caímos de volta para HORZRES (comportamento anterior),
+        # que ao menos centraliza corretamente DENTRO da área imprimível.
+        if largura_fisica <= 0:
+            return hdc.GetDeviceCaps(win32con.HORZRES) // 2
+
+        return (largura_fisica // 2) - deslocamento_x
+
+    @staticmethod
+    def _desenhar_texto_centralizado(hdc, texto: str, y: int, centro_pagina: int) -> int:
         """
         Desenha uma linha de texto horizontalmente centralizada em relação
-        à largura real da página (obtida dinamicamente via
-        GetDeviceCaps/HORZRES). Retorna a altura (em pixels) ocupada pela
-        linha, para que o chamador posicione a próxima linha corretamente.
+        ao CENTRO FÍSICO REAL do papel (ver ``_centro_fisico_da_pagina`` —
+        não apenas ao centro da área imprimível segundo o driver). Retorna
+        a altura (em pixels) ocupada pela linha, para que o chamador
+        posicione a próxima linha corretamente.
         """
         largura_texto, altura_texto = hdc.GetTextExtent(texto)
-        x = max(0, (largura_pagina - largura_texto) // 2)
+        x = max(0, centro_pagina - largura_texto // 2)
         hdc.TextOut(x, y, texto)
         return altura_texto
 
-    def _desenhar_logo(self, hdc, caminho_logo: str, y: int, largura_pagina: int) -> int:
+    def _desenhar_logo(self, hdc, caminho_logo: str, y: int, centro_pagina: int, largura_pagina: int) -> int:
         """
         Desenha o logotipo centralizado no topo do ticket, utilizando PIL
         para carregar a imagem e convertê-la em um bitmap do Windows
@@ -219,14 +262,19 @@ class ImpressoraTermica:
             return 0
 
         # Redimensiona o logotipo proporcionalmente para ocupar no máximo
-        # 60% da largura da página, mantendo a proporção original.
-        largura_maxima = int(largura_pagina * 0.6)
+        # 40% da largura da página (reduzido de 60% — no rolo estreito da
+        # impressora térmica, 60% deixava o logo desproporcionalmente
+        # grande em relação ao restante do ticket, já reduzido acima).
+        largura_maxima = int(largura_pagina * 0.4)
         proporcao = largura_maxima / imagem.width
         nova_largura = largura_maxima
         nova_altura = int(imagem.height * proporcao)
         imagem = imagem.resize((nova_largura, nova_altura))
 
-        x = max(0, (largura_pagina - nova_largura) // 2)
+        # Centralizado em relação ao CENTRO FÍSICO REAL do papel (mesmo
+        # cálculo do texto — ver _centro_fisico_da_pagina), não apenas ao
+        # centro da área imprimível segundo o driver.
+        x = max(0, centro_pagina - nova_largura // 2)
 
         dib = ImageWin.Dib(imagem)
         dib.draw(hdc.GetHandleOutput(), (x, y, x + nova_largura, y + nova_altura))
@@ -241,6 +289,8 @@ class ImpressoraTermica:
         nome_evento: str,
         caminho_logo: Optional[str] = None,
         nome_empresa: Optional[str] = None,
+        reimpressao: bool = False,
+        nome_pessoa: Optional[str] = None,
     ) -> None:
         """
         Imprime fisicamente o ticket da senha na impressora configurada.
@@ -250,11 +300,13 @@ class ImpressoraTermica:
             ==========================
             [logotipo da EMPRESA, se ela tiver um cadastrado]
             [nome_evento]
-            SENHA 001            <- Arial 65
+            SENHA 001            <- Arial 28, negrito
+            [REIMPRESSO]         <- só quando reimpressao=True, negrito
+            [nome_pessoa]        <- "Primeiro Nome" opcional digitado na emissão
             [nome_empresa]       <- empresa selecionada na emissão
             Data
             Hora
-            [Saudação]           <- Arial 45
+            [Saudação]           <- Arial 20
             Bem-vindo ao SENAI.
             ==========================
 
@@ -269,6 +321,18 @@ class ImpressoraTermica:
         no momento da emissão (ver app.py:api_emitir). Se omitido (ex.:
         chamada direta desta função fora do fluxo normal da API), a linha
         simplesmente não é impressa.
+
+        ``reimpressao=True`` imprime a palavra "REIMPRESSO" logo abaixo do
+        número da senha, para deixar claro (a quem chamar/atender essa
+        senha) que este ticket físico é uma SEGUNDA via de uma senha já
+        emitida antes — não uma nova senha (ver app.py:api_reimprimir, que
+        só permite reimprimir enquanto a senha ainda está com status
+        'Emitida', nunca depois de chamada/finalizada/cancelada).
+
+        ``nome_pessoa`` é o "Primeiro Nome" OPCIONAL digitado livremente
+        pelo Emissor no momento da emissão (ver app.py:api_emitir) — ao
+        contrário de ``nome_empresa``, nunca é obrigatório. Se vazio/None,
+        a linha simplesmente não é impressa.
 
         Lança ``ErroImpressora`` em caso de qualquer falha de impressão.
         """
@@ -288,39 +352,69 @@ class ImpressoraTermica:
             hdc = win32ui.CreateDC()
             hdc.CreatePrinterDC(nome_impressora)
 
-            # Largura real da página, obtida dinamicamente — jamais fixa.
+            # Largura da ÁREA IMPRIMÍVEL (usada só para o limite de 40% do
+            # logo) e centro do PAPEL FÍSICO real (usado para toda a
+            # centralização — ver _centro_fisico_da_pagina), ambos obtidos
+            # dinamicamente — jamais fixos.
             largura_pagina = hdc.GetDeviceCaps(win32con.HORZRES)
+            centro_pagina = self._centro_fisico_da_pagina(hdc)
 
-            hdc.StartDoc(f"SIGS - Senha {numero_formatado}")
+            titulo_trabalho = f"SIGS - Senha {numero_formatado}" + (" (reimpressão)" if reimpressao else "")
+            hdc.StartDoc(titulo_trabalho)
             hdc.StartPage()
 
             y = self._mm_para_pixels(hdc, MARGEM_SUPERIOR_MM, eixo="y")
             espacamento = self._mm_para_pixels(hdc, ESPACAMENTO_LINHA_MM, eixo="y")
 
             fonte_padrao = self._criar_fonte(hdc, TAMANHO_FONTE_PADRAO)
+            fonte_padrao_negrito = self._criar_fonte(hdc, TAMANHO_FONTE_PADRAO, negrito=True)
             fonte_senha = self._criar_fonte(hdc, TAMANHO_FONTE_SENHA, negrito=True)
             fonte_saudacao = self._criar_fonte(hdc, TAMANHO_FONTE_SAUDACAO)
 
             # Linha decorativa superior.
             hdc.SelectObject(fonte_padrao)
-            y += self._desenhar_texto_centralizado(hdc, "=" * 26, y, largura_pagina) + espacamento
+            y += self._desenhar_texto_centralizado(hdc, "=" * 26, y, centro_pagina) + espacamento
 
             # Logotipo (opcional).
             if caminho_logo:
-                y += self._desenhar_logo(hdc, caminho_logo, y, largura_pagina) + espacamento
+                y += self._desenhar_logo(hdc, caminho_logo, y, centro_pagina, largura_pagina) + espacamento
 
             # Nome do evento.
             hdc.SelectObject(fonte_padrao)
-            y += self._desenhar_texto_centralizado(hdc, nome_evento, y, largura_pagina) + espacamento
+            y += self._desenhar_texto_centralizado(hdc, nome_evento, y, centro_pagina) + espacamento
 
             # "SENHA 001" em fonte grande.
             hdc.SelectObject(fonte_senha)
             y += (
                 self._desenhar_texto_centralizado(
-                    hdc, f"SENHA {numero_formatado}", y, largura_pagina
+                    hdc, f"SENHA {numero_formatado}", y, centro_pagina
                 )
                 + espacamento
             )
+
+            # Marca de REIMPRESSÃO (segunda via de uma senha já emitida
+            # antes) — só aparece quando reimpressao=True (ver
+            # app.py:api_reimprimir). Em negrito para chamar atenção de
+            # quem for atender, evitando confundir com uma senha nova.
+            if reimpressao:
+                hdc.SelectObject(fonte_padrao_negrito)
+                y += (
+                    self._desenhar_texto_centralizado(hdc, "REIMPRESSO", y, centro_pagina)
+                    + espacamento
+                )
+
+            # "Primeiro Nome" digitado OPCIONALMENTE pelo Emissor na
+            # emissão. Prefixado com o rótulo "Nome:" pelo mesmo motivo do
+            # rótulo "Empresa:" logo abaixo — deixar claro do que se trata
+            # esse texto no ticket.
+            if nome_pessoa:
+                hdc.SelectObject(fonte_padrao)
+                y += (
+                    self._desenhar_texto_centralizado(
+                        hdc, f"Nome: {nome_pessoa}", y, centro_pagina
+                    )
+                    + espacamento
+                )
 
             # Empresa selecionada no momento da emissão (feirão do emprego).
             # Prefixada com o rótulo "Empresa:" para deixar claro do que se
@@ -331,7 +425,7 @@ class ImpressoraTermica:
                 hdc.SelectObject(fonte_padrao)
                 y += (
                     self._desenhar_texto_centralizado(
-                        hdc, f"Empresa: {nome_empresa}", y, largura_pagina
+                        hdc, f"Empresa: {nome_empresa}", y, centro_pagina
                     )
                     + espacamento
                 )
@@ -340,45 +434,57 @@ class ImpressoraTermica:
             hdc.SelectObject(fonte_padrao)
             y += (
                 self._desenhar_texto_centralizado(
-                    hdc, agora.strftime("%d/%m/%Y"), y, largura_pagina
+                    hdc, agora.strftime("%d/%m/%Y"), y, centro_pagina
                 )
                 + espacamento
             )
             y += (
                 self._desenhar_texto_centralizado(
-                    hdc, agora.strftime("%H:%M:%S"), y, largura_pagina
+                    hdc, agora.strftime("%H:%M:%S"), y, centro_pagina
                 )
                 + espacamento
             )
 
             # Saudação de acordo com o horário.
             hdc.SelectObject(fonte_saudacao)
-            y += self._desenhar_texto_centralizado(hdc, saudacao, y, largura_pagina) + espacamento
+            y += self._desenhar_texto_centralizado(hdc, saudacao, y, centro_pagina) + espacamento
 
             # Mensagem de boas-vindas.
             hdc.SelectObject(fonte_padrao)
             y += (
                 self._desenhar_texto_centralizado(
-                    hdc, "Bem-vindo ao SENAI.", y, largura_pagina
+                    hdc, "Bem-vindo ao SENAI.", y, centro_pagina
                 )
                 + espacamento
             )
 
             # Linha decorativa inferior.
-            y += self._desenhar_texto_centralizado(hdc, "=" * 26, y, largura_pagina)
+            y += self._desenhar_texto_centralizado(hdc, "=" * 26, y, centro_pagina)
 
             hdc.EndPage()
             hdc.EndDoc()
 
             logger.info(
-                "Ticket impresso com sucesso: senha %s na impressora '%s'.",
+                "Ticket %simpresso com sucesso: senha %s na impressora '%s'.",
+                "(REIMPRESSÃO) " if reimpressao else "",
                 numero_formatado,
                 nome_impressora,
             )
 
         except Exception as erro:
-            logger.error("Falha ao imprimir senha %s: %s", numero_formatado, erro)
-            raise ErroImpressora(f"Falha ao imprimir o ticket: {erro}") from erro
+            # Inclui o NOME DA IMPRESSORA usada nesta tentativa — sem isso,
+            # um erro genérico do driver (ex.: "StartDoc failed") não dá
+            # pista nenhuma de qual impressora falhou, dificultando o
+            # diagnóstico quando há mais de uma impressora instalada na
+            # estação ou quando o nome configurado não bate exatamente com
+            # o nome real da impressora no Windows.
+            logger.error(
+                "Falha ao imprimir senha %s na impressora '%s': %s",
+                numero_formatado, nome_impressora, erro,
+            )
+            raise ErroImpressora(
+                f"Falha ao imprimir o ticket na impressora '{nome_impressora}': {erro}"
+            ) from erro
 
         finally:
             if hdc is not None:

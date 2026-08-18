@@ -55,6 +55,10 @@ class Senha:
     # até a senha ser chamada/finalizada, respectivamente.
     hora_chamada: Optional[str] = None
     hora_finalizada: Optional[str] = None
+    # "Primeiro Nome" digitado OPCIONALMENTE pelo Emissor na emissão (ver
+    # database._migrar_tabela_senhas_adicionar_nome_pessoa e
+    # app.py:api_emitir), impresso no ticket quando preenchido.
+    nome_pessoa: Optional[str] = None
 
     def to_dict(self) -> dict:
         """Converte a senha para um dicionário serializável em JSON."""
@@ -87,6 +91,7 @@ class Senha:
             empresa_id=linha["empresa_id"] if "empresa_id" in chaves else None,
             hora_chamada=linha["hora_chamada"] if "hora_chamada" in chaves else None,
             hora_finalizada=linha["hora_finalizada"] if "hora_finalizada" in chaves else None,
+            nome_pessoa=linha["nome_pessoa"] if "nome_pessoa" in chaves else None,
         )
 
 

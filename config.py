@@ -80,7 +80,7 @@ TABELA_CONFIGURACOES = "configuracoes"
 # de configurações ainda está vazia). Cada valor é armazenado como texto no
 # banco de dados e convertido para o tipo apropriado na leitura.
 CONFIGURACOES_PADRAO: Dict[str, str] = {
-    "nome_evento": "Feirão do Emprego",
+    "nome_evento": "Feirão do Emprego SENAI",
     "nome_impressora": "",             # vazio = usar impressora padrão do Windows
     "qtd_senhas_exibidas": "10",       # quantidade de senhas exibidas no painel
     "tempo_atualizacao_ms": "2000",    # intervalo de atualização do painel (ms)

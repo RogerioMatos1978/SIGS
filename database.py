@@ -331,6 +331,10 @@ def inicializar_banco() -> None:
         # ``app.py:api_relatorios_*``).
         _migrar_tabela_senhas_adicionar_marcos_tempo(conexao)
 
+        # Adiciona a coluna "nome_pessoa" à tabela "senhas" (campo opcional
+        # preenchido pelo Emissor na emissão — ver api_emitir/index.html).
+        _migrar_tabela_senhas_adicionar_nome_pessoa(conexao)
+
         # Adiciona a coluna "atendimento_finalizado_em" à tabela
         # "empresas" (controla o encerramento do atendimento do dia POR
         # EMPRESA — ver ``finalizar_atendimento_dia_empresa``).
@@ -648,6 +652,45 @@ def _migrar_tabela_senhas_adicionar_marcos_tempo(conexao: sqlite3.Connection) ->
     )
 
 
+def _migrar_tabela_senhas_adicionar_nome_pessoa(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona a coluna ``nome_pessoa`` (TEXT, opcional) à tabela ``senhas``.
+
+    Preenchida OPCIONALMENTE pelo Emissor no momento da emissão (campo
+    "Primeiro Nome", ver templates/index.html e app.py:api_emitir) —
+    diferente de ``empresa``, nunca é obrigatória, então senhas sem nome
+    de pessoa (seja por terem sido emitidas antes desta migração, seja
+    porque o Emissor simplesmente deixou o campo em branco) ficam com
+    ``NULL`` normalmente, sem gerar nenhum aviso especial nos relatórios
+    (diferente do "Não informado" usado para ``empresa``).
+
+    Impressa no ticket como "Nome: {nome_pessoa}" (ver
+    printer.py:imprimir_senha) e preservada em reimpressões (ver
+    app.py:api_reimprimir), já que fica gravada na própria senha.
+
+    Não faz nada se a coluna já existir (portanto é seguro chamar esta
+    função toda vez que o sistema inicia).
+    """
+    colunas = conexao.execute("PRAGMA table_info(senhas)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "nome_pessoa" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    logger.warning(
+        "Esquema antigo da tabela 'senhas' detectado (sem a coluna "
+        "'nome_pessoa'). Adicionando automaticamente..."
+    )
+
+    conexao.execute("ALTER TABLE senhas ADD COLUMN nome_pessoa TEXT")
+    conexao.commit()
+
+    logger.warning(
+        "Migração concluída: a tabela 'senhas' agora possui a coluna "
+        "'nome_pessoa' (campo opcional preenchido pelo Emissor na emissão)."
+    )
+
+
 def _migrar_tabela_empresas_adicionar_atendimento_finalizado(conexao: sqlite3.Connection) -> None:
     """
     Adiciona a coluna ``atendimento_finalizado_em`` (TEXT, opcional) à
@@ -898,6 +941,7 @@ def criar_senha(
     empresa: Optional[str] = None,
     guiche: Optional[str] = None,
     usuario: Optional[str] = None,
+    nome_pessoa: Optional[str] = None,
 ) -> Senha:
     """
     Cria (emite) uma nova senha.
@@ -925,6 +969,11 @@ def criar_senha(
     ``app.py:_pode_gerenciar_senha`` para o motivo de não usarmos apenas
     o nome para isso).
 
+    ``nome_pessoa`` é OPCIONAL — o "Primeiro Nome" digitado livremente
+    pelo Emissor no momento da emissão (ver app.py:api_emitir), impresso
+    no ticket quando preenchido (ver printer.py:imprimir_senha) e
+    preservado em reimpressões, já que fica gravado na própria senha.
+
     Retorna a instância de ``Senha`` recém-criada.
     """
     with _lock_da_empresa(empresa_id):
@@ -944,10 +993,20 @@ def criar_senha(
             data_hora = _agora_iso()
             cursor = conexao.execute(
                 """
-                INSERT INTO senhas (numero, status, data_hora, guiche, usuario, empresa, empresa_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO senhas
+                    (numero, status, data_hora, guiche, usuario, empresa, empresa_id, nome_pessoa)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (novo_numero, StatusSenha.EMITIDA, data_hora, guiche, usuario, empresa, empresa_id),
+                (
+                    novo_numero,
+                    StatusSenha.EMITIDA,
+                    data_hora,
+                    guiche,
+                    usuario,
+                    empresa,
+                    empresa_id,
+                    nome_pessoa,
+                ),
             )
             conexao.commit()
             senha_id = cursor.lastrowid
@@ -965,6 +1024,7 @@ def criar_senha(
         usuario=usuario,
         empresa=empresa,
         empresa_id=empresa_id,
+        nome_pessoa=nome_pessoa,
     )
 
 

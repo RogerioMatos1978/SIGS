@@ -33,6 +33,7 @@ Rotas principais:
     GET  /api/fila              Lista da fila atual (escopo automático por empresa p/ recrutador)
     POST /api/senha/<id>/finalizar
     POST /api/senha/<id>/cancelar
+    POST /api/senha/<id>/reimprimir  Reimprime o ticket (só se status == 'Emitida')
 
     GET  /api/config            Retorna as configurações atuais (JSON)
     POST /api/config            Atualiza as configurações do sistema
@@ -529,18 +530,28 @@ def api_emitir():
     login (nunca do corpo da requisição), evitando que um atendente emita
     senhas em nome de outro guichê/usuário.
 
-    O corpo da requisição pode opcionalmente incluir ``{"impressora": "Nome"}``
-    para imprimir este ticket em uma impressora específica, escolhida pelo
-    usuário na janela de impressão exibida ao clicar em "Emitir Senha" (ver
-    index.js). Se omitido ou vazio, usa a impressora padrão configurada em
-    Configurações (ou a impressora padrão do Windows, se nenhuma estiver
-    configurada).
+    O corpo da requisição pode incluir ``{"impressora": "Nome"}`` para
+    imprimir este ticket em uma impressora específica desta máquina,
+    escolhida pelo usuário na janela de impressão exibida ao clicar em
+    "Emitir Senha" (ver index.js) — a lista de impressoras vem sempre ao
+    vivo de ``/api/impressoras`` (win32print.EnumPrinters), nunca de um
+    nome digitado à mão, evitando o erro "StartDoc failed" causado por um
+    nome configurado que não bate exatamente com o nome real da
+    impressora no Windows. Se omitido ou vazio, usa a impressora padrão
+    configurada em Configurações (ou a impressora padrão do Windows, se
+    nenhuma estiver configurada).
 
     O corpo da requisição DEVE incluir ``{"empresa_id": <int>}``: a
     seleção da empresa do feirão é obrigatória para emitir uma senha (ver
     tela "Empresas", /admin/empresas). A empresa é validada no servidor
     (existe e está ativa) — nunca confiamos apenas na validação do
     formulário no navegador.
+
+    O corpo da requisição pode incluir opcionalmente ``{"nome_pessoa":
+    "Texto"}`` — o "Primeiro Nome" digitado livremente pelo Emissor (ver
+    index.html), gravado na própria senha e impresso no ticket como
+    "Nome: {texto}" quando preenchido (ver printer.py:imprimir_senha).
+    Diferente de ``empresa_id``, NUNCA é obrigatório.
 
     A numeração da senha (``senha.numero``) é POR EMPRESA: cada empresa
     tem sua própria sequência independente 001, 002, 003... (ver
@@ -557,6 +568,13 @@ def api_emitir():
         dados = request.get_json(silent=True) or {}
         impressora_escolhida = str(dados.get("impressora") or "").strip()
         empresa_id_bruto = dados.get("empresa_id")
+        # "Primeiro Nome" é OPCIONAL — diferente de empresa_id, ausência ou
+        # texto vazio não é erro, só significa que a linha "Nome:" não sai
+        # no ticket (ver printer.py:imprimir_senha). Truncado em 60
+        # caracteres (mesmo limite do campo no formulário, ver
+        # index.html) só como proteção extra contra um valor absurdamente
+        # longo enviado direto à API, ignorando o maxlength do navegador.
+        nome_pessoa = str(dados.get("nome_pessoa") or "").strip()[:60] or None
 
         if empresa_id_bruto in (None, ""):
             return resposta_erro("Selecione a empresa para emitir a senha.", 400)
@@ -583,7 +601,11 @@ def api_emitir():
         usuario = usuario_sessao.get("nome_completo")
 
         senha = database.criar_senha(
-            empresa_id=empresa.id, empresa=empresa.nome, guiche=guiche, usuario=usuario
+            empresa_id=empresa.id,
+            empresa=empresa.nome,
+            guiche=guiche,
+            usuario=usuario,
+            nome_pessoa=nome_pessoa,
         )
 
         erro_impressao = None
@@ -605,6 +627,7 @@ def api_emitir():
                 nome_evento=configuracoes.get("nome_evento", ""),
                 caminho_logo=caminho_logo_empresa,
                 nome_empresa=empresa.nome,
+                nome_pessoa=senha.nome_pessoa,
             )
         except ErroImpressora as erro:
             erro_impressao = str(erro)
@@ -908,6 +931,77 @@ def api_cancelar(senha_id: int):
     return resposta_erro("Senha não encontrada.", 404)
 
 
+@app.route("/api/senha/<int:senha_id>/reimprimir", methods=["POST"])
+@auth.login_required
+def api_reimprimir(senha_id: int):
+    """
+    Reimprime o ticket de uma senha já emitida (segunda via), usada pelo
+    botão "Reimprimir" na Fila de Espera (visível para o perfil Emissor —
+    ver index.js). Não altera nenhum dado da senha no banco: é apenas uma
+    nova impressão física do mesmo ticket, marcada com "REIMPRESSO" (ver
+    printer.py:imprimir_senha) para deixar claro a quem for atender que
+    não se trata de uma senha nova. O "Primeiro Nome" eventualmente
+    digitado na emissão original (``senha.nome_pessoa``) também sai na
+    reimpressão, sem precisar ser digitado de novo.
+
+    SÓ é permitido reimprimir enquanto a senha ainda está com status
+    'Emitida' (aguardando na fila) — rejeitado se ela já foi chamada,
+    finalizada ou cancelada, tanto porque essas senhas já saíram do
+    fluxo normal de atendimento quanto para evitar confusão de reimprimir
+    uma senha que já foi (ou nunca será) atendida. Essa validação é
+    sempre feita aqui no servidor, mesmo que a Fila de Espera do
+    navegador já só liste senhas 'Emitida' — a lista pode estar
+    desatualizada no instante do clique (ex.: a senha acabou de ser
+    chamada por outro atendente).
+
+    Segue o mesmo controle de acesso de finalizar/cancelar: um
+    recrutador só pode reimprimir senhas da sua própria empresa (ver
+    ``_pode_gerenciar_senha``).
+    """
+    try:
+        if not _pode_gerenciar_senha(auth.usuario_logado(), senha_id):
+            return resposta_erro("Você não tem permissão para gerenciar esta senha.", 403)
+
+        senha = database.obter_senha_por_id(senha_id)
+        if senha is None:
+            return resposta_erro("Senha não encontrada.", 404)
+
+        if senha.status != StatusSenha.EMITIDA:
+            return resposta_erro(
+                f"Esta senha não pode ser reimpressa: status atual é "
+                f"'{senha.status}' (só é permitido reimprimir senhas com "
+                f"status 'Emitida', ainda aguardando na fila).",
+                409,
+            )
+
+        dados = request.get_json(silent=True) or {}
+        impressora_escolhida = str(dados.get("impressora") or "").strip()
+
+        configuracoes = config_manager.obter_todas()
+        nome_impressora = impressora_escolhida or configuracoes.get("nome_impressora") or None
+        impressora = ImpressoraTermica(nome_impressora)
+
+        empresa = database.obter_empresa_por_id(senha.empresa_id) if senha.empresa_id else None
+        caminho_logo_empresa = f"static/{empresa.logo_path}" if empresa and empresa.logo_path else None
+        nome_empresa = empresa.nome if empresa else senha.empresa
+
+        impressora.imprimir_senha(
+            numero=senha.numero,
+            nome_evento=configuracoes.get("nome_evento", ""),
+            caminho_logo=caminho_logo_empresa,
+            nome_empresa=nome_empresa,
+            reimpressao=True,
+            nome_pessoa=senha.nome_pessoa,
+        )
+
+        return resposta_sucesso({"mensagem": f"Senha {senha.numero:03d} reimpressa."})
+
+    except ErroImpressora as erro:
+        return resposta_erro(f"Falha ao reimprimir: {erro}", 500)
+    except Exception as erro:  # pragma: no cover - proteção contra falhas inesperadas
+        return resposta_erro(f"Erro ao reimprimir senha: {erro}", 500)
+
+
 # ---------------------------------------------------------------------------
 # API - Painel público (polling)
 # ---------------------------------------------------------------------------
@@ -1068,14 +1162,18 @@ def api_config_salvar():
 @auth.login_required
 def api_impressoras():
     """
-    Lista as impressoras instaladas no Windows.
+    Lista as impressoras instaladas no Windows desta estação.
 
     Diferente das demais rotas de configuração, esta é acessível a
     QUALQUER usuário logado (não apenas administradores): o emissor de
-    senhas precisa desta lista para escolher a impressora na janela
-    exibida ao clicar em "Emitir Senha" (ver index.js). Apenas ALTERAR a
-    impressora padrão do sistema (tela Configurações) continua restrito a
-    administradores.
+    senhas precisa desta lista para escolher a impressora local na janela
+    exibida ao clicar em "Emitir Senha" (ver index.js), pré-selecionando
+    a impressora configurada em Configurações quando ela existir na
+    lista. Escolher sempre a partir desta lista (em vez de confiar num
+    nome digitado à mão em Configurações) evita o erro "StartDoc failed"
+    causado por um nome que não bate exatamente com o nome real da
+    impressora no Windows. Apenas ALTERAR a impressora padrão do sistema
+    (tela Configurações) continua restrito a administradores.
     """
     return resposta_sucesso({"impressoras": ImpressoraTermica.listar_impressoras_instaladas()})
 

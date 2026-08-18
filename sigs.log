@@ -25,3 +25,73 @@
 2026-08-17 13:04:46 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
 2026-08-17 13:23:18 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
 2026-08-17 13:23:46 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-18 09:27:00 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 09:29:06 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-18 09:29:43 | INFO     | SIGS | Usuário 'jesse' cadastrado com perfil 'admin'.
+2026-08-18 09:31:48 | INFO     | SIGS | Login realizado: 'jesse' (perfil admin, guichê None).
+2026-08-18 09:34:51 | INFO     | SIGS | Login realizado: 'emissor' (perfil emissor, guichê None).
+2026-08-18 09:35:53 | INFO     | SIGS | Senha emitida: número 002 (id=2, empresa='COMIGO')
+2026-08-18 11:07:32 | ERROR    | SIGS | Falha ao imprimir senha 002: StartDoc failed
+2026-08-18 13:49:02 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 13:49:36 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-18 13:58:11 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 15:03:23 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 15:04:19 | INFO     | SIGS | Login realizado: 'emissor' (perfil emissor, guichê None).
+2026-08-18 15:04:41 | INFO     | SIGS | Senha emitida: número 003 (id=3, empresa='COMIGO')
+2026-08-18 15:06:53 | INFO     | SIGS | Senha emitida: número 004 (id=4, empresa='COMIGO')
+2026-08-18 15:07:07 | ERROR    | SIGS | Falha ao imprimir senha 004: StartDoc failed
+2026-08-18 15:07:09 | ERROR    | SIGS | Falha ao imprimir senha 003: StartDoc failed
+2026-08-18 15:19:21 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 15:21:00 | INFO     | SIGS | Login realizado: 'emissor' (perfil emissor, guichê None).
+2026-08-18 15:21:09 | INFO     | SIGS | Senha emitida: número 005 (id=5, empresa='COMIGO')
+2026-08-18 15:21:09 | INFO     | SIGS | Ticket impresso com sucesso: senha 005 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:22:04 | INFO     | SIGS | Senha emitida: número 006 (id=6, empresa='COMIGO')
+2026-08-18 15:22:04 | INFO     | SIGS | Ticket impresso com sucesso: senha 006 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:25:58 | INFO     | SIGS | Senha emitida: número 007 (id=7, empresa='COMIGO')
+2026-08-18 15:25:59 | INFO     | SIGS | Ticket impresso com sucesso: senha 007 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:26:25 | INFO     | SIGS | Senha emitida: número 008 (id=8, empresa='COMIGO')
+2026-08-18 15:26:25 | INFO     | SIGS | Ticket impresso com sucesso: senha 008 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:30:29 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 15:31:07 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-18 15:31:29 | INFO     | SIGS | Senha emitida: número 009 (id=9, empresa='COMIGO')
+2026-08-18 15:31:29 | INFO     | SIGS | Ticket impresso com sucesso: senha 009 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:36:10 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 15:36:42 | INFO     | SIGS | Senha emitida: número 010 (id=10, empresa='COMIGO')
+2026-08-18 15:36:42 | INFO     | SIGS | Ticket impresso com sucesso: senha 010 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:37:16 | INFO     | SIGS | Senha emitida: número 011 (id=11, empresa='COMIGO')
+2026-08-18 15:37:16 | INFO     | SIGS | Ticket impresso com sucesso: senha 011 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:44:06 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 15:44:26 | INFO     | SIGS | Senha emitida: número 012 (id=12, empresa='COMIGO')
+2026-08-18 15:44:27 | INFO     | SIGS | Ticket impresso com sucesso: senha 012 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:46:45 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-18 15:47:07 | INFO     | SIGS | Senha emitida: número 013 (id=13, empresa='COMIGO')
+2026-08-18 15:47:08 | INFO     | SIGS | Ticket impresso com sucesso: senha 013 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:49:45 | INFO     | SIGS | Logo da empresa id=1 atualizado (cor extraída automaticamente: #ABC4A5).
+2026-08-18 15:50:02 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 15:50:20 | INFO     | SIGS | Senha emitida: número 014 (id=14, empresa='COMIGO')
+2026-08-18 15:50:20 | INFO     | SIGS | Ticket impresso com sucesso: senha 014 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:54:06 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 15:54:25 | INFO     | SIGS | Senha emitida: número 015 (id=15, empresa='COMIGO')
+2026-08-18 15:54:26 | INFO     | SIGS | Ticket impresso com sucesso: senha 015 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:54:53 | INFO     | SIGS | Senha emitida: número 016 (id=16, empresa='COMIGO')
+2026-08-18 15:54:54 | INFO     | SIGS | Ticket impresso com sucesso: senha 016 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 15:55:43 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-18 15:56:03 | INFO     | SIGS | Senha emitida: número 017 (id=17, empresa='COMIGO')
+2026-08-18 15:56:04 | INFO     | SIGS | Ticket impresso com sucesso: senha 017 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 16:14:05 | INFO     | SIGS | Logo da empresa id=1 atualizado (cor extraída automaticamente: #B6C2AB).
+2026-08-18 16:14:20 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-18 16:14:33 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-18 16:15:02 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
+2026-08-18 16:15:17 | INFO     | SIGS | Ticket (REIMPRESSÃO) impresso com sucesso: senha 002 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 16:15:23 | INFO     | SIGS | Ticket (REIMPRESSÃO) impresso com sucesso: senha 002 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 16:15:48 | INFO     | SIGS | Senha emitida: número 018 (id=18, empresa='COMIGO')
+2026-08-18 16:15:48 | INFO     | SIGS | Ticket impresso com sucesso: senha 018 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 16:16:45 | INFO     | SIGS | Empresa 'IEL' cadastrada (id=2).
+2026-08-18 16:17:30 | INFO     | SIGS | Logo da empresa id=2 atualizado (cor extraída automaticamente: #88A3CA).
+2026-08-18 16:17:53 | INFO     | SIGS | Senha emitida: número 001 (id=19, empresa='IEL')
+2026-08-18 16:17:53 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 16:18:10 | INFO     | SIGS | Senha emitida: número 002 (id=20, empresa='IEL')
+2026-08-18 16:18:11 | INFO     | SIGS | Ticket impresso com sucesso: senha 002 na impressora 'Bematech MP-4200 HS'.
+2026-08-18 16:43:06 | WARNING  | SIGS | Esquema antigo da tabela 'senhas' detectado (sem a coluna 'nome_pessoa'). Adicionando automaticamente...
+2026-08-18 16:43:06 | WARNING  | SIGS | Migração concluída: a tabela 'senhas' agora possui a coluna 'nome_pessoa' (campo opcional preenchido pelo Emissor na emissão).
+2026-08-18 16:43:06 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rogeriosm.senai\PycharmProjects\SIGS\database\senhas.db
