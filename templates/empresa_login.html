@@ -1,0 +1,47 @@
+<!--
+    empresa_login.html
+    ===================
+    Formulário de acesso de UMA empresa: nome do recrutador + chave de 8
+    dígitos da empresa (ver app.py:empresa_login_tela e
+    auth.autenticar_por_chave_empresa). Substitui o antigo login
+    individual (usuário/senha) do recrutador — qualquer pessoa da empresa
+    que souber a chave pode entrar; a conta é criada automaticamente na
+    hora (ver database.provisionar_usuario_recrutador).
+-->
+{% extends "layout.html" %}
+
+{% block titulo %}SIGS - Acesso {{ empresa.nome }}{% endblock %}
+
+{% block conteudo %}
+<div class="pagina pagina-auth">
+    <div class="card card-auth">
+        <img class="logo-auth"
+             src="{% if empresa.logo_path %}{{ url_for('static', filename=empresa.logo_path) }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}"
+             alt="Logo {{ empresa.nome }}">
+        <h1>{{ empresa.nome }}</h1>
+        <p class="subtitulo-auth">Acesso da empresa ao sistema de senhas</p>
+
+        {% if erro %}
+        <div class="mensagem-status erro">{{ erro }}</div>
+        {% endif %}
+
+        <form method="POST" class="card-formulario">
+            <label>
+                Seu nome
+                <input type="text" name="nome_completo" value="{{ nome_informado or '' }}" required autofocus autocomplete="name">
+            </label>
+            <label>
+                Chave de acesso (8 dígitos)
+                <input type="text" name="chave" inputmode="numeric" pattern="[0-9]{8}" maxlength="8"
+                       placeholder="00000000" required autocomplete="off">
+            </label>
+            <button type="submit" class="botao botao-primario botao-grande">Entrar</button>
+        </form>
+
+        <p class="auth-rodape">
+            Não sabe a chave desta empresa? Procure o administrador do evento.<br>
+            <a href="{{ url_for('empresas_entrar_tela') }}">← Escolher outra empresa</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

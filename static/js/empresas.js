@@ -205,29 +205,83 @@ async function reiniciarContadorEmpresa(empresaId, nomeEmpresa) {
 }
 
 /**
- * Reabre o atendimento de uma empresa cujo dia foi finalizado pelo
- * recrutador (ver /api/finalizar-atendimento-dia em index.js) —
- * restrito a administradores, propositalmente (ver
- * app.py:api_admin_reabrir_atendimento_empresa). NÃO restaura as senhas
- * que foram canceladas automaticamente no encerramento.
+ * Reativa a emissão de senhas de uma empresa cuja emissão foi bloqueada
+ * pelo recrutador (ver /api/bloquear-emissao em index.js) — o
+ * administrador pode fazer isso por qualquer empresa a qualquer momento,
+ * complementando a autorreativação já disponível para o próprio
+ * recrutador (ver app.py:api_admin_reativar_emissao_empresa).
  */
-async function reabrirAtendimentoEmpresa(empresaId, nomeEmpresa) {
+async function reativarEmissaoEmpresa(empresaId, nomeEmpresa) {
     if (
         !window.confirm(
-            `Reabrir o atendimento de "${nomeEmpresa}"? Isso volta a permitir emissão e chamada de novas ` +
-            `senhas para esta empresa hoje. As senhas já canceladas pelo encerramento NÃO serão restauradas.`
+            `Reativar a emissão de senhas de "${nomeEmpresa}"? Isso volta a permitir que o Emissor ` +
+            `emita novas senhas para esta empresa.`
         )
     ) {
         return;
     }
 
     try {
-        await chamarApiAdmin(`/api/admin/empresas/${empresaId}/reabrir-atendimento`, {
+        await chamarApiAdmin(`/api/admin/empresas/${empresaId}/reativar-emissao`, {
             method: "POST",
         });
         window.location.reload();
     } catch (erro) {
-        alert(`Erro ao reabrir atendimento da empresa: ${erro.message}`);
+        alert(`Erro ao reativar emissão de senhas da empresa: ${erro.message}`);
+    }
+}
+
+/**
+ * Copia a chave de acesso da empresa (a credencial de login do
+ * recrutador, ver auth.autenticar_por_chave_empresa) para a área de
+ * transferência, facilitando repassá-la por qualquer outro canal além do
+ * botão "🔑 WhatsApp (Acesso)".
+ */
+async function copiarChaveEmpresa(empresaId, botao) {
+    const elementoChave = document.getElementById(`chave-empresa-${empresaId}`);
+    if (!elementoChave) {
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(elementoChave.textContent.trim());
+        const textoOriginal = botao.textContent;
+        botao.textContent = "✅";
+        setTimeout(() => {
+            botao.textContent = textoOriginal;
+        }, 1500);
+    } catch (erro) {
+        alert("Não foi possível copiar a chave automaticamente. Copie manualmente: " + elementoChave.textContent.trim());
+    }
+}
+
+/**
+ * Gera uma NOVA chave de acesso de 8 dígitos para a empresa, invalidando
+ * a atual imediatamente (ver app.py:api_admin_regenerar_chave_empresa).
+ * Quem ainda não entrou com a chave antiga precisará da nova — sessões de
+ * recrutador já ativas continuam funcionando normalmente até deslogarem.
+ */
+async function regenerarChaveEmpresa(empresaId, nomeEmpresa) {
+    if (
+        !window.confirm(
+            `Gerar uma NOVA chave de acesso para "${nomeEmpresa}"? A chave atual deixa de funcionar ` +
+            `imediatamente — quem ainda não entrou vai precisar da chave nova.`
+        )
+    ) {
+        return;
+    }
+
+    try {
+        const dados = await chamarApiAdmin(`/api/admin/empresas/${empresaId}/regenerar-chave`, {
+            method: "POST",
+        });
+
+        const elementoChave = document.getElementById(`chave-empresa-${empresaId}`);
+        if (elementoChave) {
+            elementoChave.textContent = dados.chave_acesso;
+        }
+    } catch (erro) {
+        alert(`Erro ao gerar nova chave de acesso: ${erro.message}`);
     }
 }
 
@@ -288,9 +342,21 @@ function inicializar() {
         });
     });
 
-    document.querySelectorAll(".btn-reabrir-atendimento-empresa").forEach((botao) => {
+    document.querySelectorAll(".btn-reativar-emissao-empresa").forEach((botao) => {
         botao.addEventListener("click", () => {
-            reabrirAtendimentoEmpresa(botao.dataset.empresaId, botao.dataset.empresaNome);
+            reativarEmissaoEmpresa(botao.dataset.empresaId, botao.dataset.empresaNome);
+        });
+    });
+
+    document.querySelectorAll(".btn-copiar-chave-empresa").forEach((botao) => {
+        botao.addEventListener("click", () => {
+            copiarChaveEmpresa(botao.dataset.empresaId, botao);
+        });
+    });
+
+    document.querySelectorAll(".btn-regenerar-chave-empresa").forEach((botao) => {
+        botao.addEventListener("click", () => {
+            regenerarChaveEmpresa(botao.dataset.empresaId, botao.dataset.empresaNome);
         });
     });
 

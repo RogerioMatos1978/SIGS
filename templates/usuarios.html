@@ -31,9 +31,15 @@
                 Todo novo usuário é criado como Atendente ou Administrador.
                 Para tornar alguém <strong>Emissor de Senhas</strong>, crie o
                 usuário abaixo e depois mude o perfil dele para "Emissor" no
-                seletor da tabela "Usuários Cadastrados". Para criar um
-                <strong>Recrutador</strong>, selecione o perfil abaixo e
-                escolha a empresa à qual ele fica vinculado.
+                seletor da tabela "Usuários Cadastrados".
+            </p>
+            <p>
+                <strong>Recrutador</strong> não é mais cadastrado manualmente
+                aqui: qualquer pessoa da empresa entra sozinha pela chave de
+                acesso de 8 dígitos, na tela
+                <a href="{{ url_for('empresas_tela') }}">Empresas</a> — a
+                conta é criada automaticamente na hora do login, sem precisar
+                de login/senha individual.
             </p>
             <form id="form-novo-usuario">
                 <div class="campos-identificacao">
@@ -56,22 +62,13 @@
                              usuário nasce Atendente ou Administrador. Para
                              tornar alguém Emissor, o administrador promove o
                              usuário já cadastrado usando o seletor de perfil
-                             na tabela "Usuários Cadastrados" abaixo. O perfil
-                             "Recrutador" É oferecido aqui porque exige a
-                             escolha imediata da empresa (campo abaixo). -->
+                             na tabela "Usuários Cadastrados" abaixo.
+                             "Recrutador" não aparece mais aqui (ver aviso
+                             acima) — bloqueado também no servidor, ver
+                             app.py:api_admin_criar_usuario. -->
                         <select id="novo-perfil">
                             <option value="atendente" selected>Atendente (chama e finaliza atendimentos)</option>
-                            <option value="recrutador">Recrutador (chama e finaliza por empresa)</option>
                             <option value="admin">Administrador (sem guichê)</option>
-                        </select>
-                    </label>
-                    <label id="campo-novo-empresa" style="display: none;">
-                        Empresa do Recrutador <span class="campo-obrigatorio">*</span>
-                        <select id="novo-empresa-id">
-                            <option value="" disabled selected>Selecione a empresa...</option>
-                            {% for empresa in empresas %}
-                            <option value="{{ empresa.id }}">{{ empresa.nome }}</option>
-                            {% endfor %}
                         </select>
                     </label>
                 </div>
@@ -105,7 +102,15 @@
                             <select class="select-perfil" data-usuario-id="{{ usuario.id }}">
                                 <option value="atendente" {% if usuario.perfil == 'atendente' %}selected{% endif %}>Atendente</option>
                                 <option value="emissor" {% if usuario.perfil == 'emissor' %}selected{% endif %}>Emissor</option>
-                                <option value="recrutador" {% if usuario.perfil == 'recrutador' %}selected{% endif %}>Recrutador</option>
+                                <!-- "Recrutador" só aparece como opção aqui para uma conta que
+                                     JÁ é recrutador (legado ou provisionada pela chave de
+                                     acesso) — preserva o valor atual selecionado, mas não é
+                                     mais oferecido como destino de promoção para as demais
+                                     contas (bloqueado também no servidor, ver
+                                     app.py:api_admin_definir_perfil). -->
+                                {% if usuario.perfil == 'recrutador' %}
+                                <option value="recrutador" selected>Recrutador</option>
+                                {% endif %}
                                 <option value="admin" {% if usuario.perfil == 'admin' %}selected{% endif %}>Administrador</option>
                             </select>
                         </td>

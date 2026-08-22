@@ -90,11 +90,12 @@
                 Configurações, ou aguarde a liberação de uma mesa.
             </p>
             {% endif %}
-            {% if empresa_recrutador and empresa_recrutador.atendimento_finalizado_em %}
-            <p id="aviso-atendimento-finalizado" class="mensagem-status erro">
-                ✅ Atendimento do dia FINALIZADO nesta empresa (em {{ empresa_recrutador.atendimento_finalizado_em }}).
-                Não é mais possível emitir ou chamar novas senhas. Caso isto tenha sido um engano,
-                procure um administrador para reabrir o atendimento.
+            {% if empresa_recrutador and empresa_recrutador.emissao_bloqueada_em %}
+            <p id="aviso-emissao-bloqueada" class="mensagem-status erro">
+                🚫 Emissão de senhas BLOQUEADA nesta empresa (desde {{ empresa_recrutador.emissao_bloqueada_em }}).
+                Não é mais possível emitir novas senhas para esta empresa — mas você continua podendo
+                chamar e atender normalmente quem já está na fila. Use o botão "🔓 Reativar Emissão de
+                Senhas" abaixo para liberar de novo a qualquer momento.
             </p>
             {% endif %}
         </section>
@@ -128,10 +129,13 @@
             </button>
             {% endif %}
 
-            {% set dia_finalizado = usuario_logado.perfil == 'recrutador' and empresa_recrutador and empresa_recrutador.atendimento_finalizado_em %}
+            {% set emissao_bloqueada = usuario_logado.perfil == 'recrutador' and empresa_recrutador and empresa_recrutador.emissao_bloqueada_em %}
 
             {% if usuario_logado.perfil in ('atendente', 'recrutador') %}
-            <button id="btn-chamar" class="botao botao-primario botao-grande" {% if dia_finalizado %}disabled title="Atendimento do dia já finalizado — não é possível chamar novas senhas."{% endif %}>
+            <!-- "Chamar Próxima" NUNCA é desabilitado pelo bloqueio de emissão: bloquear
+                 emissão impede só NOVAS senhas (ver /api/emitir) — a fila já existente
+                 continua sendo chamada/atendida normalmente. -->
+            <button id="btn-chamar" class="botao botao-primario botao-grande">
                 📢 Chamar Próxima
             </button>
             <button id="btn-repetir" class="botao botao-secundario botao-grande">
@@ -143,9 +147,19 @@
             {% endif %}
 
             {% if usuario_logado.perfil == 'recrutador' %}
-            <button id="btn-finalizar-dia" class="botao botao-alerta botao-grande" {% if dia_finalizado %}disabled{% endif %}>
-                {% if dia_finalizado %}🔒 Atendimento do Dia Finalizado{% else %}🔒 Finalizar Atendimento do Dia{% endif %}
+            <!-- Alterna entre "Bloquear" e "Reativar" conforme o estado atual —
+                 diferente do antigo "Finalizar Atendimento do Dia" (um botão que
+                 desabilitava e só um admin conseguia reverter), aqui o próprio
+                 recrutador consegue desfazer o bloqueio a qualquer momento. -->
+            {% if emissao_bloqueada %}
+            <button id="btn-reativar-emissao" class="botao botao-primario botao-grande">
+                🔓 Reativar Emissão de Senhas
             </button>
+            {% else %}
+            <button id="btn-bloquear-emissao" class="botao botao-alerta botao-grande">
+                🚫 Bloquear Emissão de Senhas
+            </button>
+            {% endif %}
             <button id="btn-relatorios" class="botao botao-terciario botao-grande">
                 📊 Relatórios
             </button>
@@ -182,19 +196,40 @@
 
         <section class="card card-fila">
             <h2>Fila de Espera (<span id="fila-total">0</span>)</h2>
+            <!-- Busca client -> servidor: filtra a fila INTEIRA (não só o
+                 que já está na tela), já que a fila pode ter mais senhas
+                 do que cabem em uma página (ver database.listar_fila_atual
+                 e app.py:api_fila). Serve principalmente para localizar
+                 rapidamente uma senha antes de reimprimir ou cancelar. -->
+            <input type="text" id="busca-fila" class="campo-busca-tabela"
+                   placeholder="🔎 Buscar por número da senha ou nome...">
             <table class="tabela-fila">
                 <thead>
                     <tr>
                         <th>Senha</th>
+                        <th>Nome</th>
                         <th>Empresa</th>
                         <th>Emitida em</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody id="fila-corpo">
-                    <tr><td colspan="4">Carregando...</td></tr>
+                    <tr><td colspan="5">Carregando...</td></tr>
                 </tbody>
             </table>
+            <!-- Paginação: a fila é limitada a FILA_ITENS_POR_PAGINA (ver
+                 app.py) por página. Botões desabilitados/ocultos via JS
+                 quando não há página anterior/seguinte (ver
+                 renderizarFila em index.js). -->
+            <div class="paginacao-fila" id="fila-paginacao">
+                <button type="button" id="btn-fila-anterior" class="botao botao-secundario botao-acao-pequeno" disabled>
+                    « Anterior
+                </button>
+                <span id="fila-pagina-info">Página 1 de 1</span>
+                <button type="button" id="btn-fila-proxima" class="botao botao-secundario botao-acao-pequeno" disabled>
+                    Próxima »
+                </button>
+            </div>
         </section>
 
     </main>

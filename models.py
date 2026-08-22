@@ -175,6 +175,12 @@ class Usuario:
     data_criacao: str
     ultimo_login: Optional[str] = None
     empresa_id: Optional[int] = None
+    # ``True`` para contas de recrutador criadas AUTOMATICAMENTE pelo login
+    # por chave da empresa (ver database.provisionar_usuario_recrutador),
+    # em vez de cadastradas manualmente por um administrador em "Gerenciar
+    # Usuários". Contas com este campo ``True`` são efêmeras — excluídas ao
+    # encerrar a sessão (ver auth.encerrar_sessao).
+    provisionado_por_chave: bool = False
 
     def to_dict_publico(self) -> dict:
         """Retorna os dados do usuário SEM o hash de senha, seguro para
@@ -185,6 +191,7 @@ class Usuario:
 
     @staticmethod
     def from_row(linha: sqlite3.Row) -> "Usuario":
+        chaves = linha.keys()
         return Usuario(
             id=linha["id"],
             nome_completo=linha["nome_completo"],
@@ -198,7 +205,14 @@ class Usuario:
             # (ver database._migrar_tabela_usuarios_adicionar_empresa_id);
             # usuários de bancos antigos simplesmente ficam sem empresa
             # vinculada (correto, pois não eram recrutadores).
-            empresa_id=linha["empresa_id"] if "empresa_id" in linha.keys() else None,
+            empresa_id=linha["empresa_id"] if "empresa_id" in chaves else None,
+            # "provisionado_por_chave" foi adicionada por migração
+            # automática (ver
+            # database._migrar_tabela_usuarios_adicionar_provisionado_por_chave);
+            # contas de bancos antigos ficam marcadas como NÃO provisionadas
+            # (o valor seguro, já que são todas contas cadastradas
+            # manualmente por um admin).
+            provisionado_por_chave=bool(linha["provisionado_por_chave"]) if "provisionado_por_chave" in chaves else False,
         )
 
 
@@ -297,16 +311,38 @@ class Empresa:
     logo_path: Optional[str] = None
     cor_principal: Optional[str] = None
     contador_atual: int = 0
-    # ``None`` (padrão) = atendimento ABERTO normalmente. Um timestamp
-    # aqui significa que um recrutador desta empresa clicou em
-    # "Finalizar Atendimento do Dia" (ver
-    # database.finalizar_atendimento_dia_empresa) — a empresa para de
-    # aceitar novas emissões/chamadas até um administrador reabrir (ver
-    # database.reabrir_atendimento_empresa).
-    atendimento_finalizado_em: Optional[str] = None
+    # ``None`` (padrão) = emissão de senhas LIBERADA normalmente. Um
+    # timestamp aqui significa que um recrutador desta empresa clicou em
+    # "Bloquear Emissão de Senhas" (ver database.bloquear_emissao_empresa)
+    # — o Emissor para de conseguir emitir NOVAS senhas para esta empresa
+    # (ver app.py:api_emitir), mas chamar/atender a fila já existente
+    # continua funcionando normalmente. Tanto o próprio recrutador da
+    # empresa quanto um administrador podem reativar (ver
+    # database.desbloquear_emissao_empresa).
+    emissao_bloqueada_em: Optional[str] = None
+    # Chave numérica de 8 dígitos que substitui a senha individual no login
+    # do recrutador (ver database.gerar/regenerar_chave_empresa e
+    # app.py: rotas "/empresas/entrar" e "/empresas/<id>/entrar"). Gerada
+    # automaticamente ao cadastrar a empresa — NUNCA ``None`` na prática
+    # (só fica ``None`` momentaneamente em bancos de dados antigos, entre a
+    # migração adicionar a coluna e o backfill preencher todas as linhas).
+    #
+    # IMPORTANTE: este campo é SENSÍVEL (funciona como uma senha). Nunca
+    # deve aparecer em uma resposta pública/não-administrativa — use
+    # ``to_dict_publico()`` (que a remove) em qualquer endpoint acessível
+    # sem ser administrador, como o painel público de uma empresa.
+    chave_acesso: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    def to_dict_publico(self) -> dict:
+        """Retorna os dados da empresa SEM a chave de acesso, seguro para
+        ser enviado a qualquer cliente não-administrativo (painel público,
+        página de seleção de empresa, etc.)."""
+        dados = asdict(self)
+        dados.pop("chave_acesso", None)
+        return dados
 
     @staticmethod
     def from_row(linha: sqlite3.Row) -> "Empresa":
@@ -319,15 +355,16 @@ class Empresa:
             # As colunas abaixo foram adicionadas por migração automática
             # (ver database._migrar_tabela_empresas_adicionar_identidade_visual,
             # database._migrar_tabela_empresas_adicionar_contador e
-            # database._migrar_tabela_empresas_adicionar_atendimento_finalizado);
+            # database._migrar_tabela_empresas_renomear_para_emissao_bloqueada);
             # empresas de bancos antigos simplesmente ficam sem identidade
             # visual própria (usam o logo/cor padrão do sistema), com
-            # contador zerado, e com atendimento aberto (não finalizado)
-            # até a próxima migração/ação.
+            # contador zerado, e com a emissão de senhas liberada (não
+            # bloqueada) até a próxima migração/ação.
             logo_path=linha["logo_path"] if "logo_path" in chaves else None,
             cor_principal=linha["cor_principal"] if "cor_principal" in chaves else None,
             contador_atual=linha["contador_atual"] if "contador_atual" in chaves else 0,
-            atendimento_finalizado_em=(
-                linha["atendimento_finalizado_em"] if "atendimento_finalizado_em" in chaves else None
+            emissao_bloqueada_em=(
+                linha["emissao_bloqueada_em"] if "emissao_bloqueada_em" in chaves else None
             ),
+            chave_acesso=linha["chave_acesso"] if "chave_acesso" in chaves else None,
         )

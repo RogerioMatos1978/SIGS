@@ -71,7 +71,7 @@ def test_tabela_empresas_possui_colunas_de_identidade_e_contador(banco_teste):
         "logo_path",
         "cor_principal",
         "contador_atual",
-        "atendimento_finalizado_em",
+        "emissao_bloqueada_em",
     ):
         assert coluna in colunas, f"Coluna '{coluna}' ausente em 'empresas'"
 

@@ -55,8 +55,9 @@
                         <th>Nome</th>
                         <th>Identidade Visual</th>
                         <th>Status</th>
-                        <th>Atendimento do Dia</th>
+                        <th>Emissão de Senhas</th>
                         <th>Próxima Senha</th>
+                        <th>Chave de Acesso (Recrutador)</th>
                         <th>Cadastrada em</th>
                         <th>Ações</th>
                     </tr>
@@ -92,20 +93,21 @@
                                 {{ 'Ativa' if empresa.ativa else 'Inativa' }}
                             </span>
                         </td>
-                        <!-- "Atendimento do Dia" reflete database.finalizar_atendimento_dia_empresa,
-                             disparado pelo próprio recrutador ao encerrar o
-                             expediente (ver index.html). Só um administrador
-                             pode reverter, por isso o botão "Reabrir" aparece
-                             apenas aqui. -->
+                        <!-- "Emissão de Senhas" reflete database.bloquear_emissao_empresa,
+                             disparado pelo próprio recrutador (ver index.html) para
+                             impedir NOVAS emissões sem parar de chamar/atender a fila
+                             já existente. Tanto o próprio recrutador quanto um
+                             administrador podem reativar — por isso o botão
+                             "Reativar" aparece aqui também, como alternativa. -->
                         <td class="celula-atendimento-empresa" id="atendimento-empresa-{{ empresa.id }}">
-                            {% if empresa.atendimento_finalizado_em %}
-                            <span class="status-badge-inativo">🔒 Finalizado ({{ empresa.atendimento_finalizado_em }})</span>
-                            <button class="botao botao-primario botao-acao-pequeno btn-reabrir-atendimento-empresa"
+                            {% if empresa.emissao_bloqueada_em %}
+                            <span class="status-badge-inativo">🚫 Bloqueada ({{ empresa.emissao_bloqueada_em }})</span>
+                            <button class="botao botao-primario botao-acao-pequeno btn-reativar-emissao-empresa"
                                     data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}">
-                                🔓 Reabrir
+                                🔓 Reativar
                             </button>
                             {% else %}
-                            <span class="status-badge-ativo">Aberto</span>
+                            <span class="status-badge-ativo">Liberada</span>
                             {% endif %}
                         </td>
                         <!-- Cada empresa tem sua PRÓPRIA sequência de numeração
@@ -113,6 +115,21 @@
                              das demais empresas. -->
                         <td class="celula-proxima-senha" id="proxima-senha-{{ empresa.id }}">
                             {{ '%03d' | format(empresa.contador_atual + 1) }}
+                        </td>
+                        <!-- Chave numérica de 8 dígitos que o recrutador usa para
+                             entrar (ver auth.autenticar_por_chave_empresa) — substitui
+                             login/senha individuais. "Nova Chave" invalida a atual na
+                             hora (ver app.py:api_admin_regenerar_chave_empresa). -->
+                        <td class="celula-chave-empresa">
+                            <code id="chave-empresa-{{ empresa.id }}">{{ empresa.chave_acesso }}</code>
+                            <button type="button" class="botao botao-secundario botao-acao-pequeno btn-copiar-chave-empresa"
+                                    data-empresa-id="{{ empresa.id }}" title="Copiar chave">
+                                📋
+                            </button>
+                            <button type="button" class="botao botao-alerta botao-acao-pequeno btn-regenerar-chave-empresa"
+                                    data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}" title="Gerar uma nova chave (invalida a atual)">
+                                🔄 Nova Chave
+                            </button>
                         </td>
                         <td>{{ empresa.data_criacao }}</td>
                         <td class="acoes-usuario">
@@ -128,7 +145,16 @@
                             <a class="botao botao-secundario botao-acao-pequeno"
                                href="https://wa.me/?text={{ ('Painel de Chamadas — ' + empresa.nome + ': ' + url_for('painel_empresa', empresa_id=empresa.id, _external=True)) | urlencode }}"
                                target="_blank" rel="noopener">
-                                📲 WhatsApp
+                                📲 WhatsApp (Painel)
+                            </a>
+                            <!-- Compartilha, também via WhatsApp, o link de ACESSO da
+                                 empresa (para os recrutadores entrarem) junto com a
+                                 chave de 8 dígitos atual — diferente do botão acima,
+                                 que compartilha o link do painel de EXIBIÇÃO. -->
+                            <a class="botao botao-secundario botao-acao-pequeno"
+                               href="https://wa.me/?text={{ ('Acesso ao sistema de senhas — ' + empresa.nome + ': entre em ' + url_for('empresa_login_tela', empresa_id=empresa.id, _external=True) + ' e use a chave ' + (empresa.chave_acesso or '')) | urlencode }}"
+                               target="_blank" rel="noopener">
+                                🔑 WhatsApp (Acesso)
                             </a>
                             <button class="botao botao-secundario botao-acao-pequeno btn-renomear-empresa" data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}">
                                 ✏️ Renomear
@@ -144,7 +170,7 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="7">Nenhuma empresa cadastrada ainda.</td></tr>
+                    <tr><td colspan="8">Nenhuma empresa cadastrada ainda.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

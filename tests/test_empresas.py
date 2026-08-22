@@ -5,13 +5,14 @@ test_empresas.py
 
 Testa o cadastro e a administração de empresas do feirão do emprego:
 criação, duplicidade de nome (inclusive por maiúsculas/minúsculas),
-renomeação, ativação/inativação e o ciclo de finalizar/reabrir o
-atendimento do dia por empresa.
+renomeação, ativação/inativação e o ciclo de bloquear/reativar a
+emissão de senhas por empresa.
 """
 
 import pytest
 
 import database
+from models import StatusSenha
 
 
 def test_criar_empresa(banco_teste):
@@ -84,21 +85,43 @@ def test_listar_empresas_somente_ativas(banco_teste):
     assert inativa.id not in ids_ativas
 
 
-def test_finalizar_e_reabrir_atendimento_do_dia_por_empresa(banco_teste):
+def test_bloquear_e_reativar_emissao_de_senhas_por_empresa(banco_teste):
     empresa = database.criar_empresa("Empresa Teste")
 
-    resultado = database.finalizar_atendimento_dia_empresa(empresa.id)
-    assert resultado["ja_finalizado"] is False
-    assert resultado["finalizado_em"] is not None
+    resultado = database.bloquear_emissao_empresa(empresa.id)
+    assert resultado["ja_bloqueado"] is False
+    assert resultado["bloqueado_em"] is not None
 
     atualizada = database.obter_empresa_por_id(empresa.id)
-    assert atualizada.atendimento_finalizado_em is not None
+    assert atualizada.emissao_bloqueada_em is not None
 
-    # Finalizar de novo deve ser idempotente (sinalizado por ja_finalizado).
-    resultado2 = database.finalizar_atendimento_dia_empresa(empresa.id)
-    assert resultado2["ja_finalizado"] is True
+    # Bloquear de novo deve ser idempotente (sinalizado por ja_bloqueado).
+    resultado2 = database.bloquear_emissao_empresa(empresa.id)
+    assert resultado2["ja_bloqueado"] is True
 
-    ok = database.reabrir_atendimento_empresa(empresa.id)
+    ok = database.desbloquear_emissao_empresa(empresa.id)
     assert ok is True
-    reaberta = database.obter_empresa_por_id(empresa.id)
-    assert reaberta.atendimento_finalizado_em is None
+    reativada = database.obter_empresa_por_id(empresa.id)
+    assert reativada.emissao_bloqueada_em is None
+
+
+def test_bloquear_emissao_nao_cancela_senhas_em_espera(banco_teste):
+    """
+    Regressão: diferente do antigo "Finalizar Atendimento do Dia", o novo
+    "Bloqueio de Emissão de Senhas" NÃO cancela as senhas que ainda
+    estavam esperando na fila — apenas impede que NOVAS sejam emitidas. A
+    fila existente continua podendo ser chamada/atendida normalmente.
+    """
+    empresa = database.criar_empresa("Empresa Teste")
+    senha = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+
+    database.bloquear_emissao_empresa(empresa.id)
+
+    senha_apos_bloqueio = database.obter_senha_por_id(senha.id)
+    assert senha_apos_bloqueio.status == StatusSenha.EMITIDA
+
+    # A fila continua atendível normalmente: dá para chamar essa mesma
+    # senha mesmo com a emissão bloqueada.
+    chamada = database.chamar_proxima(guiche="Guichê 01", usuario="Atendente Teste", empresa_id=empresa.id)
+    assert chamada is not None
+    assert chamada["senha_id"] == senha.id

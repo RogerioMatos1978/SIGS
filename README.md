@@ -196,8 +196,8 @@ outros administradores) pela tela Usuários.
 | Ocupa guichê/mesa automaticamente | ✅ | ❌ | ✅ | ❌ |
 | Configurações do sistema | ❌ | ❌ | ❌ | ✅ |
 | Relatórios (CSV/Excel/PDF) | ❌ | ❌ | ✅ (só da própria empresa) | ✅ (todas, com filtro) |
-| Finalizar atendimento do dia (própria empresa) | ❌ | ❌ | ✅ | ❌ |
-| Reabrir atendimento de uma empresa finalizada | ❌ | ❌ | ❌ | ✅ |
+| Bloquear emissão de senhas (própria empresa) | ❌ | ❌ | ✅ | ❌ |
+| Reativar emissão de senhas de uma empresa bloqueada | ❌ | ❌ | ✅ (só da própria empresa) | ✅ (qualquer empresa) |
 | Gerenciar usuários | ❌ | ❌ | ❌ | ✅ |
 | Gerenciar empresas do feirão | ❌ | ❌ | ❌ | ✅ |
 | Reiniciar contador de senhas | ❌ | ❌ | ❌ | ✅ |
@@ -286,18 +286,36 @@ pensado para feirões em que cada empresa entrevista em sua própria sala
 empresa), com cada recrutador atendendo em sua própria mesa dentro dessa
 sala e chamando as senhas de sua vez.
 
-**Vincular um recrutador a uma empresa** (`/admin/usuarios`, restrito a
-administradores):
+**Acesso do recrutador: chave de 8 dígitos, sem login/senha individual.**
+A partir da v2.4.0, o recrutador NÃO é mais cadastrado manualmente em
+"Gerenciar Usuários" (essa opção foi removida do formulário e também é
+recusada pelo servidor, caso alguém tente forçar via API). Em vez disso:
 
-1. Cadastre a empresa primeiro em `/admin/empresas` (seção 4.5), caso
-   ainda não exista.
-2. Em "Novo Usuário", selecione o perfil **Recrutador** — um seletor de
-   empresa aparece e é obrigatório.
-3. Para um usuário já existente, mude o perfil dele para "Recrutador" na
-   tabela "Usuários Cadastrados" e, em seguida, escolha a empresa no
-   seletor "Empresa (Recrutador)" da mesma linha.
-4. Mudar o perfil de um recrutador para qualquer outro (atendente,
-   emissor, admin) limpa automaticamente o vínculo com a empresa.
+1. Cadastre a empresa em `/admin/empresas` (seção 4.5) — ao criá-la, o
+   sistema gera automaticamente uma **chave numérica de 8 dígitos**,
+   exibida na coluna "Chave de Acesso (Recrutador)" da própria tela.
+2. Compartilhe com a empresa o link `http://localhost:5000/empresas/entrar`
+   (uma página pública, sem login, com um card para cada empresa ativa) e
+   a chave de 8 dígitos — o botão "🔑 WhatsApp (Acesso)" em cada linha da
+   tela Empresas já monta essa mensagem pronta para enviar.
+3. Qualquer pessoa da empresa toca no card correspondente, informa o
+   PRÓPRIO NOME e a chave, e entra — o sistema cria automaticamente uma
+   sessão de recrutador vinculada àquela empresa (sem senha própria, sem
+   cadastro prévio pelo administrador) e atribui a próxima mesa livre,
+   exatamente como já acontecia antes.
+4. Ao deslogar, essa conta "temporária" é apagada automaticamente — nada
+   se acumula em "Gerenciar Usuários". O histórico de senhas/relatórios
+   não é afetado (o nome de quem atendeu fica gravado normalmente).
+5. Se a chave vazar ou precisar ser trocada, use "🔄 Nova Chave" na tela
+   Empresas: a chave antiga para de funcionar na hora (sessões já abertas
+   continuam válidas até deslogarem).
+
+> **Segurança da chave:** tentativas incorretas de chave para uma mesma
+> empresa são bloqueadas temporariamente após 5 erros seguidos (mesma
+> proteção contra força bruta já usada no login tradicional — ver seção
+> 10). A chave nunca aparece em nenhuma resposta pública (painel, página
+> de seleção de empresas) — só é visível para um administrador logado, na
+> tela Empresas.
 
 **Painel de uma empresa** (`http://localhost:5000/painel/empresa/<id>`,
 público, sem login): mostra apenas a chamada atual e as últimas senhas
@@ -369,39 +387,36 @@ de qual empresa. O botão "🚫 Desativar"/"✅ Ativar" fica de fora
 propositalmente, para manter o vermelho/verde de alerta sempre
 reconhecível.
 
-### 4.8 Encerramento do atendimento do dia (por empresa) e Relatórios do recrutador
+### 4.8 Bloqueio de Emissão de Senhas (por empresa) e Relatórios do recrutador
 
-Cada recrutador pode encerrar, por conta própria, o atendimento do dia da
-SUA empresa — útil ao final do expediente/feirão, quando a empresa não
-vai mais receber candidatos naquele dia.
+Cada recrutador pode bloquear, por conta própria, a emissão de novas
+senhas da SUA empresa — útil ao final do expediente/feirão, ou sempre
+que a empresa quiser pausar temporariamente a entrada de novos
+candidatos na fila, sem interromper o atendimento de quem já está
+esperando.
 
-**Como funciona** (botão "🔒 Finalizar Atendimento do Dia", tela
-principal do recrutador):
+**Como funciona** (botão "🚫 Bloquear Emissão de Senhas", tela principal
+do recrutador):
 
 1. Ao clicar, uma janela de confirmação explica claramente o efeito da
-   ação antes de prosseguir (emissão e chamadas serão bloqueadas; senhas
-   sem atendimento serão canceladas).
-2. Confirmando, a empresa passa a rejeitar tanto a EMISSÃO de novas
-   senhas (ela some do seletor de emissão, como se estivesse inativa)
-   quanto a CHAMADA de senhas novas (`/api/chamar` retorna 409).
-3. Toda senha daquela empresa que ainda estava com status "Emitida"
-   (nunca chegou a ser chamada) é **cancelada automaticamente**, e passa
-   a constar como cancelada tanto no relatório da própria empresa quanto
-   no relatório do administrador.
-4. Uma senha que já estava "em atendimento" (status "Chamada") no
-   momento do encerramento **não é cancelada** — o recrutador ainda pode
-   clicar em "Finalizar Atendimento" normalmente para dar baixa nela,
-   mesmo depois de encerrar o dia.
-5. Clicar de novo no botão (ou o servidor receber a requisição duas
+   ação antes de prosseguir.
+2. Confirmando, a empresa passa a rejeitar apenas a EMISSÃO de novas
+   senhas (ela some do seletor de emissão do Emissor, e `/api/emitir`
+   retorna 409 para essa empresa).
+3. A fila já existente NÃO é afetada: senhas com status "Emitida" (ainda
+   esperando) continuam podendo ser chamadas normalmente, e senhas
+   "Chamadas" continuam podendo ser finalizadas ou ter a chamada
+   repetida — nada é cancelado automaticamente.
+4. Clicar de novo no botão (ou o servidor receber a requisição duas
    vezes) não tem efeito adicional — a ação é idempotente, apenas
-   informa que o dia já estava finalizado.
+   informa que a emissão já estava bloqueada.
 
-**Reabertura:** só um **administrador** pode reverter um encerramento
-feito por engano, pela tela `/admin/empresas` (botão "🔓 Reabrir" ao lado
-do rótulo "🔒 Finalizado (data/hora)" na coluna "Atendimento do Dia"). O
-próprio recrutador que finalizou não consegue reabrir sozinho. Reabrir
-NÃO restaura as senhas que foram canceladas automaticamente — o
-cancelamento permanece no histórico/relatório.
+**Reativação:** tanto o **próprio recrutador** da empresa (botão "🔓
+Reativar Emissão de Senhas" na tela principal) quanto um
+**administrador** (botão "🔓 Reativar" na tela `/admin/empresas`, coluna
+"Emissão de Senhas") podem liberar a emissão novamente a qualquer
+momento. Como nenhuma senha é cancelada ao bloquear, não há nada para
+"restaurar" — a fila segue intacta durante todo o período bloqueado.
 
 **Relatórios do recrutador:** com esta etapa, o recrutador ganhou acesso
 à tela `/relatorios` (link "Relatórios" no menu superior) — mas sempre
@@ -656,7 +671,9 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | `GET /painel/empresa/<id>` | Público | Painel de UMA empresa (fila e chamada daquela empresa) |
 | `GET /painel/geral` | Público | Painel-resumo (emitidas/aguardando/atendidas/canceladas, por empresa) |
 | `GET /health` | Público | Health check: confirma que o app e o banco de dados estão respondendo |
-| `GET/POST /login` | Público | Autenticação |
+| `GET/POST /login` | Público | Autenticação (admin/atendente/emissor — recrutador NÃO usa mais esta tela) |
+| `GET /empresas/entrar` | Público | Cards das empresas ativas — ponto de entrada do recrutador |
+| `GET/POST /empresas/<id>/entrar` | Público | Acesso da empresa: nome + chave de 8 dígitos (login do recrutador) |
 | `POST /logout` | Login | Encerra sessão e libera o guichê |
 | `GET /configuracoes` | Admin | Configurações do sistema |
 | `GET /relatorios` | Admin | Geração de relatórios |
@@ -675,17 +692,18 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | `GET /api/painel/status` | Público | Dados consumidos pelo painel geral (polling) |
 | `GET /api/painel/empresa/<id>/status` | Público | Dados consumidos pelo painel de uma empresa |
 | `GET /api/painel/geral/status` | Público | Dados consumidos pelo painel-resumo |
-| `GET /api/fila` | Login | Lista da fila atual (escopo automático por empresa p/ recrutador) |
+| `GET /api/fila` | Login | Lista (paginada) da fila atual, com busca opcional por número/nome — `?busca=texto&pagina=N` (escopo automático por empresa p/ recrutador) |
 | `POST /api/senha/<id>/finalizar` | Login | Finaliza uma senha específica (recrutador só a da própria empresa) |
 | `POST /api/senha/<id>/cancelar` | Login | Cancela uma senha específica (idem) |
 | `GET/POST /api/config` | Admin | Lê/atualiza as configurações do sistema |
 | `GET /api/impressoras` | Login | Lista as impressoras instaladas no Windows |
-| `GET /api/empresas` | Login | Lista as empresas ATIVAS e com o dia ainda aberto (seletor de emissão) |
-| `POST /api/finalizar-atendimento-dia` | Recrutador | Encerra o atendimento do dia da PRÓPRIA empresa (bloqueia emissão/chamada; cancela senhas sem atendimento) |
+| `GET /api/empresas` | Login | Lista as empresas ATIVAS e com a emissão de senhas ainda liberada (seletor de emissão) |
+| `POST /api/bloquear-emissao` | Recrutador | Bloqueia a emissão de novas senhas da PRÓPRIA empresa (não afeta chamar/repetir/finalizar da fila já existente) |
+| `POST /api/reativar-emissao` | Recrutador | Reativa a emissão de senhas da PRÓPRIA empresa |
 | `GET /api/relatorios/{csv,excel,pdf,resumo}` | Admin/Recrutador | Exporta/consulta relatórios (admin: filtro `empresa_id` opcional; recrutador: sempre restrito à própria empresa) |
-| `POST /api/admin/usuarios` | Admin | Cria um usuário com perfil escolhido (exige `empresa_id` se "recrutador") |
+| `POST /api/admin/usuarios` | Admin | Cria um usuário com perfil escolhido (admin/atendente/emissor — "recrutador" é recusado, ver seção 4.6) |
 | `POST /api/admin/usuarios/<id>/resetar-senha` | Admin | Reseta a senha de um usuário |
-| `POST /api/admin/usuarios/<id>/perfil` | Admin | Altera o perfil de um usuário (limpa a empresa se sair de "recrutador") |
+| `POST /api/admin/usuarios/<id>/perfil` | Admin | Altera o perfil de um usuário (limpa a empresa se sair de "recrutador"; não aceita "recrutador" como destino) |
 | `POST /api/admin/usuarios/<id>/empresa` | Admin | Vincula/desvincula a empresa de um recrutador |
 | `POST /api/admin/usuarios/<id>/status` | Admin | Ativa/desativa um usuário |
 | `POST /api/admin/reset-senhas-emitidas` | Admin | Apaga todo o histórico de senhas |
@@ -693,11 +711,12 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | `GET /api/admin/empresas` | Admin | Lista TODAS as empresas (ativas e inativas) |
 | `POST /api/admin/empresas` | Admin | Cadastra uma nova empresa |
 | `POST /api/admin/empresas/<id>/renomear` | Admin | Renomeia uma empresa |
+| `POST /api/admin/empresas/<id>/regenerar-chave` | Admin | Gera uma nova chave de acesso de 8 dígitos, invalidando a anterior |
 | `POST /api/admin/empresas/<id>/status` | Admin | Ativa/desativa uma empresa |
 | `POST /api/admin/empresas/<id>/reiniciar-contador` | Admin | Reinicia o contador de senhas de UMA empresa (não afeta as demais) |
 | `POST /api/admin/empresas/<id>/logo` | Admin | Envia o logo da empresa (multipart) e extrai a cor automaticamente |
 | `POST /api/admin/empresas/<id>/cor` | Admin | Sobrescreve manualmente a cor da empresa |
-| `POST /api/admin/empresas/<id>/reabrir-atendimento` | Admin | Reabre o atendimento de uma empresa cujo dia foi finalizado (não restaura senhas já canceladas) |
+| `POST /api/admin/empresas/<id>/reativar-emissao` | Admin | Reativa a emissão de senhas de qualquer empresa com a emissão bloqueada |
 
 ### 12.3 Melhorias de usabilidade desta versão
 
@@ -753,6 +772,104 @@ seguintes pontos de atrito:
 
   > **Faça um backup de `database/senhas.db` antes de rodar este
   > script** (ver seção 7) — a operação não pode ser desfeita.
+
+### 12.4 Evolução recente do sistema (v2.3.0)
+
+- **Correção do botão "Entrar" sem texto na tela de login**: a rota
+  `/login` era a única do sistema que não repassava a variável `config`
+  ao template. Sem ela, o Flask injetava sua própria variável interna
+  `config` (as configurações do próprio Flask, sem `cor_principal`), o
+  que fazia `layout.html` calcular `--cor-principal: ;` (vazio). Isso
+  invalidava a cor de fundo do botão "Entrar" (que voltava ao branco
+  padrão do navegador) enquanto o texto continuava branco — ou seja,
+  texto branco sobre fundo branco, invisível. Corrigido passando
+  `config=config_manager.obter_todas()` também nesta rota, como já era
+  feito em todas as demais.
+- **Menu superior compacto no celular**: em telas de até 600px, a barra
+  de usuário (nome, perfil, mesa/guichê e links de ação) agora usa
+  padding, fontes e espaçamentos reduzidos, ocupando bem menos altura de
+  tela — antes só empilhava os itens, sem de fato compactar o tamanho.
+- **Painel geral ("Abrir Painel" do emissor/atendente) com empresa e
+  mesa**: a lista "Últimas Senhas Emitidas" deste painel (usado quando
+  não há uma empresa específica logada) agora mostra também o nome da
+  empresa da senha e a mesa/guichê que a chamou — ex.: `Senha 001
+  Comigo Mesa 01` — no mesmo padrão já usado pelo painel de cada
+  empresa.
+- **Compartilhamento do painel da empresa via WhatsApp**: a tela
+  Empresas (`/admin/empresas`) ganhou um botão "📲 WhatsApp" ao lado de
+  "Abrir Painel" em cada linha, que abre o WhatsApp com o link público
+  do painel daquela empresa já preenchido, pronto para enviar a um
+  contato.
+- **"Repetir Chamada" bloqueada para senha já finalizada ou cancelada**:
+  antes, era possível clicar em "Repetir Chamada" mesmo depois de a
+  senha chamada naquela mesa/guichê já ter sido finalizada (ou
+  cancelada), reanunciando no painel uma senha cujo atendimento já
+  havia terminado. Agora `database.repetir_ultima_chamada` verifica o
+  status atual da senha antes de gerar uma nova chamada e recusa a
+  repetição (erro 409) nesses casos — regra aplicada de forma
+  centralizada, valendo igualmente para atendente e recrutador.
+
+### 12.6 Evolução recente do sistema (v2.4.0)
+
+- **Login do recrutador substituído por chave de acesso da empresa**:
+  mudança de maior porte desta versão — descrita em detalhe na seção 4.6.
+  Em resumo: recrutador não tem mais conta individual (login/senha)
+  cadastrada por um administrador; em vez disso, cada empresa ganha uma
+  chave numérica de 8 dígitos (gerada automaticamente ao cadastrá-la, e
+  regenerável a qualquer momento em `/admin/empresas`), e qualquer pessoa
+  da empresa entra pela página pública `/empresas/entrar` informando o
+  próprio nome e essa chave. A conta de sessão é criada e removida
+  automaticamente (ver `database.provisionar_usuario_recrutador` e
+  `auth.encerrar_sessao`), sem deixar cadastros acumulados em "Gerenciar
+  Usuários". Tentativas de chave incorreta usam a mesma proteção contra
+  força bruta do login tradicional, e a chave nunca é exposta em nenhuma
+  resposta pública (painel, página de seleção de empresas).
+
+### 12.7 Evolução recente do sistema (v2.5.0)
+
+- **"Finalizar Atendimento do Dia" renomeado para "Bloqueio de Emissão de
+  Senhas" e com efeito mais restrito**: antes, encerrar o dia de uma
+  empresa bloqueava tanto a emissão quanto a chamada de senhas, e
+  cancelava automaticamente toda senha que ainda estava esperando na
+  fila. Agora o bloqueio afeta **apenas a emissão** (`/api/emitir`) —
+  chamar, repetir chamada e finalizar continuam funcionando normalmente
+  para a fila já existente, e nenhuma senha é cancelada ao bloquear.
+- **Reativação também pelo próprio recrutador**: antes, só um
+  administrador podia reabrir o atendimento de uma empresa. Agora o
+  próprio recrutador da empresa também pode reativar a emissão a
+  qualquer momento (botão "🔓 Reativar Emissão de Senhas" na tela
+  principal), além do administrador continuar podendo fazê-lo pela tela
+  `/admin/empresas` para qualquer empresa.
+- Rotas renomeadas: `POST /api/finalizar-atendimento-dia` →
+  `POST /api/bloquear-emissao`; nova rota `POST /api/reativar-emissao`
+  (recrutador, própria empresa); `POST
+  /api/admin/empresas/<id>/reabrir-atendimento` →
+  `POST /api/admin/empresas/<id>/reativar-emissao`. A coluna do banco
+  `empresas.atendimento_finalizado_em` foi renomeada para
+  `emissao_bloqueada_em` (migração automática e idempotente ao iniciar o
+  servidor, preservando os dados existentes).
+
+### 12.8 Evolução recente do sistema (v2.6.0)
+
+- **Busca na Fila de Espera**: em todos os perfis, a tela principal
+  ganhou um campo de pesquisa acima da tabela "Fila de Espera",
+  filtrando por número da senha (aceita com ou sem os zeros à esquerda,
+  ex.: "7" ou "007") ou por trecho do nome da pessoa (`nome_pessoa`,
+  quando preenchido na emissão). Facilita localizar rapidamente uma
+  senha específica antes de reimprimir (perfil Emissor) ou cancelar. A
+  coluna "Nome" também passou a ser exibida na tabela, para mostrar o
+  que casou com a busca.
+- **Paginação da Fila de Espera**: antes, a fila sempre trazia apenas as
+  20 senhas mais antigas aguardando — qualquer senha além dessas ficava
+  inacessível (inclusive para a nova busca) sempre que havia mais de 20
+  na fila. Agora a fila é paginada (20 por página, com botões "«
+  Anterior"/"Próxima »"), dando acesso a todas as senhas aguardando,
+  não só às mais antigas.
+- Rota `GET /api/fila` passou a aceitar `?busca=texto&pagina=N`,
+  retornando também `total_filtrado`, `pagina_atual`, `total_paginas` e
+  `por_pagina` (ver `database.listar_fila_atual`/`contar_aguardando`).
+  O contador "Fila de Espera (N)" no topo do card continua mostrando o
+  total geral da fila, independente do filtro de busca aplicado.
 
 ---
 

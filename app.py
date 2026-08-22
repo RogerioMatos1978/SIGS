@@ -56,7 +56,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, url_for
 
 import auth
 import database
@@ -271,8 +271,8 @@ def index():
     no momento em que ele autenticou (ver auth.iniciar_sessao).
 
     Para o perfil "recrutador", também busca a própria empresa
-    (``empresa_recrutador``) para que o template saiba se o atendimento
-    do dia já foi finalizado (ver ``database.finalizar_atendimento_dia_empresa``)
+    (``empresa_recrutador``) para que o template saiba se a emissão de
+    senhas já está bloqueada (ver ``database.bloquear_emissao_empresa``)
     e ajuste os botões exibidos de acordo."""
     configuracoes = config_manager.obter_todas()
 
@@ -469,6 +469,77 @@ def logout_tela():
 
 
 # ---------------------------------------------------------------------------
+# Acesso das empresas (recrutador) — login por chave, sem senha individual
+# ---------------------------------------------------------------------------
+
+@app.route("/empresas/entrar")
+def empresas_entrar_tela():
+    """
+    Página PÚBLICA (sem login) com um card para cada empresa ATIVA do
+    feirão. Clicar em um card leva ao formulário de acesso daquela empresa
+    (``/empresas/<id>/entrar``), onde o recrutador informa seu nome e a
+    chave de 8 dígitos da empresa — substitui o antigo cadastro individual
+    de login/senha (ver auth.autenticar_por_chave_empresa).
+    """
+    if auth.usuario_logado():
+        return redirect(url_for("index"))
+
+    # Remove "chave_acesso" de cada empresa antes de repassar ao template:
+    # esta página é pública, então o dado nunca deve chegar ao HTML/JS do
+    # navegador, mesmo que o template atual não o exiba.
+    empresas = [
+        {chave: valor for chave, valor in empresa.items() if chave != "chave_acesso"}
+        for empresa in database.listar_empresas(somente_ativas=True)
+    ]
+    return render_template(
+        "empresas_publico.html",
+        config=config_manager.obter_todas(),
+        empresas=empresas,
+    )
+
+
+@app.route("/empresas/<int:empresa_id>/entrar", methods=["GET", "POST"])
+def empresa_login_tela(empresa_id: int):
+    """
+    Formulário de acesso de UMA empresa: nome do recrutador + chave de 8
+    dígitos da empresa (ver auth.autenticar_por_chave_empresa). Em caso de
+    sucesso, uma conta de recrutador efêmera é provisionada
+    automaticamente (ver database.provisionar_usuario_recrutador) e a
+    sessão é iniciada normalmente — o recrutador assume uma mesa da
+    empresa exatamente como já acontecia com o login tradicional.
+    """
+    if auth.usuario_logado():
+        return redirect(url_for("index"))
+
+    empresa = database.obter_empresa_por_id(empresa_id)
+    if empresa is None or not empresa.ativa:
+        flash("Empresa não encontrada ou desativada.", "erro")
+        return redirect(url_for("empresas_entrar_tela"))
+
+    erro = None
+    nome_informado = ""
+    if request.method == "POST":
+        nome_informado = request.form.get("nome_completo", "")
+        chave_informada = request.form.get("chave", "")
+
+        usuario, erro = auth.autenticar_por_chave_empresa(empresa_id, chave_informada, nome_informado)
+        if usuario is not None:
+            auth.iniciar_sessao(usuario)
+            return redirect(url_for("index"))
+
+    # Assim como em login.html, o nome digitado é reenviado ao template em
+    # caso de erro (não precisa ser redigitado) — a chave, por segurança,
+    # nunca é reenviada ao HTML.
+    return render_template(
+        "empresa_login.html",
+        erro=erro,
+        nome_informado=nome_informado,
+        empresa=empresa.to_dict_publico(),
+        config=config_manager.obter_todas(),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Administração de usuários (apenas administradores)
 # ---------------------------------------------------------------------------
 
@@ -588,11 +659,11 @@ def api_emitir():
             return resposta_erro(
                 "Empresa inválida ou inativa. Atualize a página e tente novamente.", 400
             )
-        if empresa.atendimento_finalizado_em:
+        if empresa.emissao_bloqueada_em:
             return resposta_erro(
-                "O atendimento desta empresa já foi finalizado por hoje. "
-                "Não é possível emitir novas senhas (procure um administrador "
-                "caso isso tenha sido um engano).",
+                "A emissão de senhas para esta empresa está bloqueada no momento. "
+                "Não é possível emitir novas senhas (o próprio recrutador da empresa "
+                "ou um administrador pode reativar a emissão).",
                 409,
             )
 
@@ -656,11 +727,11 @@ def api_chamar():
     "atendente", o comportamento é o de sempre: a fila GERAL (sem filtro
     de empresa).
 
-    Se o recrutador já finalizou o atendimento do dia da própria empresa
-    (ver ``/api/finalizar-atendimento-dia``), esta rota é bloqueada — não
-    é mais possível CHAMAR uma senha nova (finalizar quem já estava em
-    atendimento no momento do encerramento continua permitido, ver
-    ``api_finalizar_atendimento``/``api_finalizar``).
+    O "Bloqueio de Emissão de Senhas" de uma empresa (ver
+    ``/api/bloquear-emissao``) NÃO afeta esta rota: bloquear a emissão
+    impede apenas que NOVAS senhas sejam criadas (ver ``api_emitir``) —
+    chamar/atender a fila já existente continua funcionando normalmente,
+    mesmo com a emissão bloqueada.
     """
     try:
         usuario_sessao = auth.usuario_logado()
@@ -679,15 +750,6 @@ def api_chamar():
             return resposta_erro(mensagem, 409)
 
         empresa_id_filtro = usuario_sessao.get("empresa_id") if eh_recrutador else None
-
-        if empresa_id_filtro:
-            empresa = database.obter_empresa_por_id(empresa_id_filtro)
-            if empresa and empresa.atendimento_finalizado_em:
-                return resposta_erro(
-                    "O atendimento desta empresa já foi finalizado por hoje. "
-                    "Não é possível chamar novas senhas.",
-                    409,
-                )
 
         guiche = _guiche_formatado(usuario_sessao)
         usuario = usuario_sessao.get("nome_completo")
@@ -797,32 +859,35 @@ def api_finalizar_atendimento():
         return resposta_erro(f"Erro ao finalizar atendimento: {erro}", 500)
 
 
-@app.route("/api/finalizar-atendimento-dia", methods=["POST"])
+@app.route("/api/bloquear-emissao", methods=["POST"])
 @auth.login_required
-def api_finalizar_atendimento_dia():
+def api_bloquear_emissao():
     """
-    Encerra o atendimento do dia da EMPRESA do recrutador logado (ver
-    ``database.finalizar_atendimento_dia_empresa``): a partir de agora,
-    esta empresa não aceita mais emissão de novas senhas (``/api/emitir``)
-    nem chamada de senhas novas (``/api/chamar``), e todas as senhas
-    dela que ainda estavam com status 'Emitida' (nunca chamadas) são
-    canceladas automaticamente — ficam registradas como canceladas tanto
-    no relatório da própria empresa quanto no relatório do administrador.
+    Bloqueia a emissão de novas senhas da EMPRESA do recrutador logado
+    (ver ``database.bloquear_emissao_empresa``): a partir de agora, esta
+    empresa não aceita mais emissão de novas senhas (``/api/emitir``).
+
+    IMPORTANTE: chamar/atender a fila já existente CONTINUA funcionando
+    normalmente (``/api/chamar``, ``/api/repetir``,
+    ``/api/senha/<id>/finalizar``) — bloquear a emissão não é o mesmo que
+    encerrar o expediente; é só uma forma de dizer "pare de mandar mais
+    gente pra nossa fila", mantendo o atendimento de quem já está nela.
+    Nenhuma senha em espera é cancelada por este bloqueio.
 
     A empresa é sempre a do PRÓPRIO recrutador logado (``usuario_sessao
     ['empresa_id']``), nunca um id vindo do corpo da requisição — um
-    recrutador só pode encerrar o próprio dia, nunca o de outra empresa.
+    recrutador só pode bloquear a própria empresa, nunca a de outra.
 
     Restrito ao perfil "recrutador" (o botão que dispara esta ação só
-    existe na tela dele — ver index.html). Reverter um encerramento feito
-    por engano exige um administrador (ver
-    ``/api/admin/empresas/<id>/reabrir-atendimento``).
+    existe na tela dele — ver index.html). Tanto o próprio recrutador
+    (ver ``/api/reativar-emissao``) quanto um administrador (ver
+    ``/api/admin/empresas/<id>/reativar-emissao``) podem reverter.
     """
     try:
         usuario_sessao = auth.usuario_logado()
         if usuario_sessao.get("perfil") != PerfilUsuario.RECRUTADOR:
             return resposta_erro(
-                "Apenas o perfil recrutador pode finalizar o atendimento do dia de uma empresa.", 403
+                "Apenas o perfil recrutador pode bloquear a emissão de senhas de uma empresa.", 403
             )
 
         empresa_id = usuario_sessao.get("empresa_id")
@@ -831,34 +896,66 @@ def api_finalizar_atendimento_dia():
                 "Você não está vinculado a nenhuma empresa no momento. Procure um administrador.", 409
             )
 
-        resultado = database.finalizar_atendimento_dia_empresa(empresa_id)
+        resultado = database.bloquear_emissao_empresa(empresa_id)
         if resultado is None:
             return resposta_erro("Empresa não encontrada.", 404)
 
-        if resultado["ja_finalizado"]:
+        if resultado["ja_bloqueado"]:
             return resposta_sucesso(
                 {
-                    "mensagem": "O atendimento desta empresa já havia sido finalizado hoje.",
-                    "ja_finalizado": True,
-                    "quantidade_cancelada": 0,
-                    "finalizado_em": resultado["finalizado_em"],
+                    "mensagem": "A emissão de senhas desta empresa já estava bloqueada.",
+                    "ja_bloqueado": True,
+                    "bloqueado_em": resultado["bloqueado_em"],
                 }
             )
 
         return resposta_sucesso(
             {
-                "mensagem": (
-                    f"Atendimento do dia finalizado. "
-                    f"{resultado['quantidade_cancelada']} senha(s) sem atendimento foram canceladas."
-                ),
-                "ja_finalizado": False,
-                "quantidade_cancelada": resultado["quantidade_cancelada"],
-                "finalizado_em": resultado["finalizado_em"],
+                "mensagem": "Emissão de senhas bloqueada. Novas senhas não poderão ser emitidas para "
+                "esta empresa até a emissão ser reativada.",
+                "ja_bloqueado": False,
+                "bloqueado_em": resultado["bloqueado_em"],
             }
         )
 
     except Exception as erro:  # pragma: no cover
-        return resposta_erro(f"Erro ao finalizar atendimento do dia: {erro}", 500)
+        return resposta_erro(f"Erro ao bloquear emissão de senhas: {erro}", 500)
+
+
+@app.route("/api/reativar-emissao", methods=["POST"])
+@auth.login_required
+def api_reativar_emissao():
+    """
+    Reativa a emissão de senhas da EMPRESA do recrutador logado (ver
+    ``database.desbloquear_emissao_empresa``) — autoatendimento: o
+    próprio recrutador que bloqueou (ou qualquer recrutador da mesma
+    empresa) pode desfazer o bloqueio a qualquer momento, sem precisar
+    de um administrador. Um administrador também pode fazer isso por
+    qualquer empresa (ver
+    ``/api/admin/empresas/<id>/reativar-emissao``).
+
+    A empresa é sempre a do PRÓPRIO recrutador logado, nunca um id vindo
+    do corpo da requisição — mesmo padrão de ``/api/bloquear-emissao``.
+    """
+    try:
+        usuario_sessao = auth.usuario_logado()
+        if usuario_sessao.get("perfil") != PerfilUsuario.RECRUTADOR:
+            return resposta_erro(
+                "Apenas o perfil recrutador pode reativar a emissão de senhas de uma empresa.", 403
+            )
+
+        empresa_id = usuario_sessao.get("empresa_id")
+        if not empresa_id:
+            return resposta_erro(
+                "Você não está vinculado a nenhuma empresa no momento. Procure um administrador.", 409
+            )
+
+        if database.desbloquear_emissao_empresa(empresa_id):
+            return resposta_sucesso({"mensagem": "Emissão de senhas reativada."})
+        return resposta_erro("Empresa não encontrada, ou a emissão dela já estava liberada.", 404)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao reativar emissão de senhas: {erro}", 500)
 
 
 @app.route("/api/reiniciar", methods=["POST"])
@@ -881,6 +978,9 @@ def api_reiniciar():
         return resposta_erro(f"Erro ao reiniciar contador: {erro}", 500)
 
 
+FILA_ITENS_POR_PAGINA = 20
+
+
 @app.route("/api/fila")
 @auth.login_required
 def api_fila():
@@ -891,6 +991,22 @@ def api_fila():
     empresa vinculada ao usuário — ele só vê (e só pode cancelar) as
     senhas da sua própria empresa. Para os demais perfis, mantém o
     comportamento de sempre: a fila GERAL, sem filtro de empresa.
+
+    Aceita dois parâmetros de querystring opcionais, usados pela Fila de
+    Espera na tela principal (ver index.html/index.js):
+
+        - ``busca``: filtra por número da senha ou nome da pessoa (ver
+          ``database.listar_fila_atual``).
+        - ``pagina``: página de resultados (1-indexada; ``por_pagina`` é
+          fixo em ``FILA_ITENS_POR_PAGINA``). Existe porque, antes desta
+          paginação, apenas as 20 senhas mais antigas da fila eram
+          acessíveis — qualquer senha além dessas nunca aparecia,
+          mesmo que o usuário soubesse exatamente o que procurar.
+
+    ``total_aguardando`` no retorno continua sendo o total da fila
+    INTEIRA (sem filtro de busca) — usado pelo contador no cabeçalho do
+    card "Fila de Espera". ``total_filtrado``/``total_paginas`` refletem
+    a busca atual, para desenhar a paginação.
     """
     try:
         usuario_sessao = auth.usuario_logado()
@@ -900,9 +1016,39 @@ def api_fila():
             else None
         )
 
-        fila = database.listar_fila_atual(empresa_id=empresa_id_filtro)
-        total = database.contar_aguardando(empresa_id=empresa_id_filtro)
-        return resposta_sucesso({"fila": fila, "total_aguardando": total})
+        busca = (request.args.get("busca") or "").strip()[:60]
+        try:
+            pagina = int(request.args.get("pagina", 1))
+        except (TypeError, ValueError):
+            pagina = 1
+        pagina = max(pagina, 1)
+
+        total_aguardando = database.contar_aguardando(empresa_id=empresa_id_filtro)
+        total_filtrado = (
+            database.contar_aguardando(empresa_id=empresa_id_filtro, busca=busca)
+            if busca
+            else total_aguardando
+        )
+        total_paginas = max(-(-total_filtrado // FILA_ITENS_POR_PAGINA), 1)
+        pagina = min(pagina, total_paginas)
+
+        fila = database.listar_fila_atual(
+            empresa_id=empresa_id_filtro,
+            busca=busca or None,
+            pagina=pagina,
+            por_pagina=FILA_ITENS_POR_PAGINA,
+        )
+
+        return resposta_sucesso(
+            {
+                "fila": fila,
+                "total_aguardando": total_aguardando,
+                "total_filtrado": total_filtrado,
+                "pagina_atual": pagina,
+                "total_paginas": total_paginas,
+                "por_pagina": FILA_ITENS_POR_PAGINA,
+            }
+        )
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao consultar fila: {erro}", 500)
 
@@ -1050,7 +1196,11 @@ def api_painel_empresa_status(empresa_id: int):
 
         return resposta_sucesso(
             {
-                "empresa": empresa.to_dict(),
+                # to_dict_publico() (NUNCA to_dict() aqui): esta rota é
+                # pública, sem login, consultada pelo painel de exibição —
+                # não pode vazar "chave_acesso" (a credencial de login do
+                # recrutador desta empresa).
+                "empresa": empresa.to_dict_publico(),
                 "chamada_atual": database.obter_chamada_atual(empresa_id=empresa.id),
                 "ultimas_emitidas": database.listar_ultimas_emitidas(qtd_exibidas, empresa_id=empresa.id),
                 "total_aguardando": database.contar_aguardando(empresa_id=empresa.id),
@@ -1182,21 +1332,25 @@ def api_impressoras():
 @auth.login_required
 def api_empresas():
     """
-    Lista as empresas ATIVAS e com atendimento ABERTO do feirão, usadas
+    Lista as empresas ATIVAS e com a EMISSÃO de senhas liberada, usadas
     para popular o seletor de empresa exibido ao emitir uma senha (ver
-    index.html/index.js) — uma empresa que já finalizou o atendimento do
-    dia (ver ``/api/finalizar-atendimento-dia``) some deste seletor, no
-    mesmo espírito de uma empresa desativada, para não permitir a
-    emissão de uma senha que nunca poderá ser chamada.
+    index.html/index.js) — uma empresa com a emissão bloqueada (ver
+    ``/api/bloquear-emissao``) some deste seletor, no mesmo espírito de
+    uma empresa desativada, para não permitir a emissão de uma senha que
+    não deveria ser criada agora.
 
     Assim como ``/api/impressoras``, é acessível a QUALQUER usuário
     logado (não apenas administradores), pois é o perfil "emissor" — não
     o admin — quem efetivamente emite senhas.
     """
+    # Remove "chave_acesso" de cada empresa antes de responder: esta rota é
+    # acessível a QUALQUER perfil logado (não só admin — ver docstring
+    # acima), então não pode vazar a credencial de login do recrutador de
+    # cada empresa para, por exemplo, um usuário "emissor".
     empresas = [
-        empresa
+        {chave: valor for chave, valor in empresa.items() if chave != "chave_acesso"}
         for empresa in database.listar_empresas(somente_ativas=True)
-        if not empresa.get("atendimento_finalizado_em")
+        if not empresa.get("emissao_bloqueada_em")
     ]
     return resposta_sucesso({"empresas": empresas})
 
@@ -1612,20 +1766,24 @@ def api_admin_criar_usuario():
         if perfil not in PerfilUsuario.TODOS:
             return resposta_erro("Perfil inválido.", 400)
 
-        # Um recrutador PRECISA estar vinculado a uma empresa já na
-        # criação (é assim que ele sabe qual fila atender ao logar — ver
-        # auth.iniciar_sessao). Para os demais perfis, qualquer
-        # empresa_id enviado é simplesmente ignorado.
-        empresa_id = None
+        # Recrutador não é mais cadastrado manualmente aqui: a conta é
+        # criada automaticamente quando alguém entra pela chave de acesso
+        # da própria empresa (ver app.py:api_empresa_entrar e
+        # database.provisionar_usuario_recrutador). Bloqueado também no
+        # servidor (não só escondido no formulário) para não depender só
+        # do front-end.
         if perfil == PerfilUsuario.RECRUTADOR:
-            if empresa_id_bruto in (None, ""):
-                return resposta_erro("Selecione a empresa do recrutador.", 400)
-            try:
-                empresa_id = int(empresa_id_bruto)
-            except (TypeError, ValueError):
-                return resposta_erro("Empresa inválida.", 400)
-            if database.obter_empresa_por_id(empresa_id) is None:
-                return resposta_erro("Empresa não encontrada.", 400)
+            return resposta_erro(
+                "Recrutadores não são mais cadastrados manualmente. A conta é criada "
+                "automaticamente quando alguém entra pela chave de acesso da empresa "
+                "(ver tela Empresas).",
+                400,
+            )
+
+        # "empresa_id_bruto" não é mais usado: nenhum perfil cadastrável
+        # nesta rota precisa de empresa vinculada (recrutador, o único que
+        # precisava, foi bloqueado acima).
+        empresa_id = None
 
         usuario = database.criar_usuario(
             nome_completo=nome_completo,
@@ -1673,6 +1831,16 @@ def api_admin_definir_perfil(usuario_id: int):
     try:
         dados = request.get_json(silent=True) or {}
         perfil = str(dados.get("perfil") or "").strip()
+
+        # Mesma regra da criação (ver api_admin_criar_usuario): recrutador
+        # não é mais atribuído manualmente — só existe como conta efêmera
+        # provisionada pela chave de acesso da empresa.
+        if perfil == PerfilUsuario.RECRUTADOR:
+            return resposta_erro(
+                "Recrutadores não são mais atribuídos manualmente. A conta é criada "
+                "automaticamente quando alguém entra pela chave de acesso da empresa.",
+                400,
+            )
 
         if database.definir_perfil_usuario(usuario_id, perfil):
             return resposta_sucesso({"mensagem": "Perfil atualizado."})
@@ -1829,6 +1997,25 @@ def api_admin_renomear_empresa(empresa_id: int):
         return resposta_erro(f"Erro ao renomear empresa: {erro}", 500)
 
 
+@app.route("/api/admin/empresas/<int:empresa_id>/regenerar-chave", methods=["POST"])
+@auth.login_required
+@auth.admin_required
+def api_admin_regenerar_chave_empresa(empresa_id: int):
+    """
+    Gera uma NOVA chave de acesso de 8 dígitos para a empresa, invalidando
+    a anterior imediatamente (quem ainda não entrou com a chave antiga
+    precisa da nova; sessões de recrutador já ativas não são afetadas).
+    Uso típico: suspeita de vazamento da chave atual.
+    """
+    try:
+        nova_chave = database.regenerar_chave_empresa(empresa_id)
+        if nova_chave is None:
+            return resposta_erro("Empresa não encontrada.", 404)
+        return resposta_sucesso({"chave_acesso": nova_chave})
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao regenerar chave de acesso: {erro}", 500)
+
+
 @app.route("/api/admin/empresas/<int:empresa_id>/status", methods=["POST"])
 @auth.login_required
 @auth.admin_required
@@ -1873,29 +2060,29 @@ def api_admin_reiniciar_contador_empresa(empresa_id: int):
         return resposta_erro(f"Erro ao reiniciar contador da empresa: {erro}", 500)
 
 
-@app.route("/api/admin/empresas/<int:empresa_id>/reabrir-atendimento", methods=["POST"])
+@app.route("/api/admin/empresas/<int:empresa_id>/reativar-emissao", methods=["POST"])
 @auth.login_required
 @auth.admin_required
-def api_admin_reabrir_atendimento_empresa(empresa_id: int):
+def api_admin_reativar_emissao_empresa(empresa_id: int):
     """
-    Reabre o atendimento de uma empresa cujo dia foi finalizado por
-    engano (ver ``/api/finalizar-atendimento-dia`` e
-    ``database.reabrir_atendimento_empresa``) — volta a permitir emissão
-    e chamada de novas senhas para ela.
+    Reativa a emissão de senhas de uma empresa cuja emissão foi bloqueada
+    (ver ``/api/bloquear-emissao`` e
+    ``database.desbloquear_emissao_empresa``) — volta a permitir a
+    emissão de novas senhas para ela.
 
-    Restrito a administradores: propositalmente, o próprio recrutador
-    que finalizou não pode reabrir sozinho.
-
-    NÃO restaura as senhas que foram canceladas automaticamente pelo
-    encerramento — o cancelamento fica preservado no histórico/relatório.
+    Um administrador pode reativar QUALQUER empresa a qualquer momento —
+    complementa (não substitui) a autorreativação já disponível para o
+    próprio recrutador da empresa (ver ``/api/reativar-emissao``), útil
+    por exemplo quando não há ninguém logado como recrutador daquela
+    empresa no momento.
     """
     try:
-        if database.reabrir_atendimento_empresa(empresa_id):
-            return resposta_sucesso({"mensagem": "Atendimento da empresa reaberto."})
-        return resposta_erro("Empresa não encontrada, ou o atendimento dela já estava aberto.", 404)
+        if database.desbloquear_emissao_empresa(empresa_id):
+            return resposta_sucesso({"mensagem": "Emissão de senhas da empresa reativada."})
+        return resposta_erro("Empresa não encontrada, ou a emissão dela já estava liberada.", 404)
 
     except Exception as erro:  # pragma: no cover
-        return resposta_erro(f"Erro ao reabrir atendimento da empresa: {erro}", 500)
+        return resposta_erro(f"Erro ao reativar emissão de senhas da empresa: {erro}", 500)
 
 
 # ---------------------------------------------------------------------------

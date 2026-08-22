@@ -60,6 +60,7 @@ Tabelas criadas:
         003... ver criar_senha/reiniciar_contador_empresa mais abaixo)
 """
 
+import secrets
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -335,10 +336,27 @@ def inicializar_banco() -> None:
         # preenchido pelo Emissor na emissão — ver api_emitir/index.html).
         _migrar_tabela_senhas_adicionar_nome_pessoa(conexao)
 
-        # Adiciona a coluna "atendimento_finalizado_em" à tabela
-        # "empresas" (controla o encerramento do atendimento do dia POR
-        # EMPRESA — ver ``finalizar_atendimento_dia_empresa``).
+        # Adiciona a coluna "atendimento_finalizado_em" à tabela "empresas"
+        # (nome histórico — renomeada para "emissao_bloqueada_em" logo
+        # abaixo, ver _migrar_tabela_empresas_renomear_para_emissao_bloqueada).
         _migrar_tabela_empresas_adicionar_atendimento_finalizado(conexao)
+
+        # Renomeia "atendimento_finalizado_em" para "emissao_bloqueada_em"
+        # (a funcionalidade virou "Bloqueio de Emissão de Senhas" — ver
+        # docstring da própria migração para o motivo).
+        _migrar_tabela_empresas_renomear_para_emissao_bloqueada(conexao)
+
+        # Adiciona a coluna "chave_acesso" à tabela "empresas" (chave
+        # numérica de 8 dígitos que substitui a senha individual no login
+        # do recrutador — ver app.py: rotas "/empresas/entrar" e
+        # "/empresas/<id>/entrar"). Também gera a chave para qualquer
+        # empresa que ainda esteja sem uma.
+        _migrar_tabela_empresas_adicionar_chave_acesso(conexao)
+
+        # Adiciona a coluna "provisionado_por_chave" à tabela "usuarios"
+        # (marca contas de recrutador criadas automaticamente pelo novo
+        # login por chave — ver provisionar_usuario_recrutador).
+        _migrar_tabela_usuarios_adicionar_provisionado_por_chave(conexao)
 
         # Fecha a brecha de cadastrar duas empresas cujo nome só difere em
         # maiúsculas/minúsculas (ex.: "Empresa Alfa" e "empresa alfa").
@@ -694,15 +712,15 @@ def _migrar_tabela_senhas_adicionar_nome_pessoa(conexao: sqlite3.Connection) -> 
 def _migrar_tabela_empresas_adicionar_atendimento_finalizado(conexao: sqlite3.Connection) -> None:
     """
     Adiciona a coluna ``atendimento_finalizado_em`` (TEXT, opcional) à
-    tabela ``empresas``.
-
-    ``NULL`` (padrão) significa que o atendimento da empresa está ABERTO
-    normalmente. Um timestamp gravado nesta coluna significa que um
-    recrutador daquela empresa clicou em "Finalizar Atendimento do Dia"
-    (ver ``finalizar_atendimento_dia_empresa``) — a partir daí, a
-    empresa para de aceitar novas emissões e novas chamadas (ver
-    ``app.py:api_emitir``/``api_chamar``) até um administrador reabrir
-    (ver ``reabrir_atendimento_empresa``).
+    tabela ``empresas`` — nome histórico da funcionalidade que hoje se
+    chama "Bloqueio de Emissão de Senhas" (ver
+    ``_migrar_tabela_empresas_renomear_para_emissao_bloqueada``, chamada
+    logo em seguida em ``inicializar_banco``, que renomeia esta coluna
+    para ``emissao_bloqueada_em`` e é a que reflete o comportamento
+    atual: ``bloquear_emissao_empresa``/``desbloquear_emissao_empresa``).
+    Mantida como está, sem renomear a coluna aqui diretamente, apenas
+    para preservar o histórico de como o schema evoluiu — bancos muito
+    antigos passam primeiro por este nome antes de chegar ao atual.
 
     Não faz nada se a coluna já existir (portanto é seguro chamar esta
     função toda vez que o sistema inicia).
@@ -710,8 +728,14 @@ def _migrar_tabela_empresas_adicionar_atendimento_finalizado(conexao: sqlite3.Co
     colunas = conexao.execute("PRAGMA table_info(empresas)").fetchall()
     nomes_colunas = {coluna["name"] for coluna in colunas}
 
-    if "atendimento_finalizado_em" in nomes_colunas:
-        return  # Já está no formato atual.
+    if "atendimento_finalizado_em" in nomes_colunas or "emissao_bloqueada_em" in nomes_colunas:
+        # Segundo caso: a migração seguinte (_migrar_tabela_empresas_
+        # renomear_para_emissao_bloqueada) já renomeou a coluna nesta
+        # instalação — sem este check, esta função recriaria para sempre
+        # uma coluna "atendimento_finalizado_em" vazia e órfã a cada
+        # início do servidor, já que o nome antigo nunca mais existe
+        # depois de renomeado.
+        return  # Já está no formato atual (antigo ou novo).
 
     logger.warning(
         "Esquema antigo da tabela 'empresas' detectado (sem a coluna "
@@ -725,6 +749,170 @@ def _migrar_tabela_empresas_adicionar_atendimento_finalizado(conexao: sqlite3.Co
         "Migração concluída: a tabela 'empresas' agora possui a coluna "
         "'atendimento_finalizado_em', usada para encerrar o atendimento "
         "do dia por empresa."
+    )
+
+
+def _migrar_tabela_empresas_renomear_para_emissao_bloqueada(conexao: sqlite3.Connection) -> None:
+    """
+    Renomeia a coluna ``atendimento_finalizado_em`` para
+    ``emissao_bloqueada_em`` na tabela ``empresas``.
+
+    Esta coluna nasceu com o significado de "encerrar o atendimento do
+    dia" (bloqueava emissão E chamada de novas senhas, cancelando
+    automaticamente as que ainda esperavam). A funcionalidade foi
+    reformulada para "Bloqueio de Emissão de Senhas": agora impede APENAS
+    novas emissões (ver ``app.py:api_emitir``) — o recrutador continua
+    chamando/atendendo normalmente a fila já existente (ver
+    ``bloquear_emissao_empresa``/``desbloquear_emissao_empresa``), e as
+    senhas que já estavam esperando NÃO são mais canceladas
+    automaticamente. O nome da coluna foi atualizado junto para refletir
+    o novo significado e não confundir quem for ler o código depois.
+
+    Sempre executada DEPOIS de
+    ``_migrar_tabela_empresas_adicionar_atendimento_finalizado`` (que
+    garante a existência da coluna, no nome antigo, em bancos bem
+    antigos) — por isso trata três cenários:
+
+        1. Banco já no formato atual (``emissao_bloqueada_em`` existe):
+           não faz nada.
+        2. Banco com o nome antigo (``atendimento_finalizado_em``,
+           inclusive o do usuário em produção): renomeia a coluna,
+           preservando os dados (empresas com atendimento já finalizado
+           continuam com a emissão bloqueada após a migração).
+        3. Banco sem nenhuma das duas colunas (não deveria acontecer,
+           já que a migração anterior sempre roda antes — tratado apenas
+           como salvaguarda): cria a coluna nova diretamente.
+
+    Idempotente: seguro chamar toda vez que o sistema inicia.
+    """
+    colunas = conexao.execute("PRAGMA table_info(empresas)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "emissao_bloqueada_em" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    if "atendimento_finalizado_em" in nomes_colunas:
+        logger.warning(
+            "Renomeando coluna 'empresas.atendimento_finalizado_em' para "
+            "'emissao_bloqueada_em' (Finalizar Atendimento do Dia virou "
+            "Bloqueio de Emissão de Senhas)..."
+        )
+        conexao.execute(
+            "ALTER TABLE empresas RENAME COLUMN atendimento_finalizado_em TO emissao_bloqueada_em"
+        )
+    else:  # pragma: no cover - salvaguarda, não deveria ocorrer na prática.
+        conexao.execute("ALTER TABLE empresas ADD COLUMN emissao_bloqueada_em TEXT")
+
+    conexao.commit()
+    logger.warning(
+        "Migração concluída: a tabela 'empresas' agora possui a coluna "
+        "'emissao_bloqueada_em'."
+    )
+
+
+def _gerar_chave_acesso_unica(conexao: sqlite3.Connection) -> str:
+    """
+    Gera uma chave numérica de 8 dígitos (sempre com 8 algarismos, zeros à
+    esquerda incluídos — ex.: "00734821") para o login do recrutador por
+    empresa (ver ``criar_empresa``/``regenerar_chave_empresa``), garantindo
+    que não colida com nenhuma chave já em uso por outra empresa.
+
+    Usa ``secrets.randbelow`` (gerador criptograficamente forte) em vez de
+    ``random``: esta chave funciona como uma credencial de acesso (substitui
+    a senha individual do recrutador), então merece a mesma qualidade de
+    aleatoriedade de uma senha/token, mesmo sendo curta.
+    """
+    for _ in range(50):  # colisão é extremamente rara (1 chance em 10^8)
+        candidata = f"{secrets.randbelow(100_000_000):08d}"
+        existe = conexao.execute(
+            "SELECT 1 FROM empresas WHERE chave_acesso = ?", (candidata,)
+        ).fetchone()
+        if existe is None:
+            return candidata
+    raise RuntimeError(  # pragma: no cover - praticamente impossível de ocorrer
+        "Não foi possível gerar uma chave de acesso única após várias tentativas."
+    )
+
+
+def _migrar_tabela_empresas_adicionar_chave_acesso(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona a coluna ``chave_acesso`` (TEXT, 8 dígitos) à tabela
+    ``empresas`` — a chave numérica que substitui a senha individual no
+    novo fluxo de acesso do recrutador (ver ``app.py``, rotas
+    ``/empresas/entrar`` e ``/empresas/<id>/entrar``, e
+    ``auth.autenticar_por_chave_empresa``).
+
+    Toda empresa PRECISA de uma chave: além de adicionar a coluna (se ainda
+    não existir), esta migração também gera e grava uma chave nova para
+    qualquer empresa que esteja sem uma — seja por ter sido criada antes
+    desta funcionalidade existir, seja por qualquer outro motivo.
+
+    Idempotente: seguro chamar toda vez que o sistema inicia.
+    """
+    colunas = conexao.execute("PRAGMA table_info(empresas)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "chave_acesso" not in nomes_colunas:
+        logger.warning(
+            "Esquema antigo da tabela 'empresas' detectado (sem a coluna "
+            "'chave_acesso'). Adicionando automaticamente..."
+        )
+        conexao.execute("ALTER TABLE empresas ADD COLUMN chave_acesso TEXT")
+        conexao.commit()
+        logger.warning(
+            "Migração concluída: a tabela 'empresas' agora possui a coluna "
+            "'chave_acesso', usada pelo novo login do recrutador por chave "
+            "numérica de 8 dígitos."
+        )
+
+    sem_chave = conexao.execute(
+        "SELECT id, nome FROM empresas WHERE chave_acesso IS NULL OR chave_acesso = ''"
+    ).fetchall()
+    for linha in sem_chave:
+        chave = _gerar_chave_acesso_unica(conexao)
+        conexao.execute("UPDATE empresas SET chave_acesso = ? WHERE id = ?", (chave, linha["id"]))
+        conexao.commit()
+        logger.warning(
+            "Chave de acesso gerada automaticamente para a empresa '%s' (id=%s).",
+            linha["nome"],
+            linha["id"],
+        )
+
+
+def _migrar_tabela_usuarios_adicionar_provisionado_por_chave(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona a coluna ``provisionado_por_chave`` (INTEGER 0/1) à tabela
+    ``usuarios``.
+
+    Marca contas de recrutador criadas AUTOMATICAMENTE pelo novo login por
+    chave da empresa (ver ``provisionar_usuario_recrutador``) — diferente
+    de uma conta cadastrada manualmente por um administrador em
+    "Gerenciar Usuários". Essas contas são efêmeras: são excluídas
+    automaticamente ao encerrar a sessão (ver ``auth.encerrar_sessao`` e
+    ``excluir_usuario_provisionado``), e esta coluna funciona como
+    salvaguarda — só uma conta com ``provisionado_por_chave=1`` pode ser
+    excluída por esse caminho automático, nunca uma conta cadastrada
+    manualmente por um admin.
+
+    Idempotente: seguro chamar toda vez que o sistema inicia.
+    """
+    colunas = conexao.execute("PRAGMA table_info(usuarios)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "provisionado_por_chave" in nomes_colunas:
+        return
+
+    logger.warning(
+        "Esquema antigo da tabela 'usuarios' detectado (sem a coluna "
+        "'provisionado_por_chave'). Adicionando automaticamente..."
+    )
+    conexao.execute(
+        "ALTER TABLE usuarios ADD COLUMN provisionado_por_chave INTEGER NOT NULL DEFAULT 0"
+    )
+    conexao.commit()
+    logger.warning(
+        "Migração concluída: a tabela 'usuarios' agora possui a coluna "
+        "'provisionado_por_chave'."
     )
 
 
@@ -1424,18 +1612,28 @@ def listar_ultimas_emitidas(quantidade: int = 10, empresa_id: Optional[int] = No
     return [Senha.from_row(linha).to_dict() for linha in linhas]
 
 
-def contar_aguardando(empresa_id: Optional[int] = None) -> int:
+def contar_aguardando(empresa_id: Optional[int] = None, busca: Optional[str] = None) -> int:
     """
     Retorna a quantidade de senhas atualmente aguardando chamada.
 
     ``empresa_id`` restringe a contagem a uma única empresa — usado pela
     fila do perfil "recrutador" e pelo painel público de uma empresa.
+
+    ``busca`` (opcional) aplica o mesmo filtro de texto usado por
+    ``listar_fila_atual`` (número da senha ou nome da pessoa) — usado
+    pelo campo de pesquisa da Fila de Espera (ver app.py:api_fila) para
+    calcular o total de páginas de resultados. Quando omitido, o
+    comportamento é idêntico ao de antes desta busca existir.
     """
     condicao = "WHERE status = ?"
     parametros: List = [StatusSenha.EMITIDA]
     if empresa_id:
         condicao += " AND empresa_id = ?"
         parametros.append(empresa_id)
+    if busca:
+        condicao += " AND (printf('%03d', numero) LIKE ? OR nome_pessoa LIKE ?)"
+        termo_busca = f"%{busca.strip()}%"
+        parametros.extend([termo_busca, termo_busca])
 
     with get_connection() as conexao:
         linha = conexao.execute(
@@ -1492,7 +1690,12 @@ def obter_senha_por_id(senha_id: int) -> Optional[Senha]:
     return Senha.from_row(linha) if linha else None
 
 
-def listar_fila_atual(limite: int = 20, empresa_id: Optional[int] = None) -> List[Dict]:
+def listar_fila_atual(
+    empresa_id: Optional[int] = None,
+    busca: Optional[str] = None,
+    pagina: int = 1,
+    por_pagina: int = 20,
+) -> List[Dict]:
     """
     Retorna as senhas atualmente aguardando chamada (status Emitida), em
     ordem de chegada, para exibição em uma tela de gerenciamento.
@@ -1500,17 +1703,41 @@ def listar_fila_atual(limite: int = 20, empresa_id: Optional[int] = None) -> Lis
     ``empresa_id`` restringe a fila a uma única empresa — usado pelo
     perfil "recrutador", que só deve ver/gerenciar a fila da sua própria
     empresa.
+
+    ``busca`` (opcional) filtra por número da senha (comparado já
+    formatado com três dígitos, ex.: buscar "007" ou só "7" encontra a
+    senha 007) ou por trecho do nome da pessoa (``nome_pessoa``, busca
+    parcial). Usado pelo campo de pesquisa da Fila de Espera (ver
+    app.py:api_fila), para localizar rapidamente uma senha específica —
+    por exemplo, antes de reimprimir ou cancelar — mesmo quando a fila
+    tem mais itens do que cabem em uma página. Comparação via SQL LIKE:
+    insensível a maiúsculas/minúsculas apenas para letras sem acento
+    (limitação do próprio SQLite).
+
+    ``pagina``/``por_pagina`` paginam o resultado (``pagina`` é
+    1-indexada): antes desta paginação, a fila sempre trazia só as 20
+    senhas mais antigas, tornando qualquer uma além dessas inacessível
+    (inclusive para busca) quando havia mais de 20 aguardando. Ver
+    ``contar_aguardando`` para o total de páginas.
     """
     condicao = "WHERE status = ?"
     parametros: List = [StatusSenha.EMITIDA]
     if empresa_id:
         condicao += " AND empresa_id = ?"
         parametros.append(empresa_id)
-    parametros.append(limite)
+    if busca:
+        condicao += " AND (printf('%03d', numero) LIKE ? OR nome_pessoa LIKE ?)"
+        termo_busca = f"%{busca.strip()}%"
+        parametros.extend([termo_busca, termo_busca])
+
+    pagina = max(int(pagina or 1), 1)
+    por_pagina = max(int(por_pagina or 20), 1)
+    offset = (pagina - 1) * por_pagina
+    parametros.extend([por_pagina, offset])
 
     with get_connection() as conexao:
         linhas = conexao.execute(
-            f"SELECT * FROM senhas {condicao} ORDER BY id ASC LIMIT ?",
+            f"SELECT * FROM senhas {condicao} ORDER BY id ASC LIMIT ? OFFSET ?",
             parametros,
         ).fetchall()
 
@@ -1863,6 +2090,92 @@ def criar_usuario(
         ultimo_login=None,
         empresa_id=empresa_id,
     )
+
+
+def provisionar_usuario_recrutador(empresa_id: int, nome_completo: str, senha_hash: str) -> Usuario:
+    """
+    Cria automaticamente uma conta de recrutador EFÊMERA, vinculada a
+    ``empresa_id``, no momento em que alguém entra pela chave de acesso da
+    empresa (ver app.py:api_empresa_entrar). Substitui o cadastro manual
+    que um administrador fazia antes em "Gerenciar Usuários" — agora
+    qualquer pessoa da empresa que souber a chave pode entrar, informando
+    apenas o próprio nome.
+
+    O ``login`` gravado é sintético (nunca digitado nem exibido a
+    ninguém — apenas precisa ser único no banco). ``senha_hash`` deve ser
+    o hash de um valor aleatório gerado pelo CHAMADOR (ver
+    auth.gerar_hash_senha, mesmo padrão já usado por ``criar_usuario`` —
+    este módulo não gera hashes de senha diretamente, essa
+    responsabilidade é de ``auth.py``): esta conta NUNCA é autenticada por
+    login/senha (ver auth.autenticar, que recusa qualquer conta com perfil
+    "recrutador"), apenas por sessão já iniciada diretamente em
+    auth.iniciar_sessao. Marcada com ``provisionado_por_chave=True`` para
+    que ``excluir_usuario_provisionado`` possa apagá-la com segurança ao
+    encerrar a sessão (ver auth.encerrar_sessao), sem nunca arriscar
+    apagar uma conta cadastrada manualmente por um admin.
+    """
+    nome_normalizado = (nome_completo or "").strip()
+    if not nome_normalizado:
+        raise ValueError("Informe seu nome para entrar.")
+
+    login_sintetico = f"chave-empresa-{empresa_id}-{secrets.token_hex(8)}"
+    data_criacao = _agora_iso()
+
+    with get_connection() as conexao:
+        cursor = conexao.execute(
+            """
+            INSERT INTO usuarios
+                (nome_completo, login, senha_hash, perfil, ativo, data_criacao, empresa_id, provisionado_por_chave)
+            VALUES (?, ?, ?, ?, 1, ?, ?, 1)
+            """,
+            (nome_normalizado, login_sintetico, senha_hash, PerfilUsuario.RECRUTADOR, data_criacao, empresa_id),
+        )
+        conexao.commit()
+        usuario_id = cursor.lastrowid
+
+    registrar_log(
+        "INFO",
+        f"Conta de recrutador provisionada automaticamente para '{nome_normalizado}' "
+        f"(empresa id={empresa_id}) via chave de acesso.",
+    )
+
+    return Usuario(
+        id=usuario_id,
+        nome_completo=nome_normalizado,
+        login=login_sintetico,
+        senha_hash=senha_hash,
+        perfil=PerfilUsuario.RECRUTADOR,
+        ativo=True,
+        data_criacao=data_criacao,
+        ultimo_login=None,
+        empresa_id=empresa_id,
+        provisionado_por_chave=True,
+    )
+
+
+def excluir_usuario_provisionado(usuario_id: int) -> None:
+    """
+    Remove definitivamente uma conta de recrutador EFÊMERA (ver
+    ``provisionar_usuario_recrutador``), chamada ao encerrar a sessão (ver
+    ``auth.encerrar_sessao``) — mantém a tabela ``usuarios`` limpa em vez
+    de acumular uma linha nova a cada entrada pela chave da empresa.
+
+    Salvaguarda importante: o ``DELETE`` só afeta linhas com
+    ``provisionado_por_chave = 1`` — mesmo que um id incorreto ou
+    manipulado chegue até aqui, uma conta cadastrada manualmente por um
+    administrador NUNCA é apagada por este caminho.
+
+    Não apaga o histórico de senhas/chamadas: ``senhas.usuario`` e
+    ``eventos_chamada.usuario`` gravam o NOME como texto congelado no
+    momento do evento (não uma referência viva ao usuário), então
+    relatórios e o painel continuam corretos após esta exclusão.
+    """
+    with get_connection() as conexao:
+        conexao.execute(
+            "DELETE FROM usuarios WHERE id = ? AND provisionado_por_chave = 1",
+            (usuario_id,),
+        )
+        conexao.commit()
 
 
 def obter_usuario_por_login(login: str) -> Optional[Usuario]:
@@ -2242,6 +2555,11 @@ def criar_empresa(nome: str) -> Empresa:
     """
     Cadastra uma nova empresa participante do feirão. O nome é
     normalizado (espaços nas pontas removidos) e deve ser único.
+
+    Já nasce com uma ``chave_acesso`` (numérica, 8 dígitos) gerada
+    automaticamente — é ela que os recrutadores dessa empresa usarão para
+    entrar no sistema (ver app.py: rotas "/empresas/entrar" e
+    "/empresas/<id>/entrar"), no lugar de login/senha individuais.
     """
     nome_normalizado = (nome or "").strip()
     if not nome_normalizado:
@@ -2250,10 +2568,11 @@ def criar_empresa(nome: str) -> Empresa:
     data_criacao = _agora_iso()
 
     with get_connection() as conexao:
+        chave_acesso = _gerar_chave_acesso_unica(conexao)
         try:
             cursor = conexao.execute(
-                "INSERT INTO empresas (nome, ativa, data_criacao) VALUES (?, 1, ?)",
-                (nome_normalizado, data_criacao),
+                "INSERT INTO empresas (nome, ativa, data_criacao, chave_acesso) VALUES (?, 1, ?, ?)",
+                (nome_normalizado, data_criacao, chave_acesso),
             )
             conexao.commit()
         except sqlite3.IntegrityError as erro:
@@ -2267,7 +2586,53 @@ def criar_empresa(nome: str) -> Empresa:
 
     registrar_log("INFO", f"Empresa '{nome_normalizado}' cadastrada (id={empresa_id}).")
 
-    return Empresa(id=empresa_id, nome=nome_normalizado, ativa=True, data_criacao=data_criacao)
+    return Empresa(
+        id=empresa_id,
+        nome=nome_normalizado,
+        ativa=True,
+        data_criacao=data_criacao,
+        chave_acesso=chave_acesso,
+    )
+
+
+def obter_empresa_por_chave(chave: str) -> Optional[Empresa]:
+    """
+    Busca uma empresa pela sua chave de acesso (login do recrutador — ver
+    app.py:api_empresa_entrar). Não filtra por ``ativa`` aqui: a rota
+    chamadora decide a mensagem apropriada (chave incorreta vs. empresa
+    desativada), em vez de misturar os dois casos em um único "não
+    encontrado" genérico.
+    """
+    chave_normalizada = (chave or "").strip()
+    if not chave_normalizada:
+        return None
+    with get_connection() as conexao:
+        linha = conexao.execute(
+            "SELECT * FROM empresas WHERE chave_acesso = ?", (chave_normalizada,)
+        ).fetchone()
+    return Empresa.from_row(linha) if linha else None
+
+
+def regenerar_chave_empresa(empresa_id: int) -> Optional[str]:
+    """
+    Gera uma NOVA chave de acesso para a empresa (invalidando a anterior)
+    e a grava no lugar. Usado pelo administrador na tela Empresas quando a
+    chave precisa ser trocada (ex.: suspeita de vazamento). Retorna a nova
+    chave, ou ``None`` se a empresa não existir.
+    """
+    with get_connection() as conexao:
+        existe = conexao.execute("SELECT 1 FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
+        if existe is None:
+            return None
+
+        nova_chave = _gerar_chave_acesso_unica(conexao)
+        conexao.execute(
+            "UPDATE empresas SET chave_acesso = ? WHERE id = ?", (nova_chave, empresa_id)
+        )
+        conexao.commit()
+
+    registrar_log("INFO", f"Chave de acesso regenerada para a empresa id={empresa_id}.")
+    return nova_chave
 
 
 def listar_empresas(somente_ativas: bool = False) -> List[Dict]:
@@ -2348,104 +2713,92 @@ def definir_status_empresa(empresa_id: int, ativa: bool) -> bool:
     return alterou
 
 
-def finalizar_atendimento_dia_empresa(empresa_id: int) -> Optional[Dict]:
+def bloquear_emissao_empresa(empresa_id: int) -> Optional[Dict]:
     """
-    Encerra o atendimento do dia de UMA empresa: marca
-    ``empresas.atendimento_finalizado_em`` com o horário atual e cancela
-    automaticamente todas as senhas dela que ainda estavam "sem
-    atendimento" (status 'Emitida' — nunca chegaram a ser chamadas).
+    Bloqueia a EMISSÃO de novas senhas de UMA empresa: marca
+    ``empresas.emissao_bloqueada_em`` com o horário atual.
 
-    Senhas com status 'Chamada' (já chamadas, atendimento em andamento
-    no momento do encerramento) NÃO são canceladas por esta função — o
-    recrutador ainda pode finalizar normalmente quem já estava sendo
-    atendido; o que passa a ser bloqueado é CHAMAR uma senha NOVA e
-    EMITIR novas senhas para esta empresa (ver
-    ``app.py:api_chamar``/``api_emitir``).
+    IMPORTANTE — o que esta função NÃO faz (diferente da antiga
+    "Finalizar Atendimento do Dia"): não cancela as senhas que ainda
+    estavam esperando (status 'Emitida'), e não impede CHAMAR novas
+    senhas da fila. O recrutador continua atendendo normalmente quem já
+    está na fila (ou quem entrar depois pela fila de outra empresa/canal,
+    se aplicável) — o único efeito é impedir o Emissor de criar NOVAS
+    senhas para esta empresa a partir de agora (ver
+    ``app.py:api_emitir``). Pode ser desfeito a qualquer momento pelo
+    próprio recrutador da empresa OU por um administrador (ver
+    ``desbloquear_emissao_empresa``).
 
     Usa o mesmo lock por empresa de ``criar_senha``
     (``_lock_da_empresa``): evita que uma emissão consiga "passar" entre
-    a checagem de que a empresa ainda está aberta e a gravação do
-    encerramento (condição de corrida).
+    a checagem de que a empresa ainda aceita emissão e a gravação do
+    bloqueio (condição de corrida).
 
     Retorna ``None`` se a empresa não existir. Caso exista, retorna um
     dicionário:
-        - "ja_finalizado": ``True`` se a empresa JÁ estava finalizada
-          (clique duplicado/repetido) — neste caso nada é alterado.
-        - "quantidade_cancelada": quantas senhas 'Emitida' foram
-          canceladas por esta chamada (0 se já estava finalizada).
-        - "finalizado_em": o timestamp do encerramento (o já existente,
-          se ``ja_finalizado``, ou o novo, gravado agora).
+        - "ja_bloqueado": ``True`` se a emissão da empresa JÁ estava
+          bloqueada (clique duplicado/repetido) — neste caso nada é
+          alterado.
+        - "bloqueado_em": o timestamp do bloqueio (o já existente, se
+          ``ja_bloqueado``, ou o novo, gravado agora).
     """
     with _lock_da_empresa(empresa_id):
         with get_connection() as conexao:
             linha_empresa = conexao.execute(
-                "SELECT atendimento_finalizado_em FROM empresas WHERE id = ?", (empresa_id,)
+                "SELECT emissao_bloqueada_em FROM empresas WHERE id = ?", (empresa_id,)
             ).fetchone()
             if linha_empresa is None:
                 return None
 
-            if linha_empresa["atendimento_finalizado_em"]:
+            if linha_empresa["emissao_bloqueada_em"]:
                 return {
-                    "ja_finalizado": True,
-                    "quantidade_cancelada": 0,
-                    "finalizado_em": linha_empresa["atendimento_finalizado_em"],
+                    "ja_bloqueado": True,
+                    "bloqueado_em": linha_empresa["emissao_bloqueada_em"],
                 }
 
             agora = _agora_iso()
-            cursor = conexao.execute(
-                "UPDATE senhas SET status = ? WHERE empresa_id = ? AND status = ?",
-                (StatusSenha.CANCELADA, empresa_id, StatusSenha.EMITIDA),
-            )
-            quantidade_cancelada = cursor.rowcount
-
             conexao.execute(
-                "UPDATE empresas SET atendimento_finalizado_em = ? WHERE id = ?",
+                "UPDATE empresas SET emissao_bloqueada_em = ? WHERE id = ?",
                 (agora, empresa_id),
             )
             conexao.commit()
 
-    registrar_log(
-        "WARNING",
-        f"Atendimento do dia finalizado para empresa id={empresa_id}: "
-        f"{quantidade_cancelada} senha(s) sem atendimento cancelada(s).",
-    )
+    registrar_log("WARNING", f"Emissão de senhas bloqueada para a empresa id={empresa_id}.")
     return {
-        "ja_finalizado": False,
-        "quantidade_cancelada": quantidade_cancelada,
-        "finalizado_em": agora,
+        "ja_bloqueado": False,
+        "bloqueado_em": agora,
     }
 
 
-def reabrir_atendimento_empresa(empresa_id: int) -> bool:
+def desbloquear_emissao_empresa(empresa_id: int) -> bool:
     """
-    Reabre o atendimento de uma empresa cujo dia havia sido finalizado
-    por engano (ver ``finalizar_atendimento_dia_empresa``), voltando a
-    permitir emissão e chamada de senhas para ela.
+    Reativa a emissão de novas senhas de uma empresa cuja emissão estava
+    bloqueada (ver ``bloquear_emissao_empresa``).
 
-    Restrito a administradores (ver ``app.py``) — propositalmente, o
-    próprio recrutador que finalizou não pode reabrir sozinho, evitando
-    que o encerramento perca o efeito de "fechamento do expediente" que
-    ele deveria ter.
+    Chamável tanto pelo PRÓPRIO recrutador da empresa (autoatendimento —
+    ver ``app.py:api_reativar_emissao``) quanto por um administrador (ver
+    ``app.py:api_admin_reativar_emissao_empresa``); a permissão em si é
+    checada na camada de rotas, não aqui.
 
-    NÃO restaura as senhas que foram canceladas automaticamente pelo
-    encerramento (o cancelamento é definitivo, preservado no histórico/
-    relatório) — reabrir apenas permite que NOVAS senhas voltem a ser
-    emitidas e chamadas a partir de agora.
+    Como o bloqueio não cancela mais nenhuma senha (ver
+    ``bloquear_emissao_empresa``), reativar também não precisa restaurar
+    nada — apenas limpa a marca de bloqueio.
 
-    Retorna ``True`` se a empresa existia e estava finalizada (e foi
-    reaberta), ou ``False`` se não existe ou já estava aberta.
+    Retorna ``True`` se a empresa existia e estava com a emissão
+    bloqueada (e foi reativada), ou ``False`` se não existe ou a emissão
+    já estava liberada.
     """
     with get_connection() as conexao:
         cursor = conexao.execute(
-            "UPDATE empresas SET atendimento_finalizado_em = NULL "
-            "WHERE id = ? AND atendimento_finalizado_em IS NOT NULL",
+            "UPDATE empresas SET emissao_bloqueada_em = NULL "
+            "WHERE id = ? AND emissao_bloqueada_em IS NOT NULL",
             (empresa_id,),
         )
         conexao.commit()
         alterou = cursor.rowcount > 0
 
     if alterou:
-        registrar_log("WARNING", f"Atendimento da empresa id={empresa_id} reaberto por um administrador.")
+        registrar_log("WARNING", f"Emissão de senhas reativada para a empresa id={empresa_id}.")
     return alterou
 
 

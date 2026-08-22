@@ -257,6 +257,25 @@ input:focus, select:focus {
     margin-right: 6px;
 }
 
+/* Paginação da Fila de Espera (ver index.html/index.js). Centralizada,
+   com o texto "Página X de Y" entre os botões Anterior/Próxima. */
+.paginacao-fila {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.paginacao-fila button {
+    margin-right: 0;
+}
+
+.paginacao-fila span {
+    font-size: 0.9rem;
+    color: #5A6572;
+}
+
 /* -------------------- Notificações (toasts) -------------------- */
 .area-notificacoes {
     position: fixed;
@@ -689,6 +708,66 @@ input:focus, select:focus {
     color: var(--cor-principal-clara);
     font-weight: 700;
     text-decoration: none;
+}
+
+/* -------------------- Página pública de acesso das empresas -------------------- */
+/* Card mais largo que o .card-auth padrão (420px), para caber
+   confortavelmente a grade de cards das empresas (ver
+   templates/empresas_publico.html). */
+.card-empresas-publico {
+    max-width: 900px;
+}
+
+.grade-cards-empresa {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin: 20px 0;
+}
+
+.card-empresa-publico {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    background: var(--cor-fundo);
+    border: 2px solid var(--cor-cinza-borda);
+    border-radius: var(--raio-borda);
+    padding: 18px 12px;
+    text-decoration: none;
+    color: var(--cor-texto);
+    transition: var(--transicao-padrao);
+}
+
+.card-empresa-publico:hover {
+    transform: translateY(-3px);
+    border-color: var(--cor-principal-clara);
+    box-shadow: var(--sombra-padrao);
+}
+
+.card-empresa-publico-logo {
+    height: 64px;
+    width: 100%;
+    object-fit: contain;
+}
+
+.card-empresa-publico-nome {
+    font-weight: 700;
+    text-align: center;
+}
+
+/* Chave de acesso do recrutador (tela Empresas, ver empresas.html) —
+   destacada em fonte monoespaçada para facilitar leitura/conferência dos
+   8 dígitos. */
+.celula-chave-empresa code {
+    display: inline-block;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    background: var(--cor-fundo);
+    padding: 4px 8px;
+    border-radius: 6px;
+    margin-right: 6px;
 }
 
 .identificacao-sessao {

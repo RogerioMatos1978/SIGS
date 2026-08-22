@@ -1,0 +1,42 @@
+<!--
+    empresas_publico.html
+    ======================
+    Página PÚBLICA (sem login) com um card para cada empresa ATIVA do
+    feirão — o novo ponto de entrada do recrutador (ver
+    app.py:empresas_entrar_tela). Clicar em um card leva ao formulário de
+    acesso daquela empresa (empresa_login.html), onde se informa o nome e
+    a chave de 8 dígitos da empresa (ver
+    auth.autenticar_por_chave_empresa) — substitui o antigo login
+    individual (usuário/senha) do recrutador.
+-->
+{% extends "layout.html" %}
+
+{% block titulo %}SIGS - Acesso das Empresas{% endblock %}
+
+{% block conteudo %}
+<div class="pagina pagina-auth">
+    <div class="card card-auth card-empresas-publico">
+        <img class="logo-auth" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo SENAI">
+        <h1>Acesso das Empresas</h1>
+        <p class="subtitulo-auth">Toque no card da sua empresa para entrar</p>
+
+        <div class="grade-cards-empresa">
+            {% for empresa in empresas %}
+            <a class="card-empresa-publico" href="{{ url_for('empresa_login_tela', empresa_id=empresa.id) }}">
+                <img class="card-empresa-publico-logo"
+                     src="{% if empresa.logo_path %}{{ url_for('static', filename=empresa.logo_path) }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}"
+                     alt="Logo {{ empresa.nome }}">
+                <span class="card-empresa-publico-nome">{{ empresa.nome }}</span>
+            </a>
+            {% else %}
+            <p>Nenhuma empresa disponível no momento. Procure um administrador do evento.</p>
+            {% endfor %}
+        </div>
+
+        <p class="auth-rodape">
+            É atendente, emissor ou administrador?
+            <a href="{{ url_for('login_tela') }}">Entre por aqui</a>.
+        </p>
+    </div>
+</div>
+{% endblock %}

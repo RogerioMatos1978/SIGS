@@ -20,6 +20,10 @@ const elementoSenhaDestaque = document.getElementById("senha-atual-destaque");
 const elementoSenhaInfo = document.getElementById("senha-atual-info");
 const elementoFilaCorpo = document.getElementById("fila-corpo");
 const elementoFilaTotal = document.getElementById("fila-total");
+const elementoFilaBusca = document.getElementById("busca-fila");
+const elementoFilaPaginaInfo = document.getElementById("fila-pagina-info");
+const elementoFilaBotaoAnterior = document.getElementById("btn-fila-anterior");
+const elementoFilaBotaoProxima = document.getElementById("btn-fila-proxima");
 const elementoNotificacoes = document.getElementById("area-notificacoes");
 const elementoModalImpressao = document.getElementById("modal-impressao");
 const elementoModalEmpresaSelect = document.getElementById("modal-empresa-select");
@@ -29,6 +33,14 @@ const elementoModalImpressoraAviso = document.getElementById("modal-impressora-a
 const elementoModalNomePessoa = document.getElementById("modal-nome-pessoa");
 
 const TEMPO_ATUALIZACAO_MS = (window.SIGS_CONFIG && window.SIGS_CONFIG.tempoAtualizacaoMs) || 2000;
+
+// Estado da busca/paginação da Fila de Espera (ver atualizarFila) — fica
+// fora de qualquer função para sobreviver entre as atualizações
+// automáticas por polling (setInterval), senão a página do usuário
+// voltaria para a 1 a cada atualização.
+let filaBuscaAtual = "";
+let filaPaginaAtual = 1;
+let filaTimeoutBusca = null;
 
 // -----------------------------------------------------------------------
 // Utilitários de interface
@@ -344,33 +356,50 @@ async function finalizarAtendimento() {
 }
 
 /**
- * Encerra o atendimento do dia da empresa do recrutador logado (ver
- * app.py:api_finalizar_atendimento_dia). Ação irreversível pelo próprio
- * recrutador — apenas um administrador pode reabrir depois — por isso
- * exige confirmação explícita com o aviso completo antes de prosseguir.
+ * Bloqueia a emissão de novas senhas da empresa do recrutador logado
+ * (ver app.py:api_bloquear_emissao). Diferente do antigo "Finalizar
+ * Atendimento do Dia": não cancela as senhas que já estavam esperando, e
+ * chamar/atender a fila continua funcionando normalmente — o único
+ * efeito é impedir o Emissor de criar NOVAS senhas para esta empresa.
+ * Pode ser desfeito a qualquer momento pelo próprio recrutador (ver
+ * reativarEmissao) ou por um administrador, por isso a confirmação é
+ * mais simples que a de uma ação irreversível.
  */
-async function finalizarAtendimentoDia() {
+async function bloquearEmissao() {
     const confirmado = window.confirm(
-        "Finalizar o atendimento do dia?\n\n" +
-        "Após confirmar, não será mais possível emitir nem chamar novas senhas " +
-        "para esta empresa. Todas as senhas sem atendimento (aguardando na fila) " +
-        "serão CANCELADAS automaticamente e registradas como canceladas no " +
-        "relatório da empresa e no relatório do administrador.\n\n" +
-        "Apenas um administrador poderá reabrir o atendimento depois, caso isto " +
-        "tenha sido um engano."
+        "Bloquear a emissão de novas senhas desta empresa?\n\n" +
+        "A partir de agora, o Emissor não conseguirá mais emitir senhas para esta " +
+        "empresa. As senhas que já estão na fila continuam sendo chamadas e atendidas " +
+        "normalmente. Você (ou um administrador) pode reativar a emissão a qualquer momento."
     );
     if (!confirmado) {
         return;
     }
 
     try {
-        const dados = await chamarApi("/api/finalizar-atendimento-dia", { method: "POST" });
-        exibirNotificacao(dados.mensagem || "Atendimento do dia finalizado.", "sucesso");
+        const dados = await chamarApi("/api/bloquear-emissao", { method: "POST" });
+        exibirNotificacao(dados.mensagem || "Emissão de senhas bloqueada.", "sucesso");
     } catch (erro) {
         exibirNotificacao(erro.message, "erro");
     } finally {
-        // Recarrega a página para refletir o novo estado (botões
-        // desabilitados, aviso de dia finalizado) vindo do servidor.
+        // Recarrega a página para refletir o novo estado (aviso e botão
+        // "Reativar Emissão de Senhas") vindo do servidor.
+        window.location.reload();
+    }
+}
+
+/**
+ * Reativa a emissão de senhas da empresa do recrutador logado (ver
+ * app.py:api_reativar_emissao) — autoatendimento, sem precisar de um
+ * administrador.
+ */
+async function reativarEmissao() {
+    try {
+        const dados = await chamarApi("/api/reativar-emissao", { method: "POST" });
+        exibirNotificacao(dados.mensagem || "Emissão de senhas reativada.", "sucesso");
+    } catch (erro) {
+        exibirNotificacao(erro.message, "erro");
+    } finally {
         window.location.reload();
     }
 }
@@ -457,22 +486,53 @@ async function carregarChamadaAtualInicial() {
 // Fila de espera
 // -----------------------------------------------------------------------
 
-/** Busca e renderiza a fila de senhas aguardando chamada. */
+/**
+ * Busca e renderiza a fila de senhas aguardando chamada, respeitando a
+ * busca e a página atualmente selecionadas (ver ``filaBuscaAtual``/
+ * ``filaPaginaAtual``) — assim, tanto o polling automático (setInterval)
+ * quanto uma ação do usuário (digitar na busca, trocar de página) usam
+ * exatamente o mesmo caminho, sem duplicar lógica.
+ */
 async function atualizarFila() {
     try {
-        const dados = await chamarApi("/api/fila");
-        renderizarFila(dados.fila, dados.total_aguardando);
+        const parametros = new URLSearchParams();
+        if (filaBuscaAtual) {
+            parametros.set("busca", filaBuscaAtual);
+        }
+        parametros.set("pagina", String(filaPaginaAtual));
+
+        const dados = await chamarApi(`/api/fila?${parametros.toString()}`);
+        // O servidor pode ter "corrigido" a página (ex.: busca reduziu o
+        // total de páginas e a atual ficou fora do intervalo) — mantém o
+        // estado local sincronizado com o que realmente foi retornado.
+        filaPaginaAtual = dados.pagina_atual || 1;
+        renderizarFila(dados);
     } catch (erro) {
         console.error("Erro ao atualizar fila:", erro);
     }
 }
 
-/** Renderiza a tabela HTML da fila de espera. */
-function renderizarFila(fila, total) {
-    elementoFilaTotal.textContent = total;
+/** Renderiza a tabela HTML da fila de espera e os controles de paginação. */
+function renderizarFila(dados) {
+    const fila = dados.fila || [];
+    elementoFilaTotal.textContent = dados.total_aguardando || 0;
+
+    if (elementoFilaPaginaInfo) {
+        const totalPaginas = dados.total_paginas || 1;
+        const paginaAtual = dados.pagina_atual || 1;
+        const totalFiltrado = dados.total_filtrado ?? dados.total_aguardando ?? 0;
+        elementoFilaPaginaInfo.textContent = `Página ${paginaAtual} de ${totalPaginas} (${totalFiltrado} resultado${totalFiltrado === 1 ? "" : "s"})`;
+        if (elementoFilaBotaoAnterior) {
+            elementoFilaBotaoAnterior.disabled = paginaAtual <= 1;
+        }
+        if (elementoFilaBotaoProxima) {
+            elementoFilaBotaoProxima.disabled = paginaAtual >= totalPaginas;
+        }
+    }
 
     if (!fila || fila.length === 0) {
-        elementoFilaCorpo.innerHTML = '<tr><td colspan="4">Nenhuma senha aguardando.</td></tr>';
+        const mensagem = filaBuscaAtual ? "Nenhuma senha encontrada para esta busca." : "Nenhuma senha aguardando.";
+        elementoFilaCorpo.innerHTML = `<tr><td colspan="5">${mensagem}</td></tr>`;
         return;
     }
 
@@ -482,6 +542,9 @@ function renderizarFila(fila, total) {
 
         const celulaNumero = document.createElement("td");
         celulaNumero.textContent = String(senha.numero).padStart(3, "0");
+
+        const celulaNome = document.createElement("td");
+        celulaNome.textContent = senha.nome_pessoa || "—";
 
         const celulaEmpresa = document.createElement("td");
         celulaEmpresa.textContent = senha.empresa || "—";
@@ -515,6 +578,7 @@ function renderizarFila(fila, total) {
         celulaAcoes.appendChild(botaoCancelar);
 
         linha.appendChild(celulaNumero);
+        linha.appendChild(celulaNome);
         linha.appendChild(celulaEmpresa);
         linha.appendChild(celulaData);
         linha.appendChild(celulaAcoes);
@@ -560,6 +624,37 @@ async function cancelarSenha(senhaId) {
     }
 }
 
+/**
+ * Reage à digitação no campo de busca da Fila de Espera, com debounce
+ * (aguarda uma pausa de 350ms na digitação antes de consultar o
+ * servidor) para não disparar uma requisição a cada tecla. Sempre volta
+ * para a página 1, já que o conjunto de resultados muda a cada letra
+ * digitada.
+ */
+function aoDigitarBuscaFila() {
+    filaBuscaAtual = elementoFilaBusca.value.trim();
+    filaPaginaAtual = 1;
+
+    if (filaTimeoutBusca) {
+        clearTimeout(filaTimeoutBusca);
+    }
+    filaTimeoutBusca = setTimeout(atualizarFila, 350);
+}
+
+/** Vai para a página anterior da Fila de Espera, se houver. */
+function irParaPaginaAnteriorFila() {
+    if (filaPaginaAtual > 1) {
+        filaPaginaAtual -= 1;
+        atualizarFila();
+    }
+}
+
+/** Vai para a próxima página da Fila de Espera, se houver. */
+function irParaProximaPaginaFila() {
+    filaPaginaAtual += 1;
+    atualizarFila();
+}
+
 // -----------------------------------------------------------------------
 // Inicialização e vínculo de eventos
 // -----------------------------------------------------------------------
@@ -574,7 +669,8 @@ function inicializar() {
     vincularClique("btn-chamar", chamarProximaSenha);
     vincularClique("btn-repetir", repetirChamada);
     vincularClique("btn-finalizar", finalizarAtendimento);
-    vincularClique("btn-finalizar-dia", finalizarAtendimentoDia);
+    vincularClique("btn-bloquear-emissao", bloquearEmissao);
+    vincularClique("btn-reativar-emissao", reativarEmissao);
     vincularClique("btn-abrir-painel", abrirPainel);
     vincularClique("btn-abrir-painel-geral", abrirPainelGeral);
     vincularClique("btn-testar-bip", tocarBip);
@@ -588,6 +684,14 @@ function inicializar() {
     vincularClique("btn-usuarios", () => { window.location.href = "/admin/usuarios"; });
     vincularClique("btn-empresas", () => { window.location.href = "/admin/empresas"; });
     vincularClique("btn-reiniciar", reiniciarContador);
+
+    // Busca e paginação da Fila de Espera — disponíveis para todos os
+    // perfis (ver templates/index.html).
+    vincularClique("btn-fila-anterior", irParaPaginaAnteriorFila);
+    vincularClique("btn-fila-proxima", irParaProximaPaginaFila);
+    if (elementoFilaBusca) {
+        elementoFilaBusca.addEventListener("input", aoDigitarBuscaFila);
+    }
 
     carregarChamadaAtualInicial();
     atualizarFila();

@@ -26,6 +26,8 @@ Regras de negócio implementadas aqui:
       na primeira requisição seguinte à desativação.
 """
 
+import hmac
+import secrets
 import threading
 import time
 from functools import wraps
@@ -203,7 +205,83 @@ def autenticar(login: str, senha: str):
         # então não soma ao contador de força bruta.
         return None, "Este usuário está desativado. Procure um administrador do sistema."
 
+    # Recrutador não usa mais login/senha (ver autenticar_por_chave_empresa
+    # mais abaixo) — mesmo que uma conta antiga ainda tenha uma senha
+    # válida cadastrada, o acesso por aqui é recusado, direcionando para o
+    # novo fluxo. Senha estava correta, então (assim como no caso "ativo"
+    # acima) isto não conta como tentativa malsucedida.
+    if usuario.perfil == PerfilUsuario.RECRUTADOR:
+        return None, (
+            "Recrutadores agora entram pela página de acesso das empresas, "
+            "usando a chave de 8 dígitos da empresa — não usam mais login e "
+            "senha aqui."
+        )
+
     limpar_tentativas_login(login_normalizado)
+    return usuario, None
+
+
+def autenticar_por_chave_empresa(empresa_id: int, chave: str, nome_completo: str):
+    """
+    Valida a chave de acesso de 8 dígitos informada para a empresa
+    ``empresa_id`` — o novo login do recrutador (ver
+    app.py:api_empresa_entrar), no lugar de login/senha individuais.
+
+    Retorna uma tupla ``(usuario, mensagem_erro)``, no mesmo formato de
+    ``autenticar()``. Em caso de sucesso, ``usuario`` é uma instância
+    RECÉM-PROVISIONADA de ``models.Usuario`` — diferente do login
+    tradicional, aqui NÃO existe uma conta pré-cadastrada para "encontrar":
+    cada entrada pela chave cria uma conta de recrutador efêmera nova, com
+    o nome informado agora (ver ``database.provisionar_usuario_recrutador``
+    e ``encerrar_sessao``, que a remove ao deslogar).
+
+    Reaproveita a MESMA proteção de força bruta do login tradicional
+    (``segundos_login_bloqueado``/``registrar_tentativa_falha``), só que
+    "escopada" por empresa em vez de por login — importante porque uma
+    chave de 8 dígitos (100 milhões de combinações) é bem mais fraca que
+    uma senha, então merece a mesma proteção contra tentativa e erro.
+    """
+    chave_de_bloqueio = f"chave-empresa-{empresa_id}"
+
+    restante = segundos_login_bloqueado(chave_de_bloqueio)
+    if restante is not None:
+        minutos = max(1, restante // 60 + (1 if restante % 60 else 0))
+        return None, (
+            f"Muitas tentativas incorretas para esta empresa. "
+            f"Tente novamente em cerca de {minutos} minuto(s)."
+        )
+
+    nome_normalizado = (nome_completo or "").strip()
+    if not nome_normalizado:
+        return None, "Informe seu nome para entrar."
+
+    empresa = database.obter_empresa_por_id(empresa_id)
+    if empresa is None:
+        return None, "Empresa não encontrada."
+
+    # Comparação em tempo constante (hmac.compare_digest) para não vazar,
+    # por cronometragem, quantos dígitos da chave informada já "acertaram"
+    # o prefixo da chave real — mesmo cuidado já tomado com senha (ver
+    # _HASH_FANTASMA acima).
+    chave_informada = (chave or "").strip()
+    chave_confere = hmac.compare_digest(chave_informada, empresa.chave_acesso or "")
+
+    if not chave_confere:
+        registrar_tentativa_falha(chave_de_bloqueio)
+        return None, "Chave de acesso inválida."
+
+    if not empresa.ativa:
+        # Chave estava correta — não é uma tentativa de "adivinhação".
+        return None, "Esta empresa está desativada. Procure um administrador do sistema."
+
+    limpar_tentativas_login(chave_de_bloqueio)
+
+    # Hash de um valor aleatório descartável: esta conta nunca é
+    # autenticada por login/senha (ver checagem de perfil recrutador em
+    # ``autenticar`` acima), então o hash em si nunca precisa ser
+    # verificado — só precisa existir, pois a coluna é NOT NULL.
+    senha_hash_descartavel = gerar_hash_senha(secrets.token_urlsafe(32))
+    usuario = database.provisionar_usuario_recrutador(empresa.id, nome_normalizado, senha_hash_descartavel)
     return usuario, None
 
 
@@ -298,6 +376,13 @@ def encerrar_sessao() -> None:
         database.liberar_guiche(usuario_id)
         database.liberar_guiche_empresa(usuario_id)
         database.registrar_log("INFO", f"Logout realizado: '{login}'.")
+        # Contas de recrutador provisionadas automaticamente pelo login por
+        # chave da empresa (ver database.provisionar_usuario_recrutador)
+        # são efêmeras — removidas aqui para não acumular uma linha nova em
+        # "usuarios" a cada entrada. Sem efeito (no-op) para qualquer outra
+        # conta: o DELETE só afeta linhas com provisionado_por_chave=1 (ver
+        # database.excluir_usuario_provisionado).
+        database.excluir_usuario_provisionado(usuario_id)
 
     session.clear()
 

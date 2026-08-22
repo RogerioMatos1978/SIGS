@@ -13,8 +13,6 @@
 const formularioNovoUsuario = document.getElementById("form-novo-usuario");
 const mensagemNovoUsuario = document.getElementById("novo-usuario-mensagem");
 const selectNovoPerfil = document.getElementById("novo-perfil");
-const campoNovaEmpresa = document.getElementById("campo-novo-empresa");
-const selectNovaEmpresa = document.getElementById("novo-empresa-id");
 const campoBuscaUsuarios = document.getElementById("busca-usuarios");
 
 /** Executa uma chamada à API, tratando erros de forma padronizada. */
@@ -63,16 +61,6 @@ async function criarUsuario(evento) {
     const login = document.getElementById("novo-login").value.trim();
     const senha = document.getElementById("novo-senha").value;
     const perfil = selectNovoPerfil.value;
-    const empresaId = selectNovaEmpresa ? selectNovaEmpresa.value : "";
-
-    // Perfil "recrutador" exige empresa escolhida antes de enviar — evita
-    // uma ida desnecessária ao servidor só para receber o mesmo erro de
-    // volta (o servidor também valida isso, ver app.py:api_admin_criar_usuario).
-    if (perfil === "recrutador" && !empresaId) {
-        mensagemNovoUsuario.textContent = "Selecione a empresa do recrutador.";
-        mensagemNovoUsuario.className = "mensagem-status erro";
-        return;
-    }
 
     botaoEnviar.disabled = true;
     const textoOriginalBotao = botaoEnviar.textContent;
@@ -88,7 +76,6 @@ async function criarUsuario(evento) {
                 login,
                 senha,
                 perfil,
-                empresa_id: perfil === "recrutador" ? empresaId : null,
             }),
         });
 
@@ -194,18 +181,6 @@ async function alterarEmpresaRecrutador(usuarioId, empresaId) {
     }
 }
 
-/**
- * Mostra ou esconde o campo de escolha de empresa no formulário "Novo
- * Usuário", conforme o perfil selecionado (só faz sentido para
- * "recrutador").
- */
-function atualizarCampoNovaEmpresa() {
-    if (!campoNovaEmpresa) {
-        return;
-    }
-    campoNovaEmpresa.style.display = selectNovoPerfil.value === "recrutador" ? "flex" : "none";
-}
-
 /** Reseta TODAS as senhas emitidas e chamadas (ação destrutiva). */
 async function resetarSenhasEmitidas() {
     const confirmacao = window.prompt(
@@ -255,11 +230,6 @@ function inicializar() {
 
     if (campoBuscaUsuarios) {
         campoBuscaUsuarios.addEventListener("input", filtrarTabelaUsuarios);
-    }
-
-    if (selectNovoPerfil) {
-        selectNovoPerfil.addEventListener("change", atualizarCampoNovaEmpresa);
-        atualizarCampoNovaEmpresa();
     }
 
     document.querySelectorAll(".btn-resetar-senha").forEach((botao) => {
