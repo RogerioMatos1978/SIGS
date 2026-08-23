@@ -1490,6 +1490,90 @@ Corrigido em dois pontos:
   Canceladas diretamente na consulta SQL, para que a soma dessa coluna
   volte a bater com o card de resumo logo acima.
 
+### 12.25 Revisão de performance e concorrência (v2.21.0)
+
+Revisão pedida explicitamente pelo usuário para o cenário de um feirão
+grande: até **24 empresas** com recrutador próprio, **6 pontos de
+emissão de senha** e **1 painel de TV (85")**, todos na mesma rede
+Wi-Fi (AP Ruckus), acessando o SIGS ao mesmo tempo — com o objetivo de
+eliminar travamentos e qualquer colisão de informação nas chamadas de
+senha. Pesquisa de boas práticas (SQLite WAL/PRAGMAs, dimensionamento
+de threads do waitress em Windows) usada para embasar as correções.
+
+**O achado mais importante — lock global demais em `chamar_proxima`**
+(`database.py`): a operação de "Chamar Próxima" (o clique mais
+repetido do sistema, disparado por CADA um dos até 24 recrutadores)
+usava um único lock GLOBAL (`_lock`), serializando entre si até
+chamadas de empresas completamente diferentes, com filas totalmente
+independentes — um recrutador da Empresa A esperava, sem necessidade
+nenhuma, o recrutador da Empresa B terminar de chamar a própria senha.
+Com poucas empresas isso era imperceptível (por isso a escolha
+original), mas com até 24 recrutadores clicando por perto do mesmo
+instante (ex.: logo após um intervalo do evento), essa espera
+artificial é exatamente o tipo de "travadinha" relatado. Corrigido com
+um novo esquema de lock (`database._lock_para_chamar`), escopado por
+empresa sempre que possível:
+- Recrutador (`empresa_id` informado): usa só o lock DAQUELA empresa
+  (`_lock_da_empresa`) — chamadas de empresas diferentes nunca mais
+  esperam umas pelas outras.
+- Perfil "atendente" (fila GERAL, sem `empresa_id`, mistura senhas de
+  TODAS as empresas): adquire o lock de TODAS as empresas antes de ler
+  a fila (mesmo princípio já usado por `reiniciar_contador`) — do
+  contrário, o atendente e um recrutador específico, chamando ao mesmo
+  tempo, poderiam disputar a MESMA senha sem nenhum lock em comum
+  protegendo os dois.
+
+Aplicado também a `chamar_varias` ("Chamar Selecionadas") e a
+`ocupar_proximo_guiche_empresa_disponivel` (atribuição automática de
+mesa a um recrutador no login — antes também serializada globalmente
+entre as 24 empresas sem necessidade). Provado com testes de
+concorrência REAIS (threads de verdade, ver `tests/test_concorrencia.py`):
+nenhuma senha é chamada duas vezes sob disputa simultânea, nenhuma
+senha "vaza" para a empresa errada, e uma chamada de uma empresa NÃO
+espera o lock de outra (teste cronometra e confirma que uma chamada da
+Empresa B retorna quase instantaneamente mesmo com a Empresa A
+segurando o próprio lock por 0,6s).
+
+**Servidor de produção (`wsgi.py`)**: threads do waitress aumentadas de
+24 para **64** — cada tela em polling automático (toda tela
+operacional + cada painel público aberto) ocupa uma thread enquanto a
+requisição está em andamento; com até ~31 dispositivos fazendo polling
+a cada poucos segundos (24 recrutadores + 6 emissão + 1 painel de TV),
+o valor antigo (dimensionado para bem menos empresas) ficava perto do
+limite, fazendo requisições esperarem uma thread livre nos picos.
+
+**Consultas de banco desnecessárias em cada poll (`app.py:api_fila`)**:
+a rota consultada por toda tela operacional a cada poucos segundos
+calculava `listar_ultima_senha_por_empresa()` (duas subconsultas
+correlacionadas POR EMPRESA ATIVA) em TODO poll de TODO perfil, mesmo
+que esse dado só seja exibido na tela do perfil Emissor — para
+recrutadores e atendentes (a maioria das ~30 telas operacionais), era
+trabalho de banco puro desperdício. Agora só é calculado quando quem
+está pedindo é, de fato, um Emissor.
+
+**PRAGMAs de performance do SQLite** (`database.get_connection`,
+`config.ConfigManager._conectar`): adicionados `synchronous=NORMAL`
+(seguro em conjunto com o `journal_mode=WAL` já existente, bem mais
+rápido que o padrão `FULL`), `cache_size=-20000` (~20 MB de cache de
+páginas por conexão) e `temp_store=MEMORY` (ordenações dos relatórios
+em memória, não em arquivo temporário).
+
+**Colisão de informação sob rede instável (`static/js/index.js`)**: a
+tela mais usada do sistema (`atualizarFila`, aberta o evento inteiro
+por todo perfil operacional) não tinha proteção contra requisições de
+polling sobrepostas — sob variação de latência da rede Wi-Fi, duas
+respostas podiam chegar fora de ordem e deixar a tela mostrando uma
+página/fila desatualizada por engano. Adicionado o mesmo guarda simples
+já usado nos painéis públicos (ver v2.20.0): enquanto uma chamada ainda
+está em voo, a próxima é pulada.
+
+Cobertura de testes: 4 testes novos de concorrência com threads reais
+(`tests/test_concorrencia.py`) + um smoke test manual simulando as 31
+conexões simultâneas (24 recrutadores + 6 emissores + 1 painel de TV)
+via requisições HTTP reais contra a aplicação Flask — 0 erros, 0
+duplicatas, 0 senhas "vazando" entre empresas, ~0,15s de duração total.
+Suíte completa (139 testes) confirmada após a correção.
+
 ---
 
 ## 13. Referências e projetos utilizados como case de sucesso

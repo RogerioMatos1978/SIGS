@@ -68,7 +68,7 @@ SECRET_KEY_FILE = BASE_DIR / "secret.key"
 # número a cada entrega/alteração relevante do sistema — é a forma mais
 # simples de confirmar, olhando a tela, se uma atualização de fato foi
 # aplicada no computador em uso.
-SIGS_VERSAO = "2.20.1"
+SIGS_VERSAO = "2.21.0"
 
 # ---------------------------------------------------------------------------
 # Nome da tabela de configurações e valores padrão
@@ -165,9 +165,19 @@ class ConfigManager:
     # -- Infraestrutura -----------------------------------------------------
 
     def _conectar(self) -> sqlite3.Connection:
-        """Abre uma conexão com o banco SQLite, com row_factory por nome."""
+        """Abre uma conexão com o banco SQLite, com row_factory por nome.
+
+        Mesmos PRAGMAs de performance aplicados em ``database.get_connection``
+        (ver comentário lá para o motivo de cada um) — esta classe abre sua
+        PRÓPRIA conexão, então precisa configurá-los de novo aqui; sem isso,
+        ``config_manager.obter_todas()`` (chamado no início de praticamente
+        toda rota, inclusive as de polling) ficava fora do ganho de
+        performance dado por ``synchronous=NORMAL``/``cache_size``."""
         conexao = sqlite3.connect(str(DATABASE_PATH), timeout=10, check_same_thread=False)
         conexao.row_factory = sqlite3.Row
+        conexao.execute("PRAGMA synchronous = NORMAL")
+        conexao.execute("PRAGMA cache_size = -20000")
+        conexao.execute("PRAGMA temp_store = MEMORY")
         return conexao
 
     def _inicializar_tabela(self) -> None:

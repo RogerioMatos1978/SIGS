@@ -33,16 +33,25 @@ from app import app
 
 if __name__ == "__main__":
     # Dimensionamento de "threads": cada painel público aberto (geral,
-    # POR EMPRESA e resumo) e cada tela operacional logada faz polling
-    # HTTP a cada poucos segundos (padrão 2s, configurável em
-    # Configurações). Como cada empresa cadastrada agora tem seu próprio
-    # painel (ver seção 4.6 do README), o número de conexões concorrentes
-    # cresce com a quantidade de empresas do feirão — um valor fixo baixo
-    # de threads, dimensionado para quando só existia UM painel, vira
-    # gargalo (requisições esperando thread livre) num feirão com muitas
-    # empresas. Regra prática: threads >= (2 x nº de empresas cadastradas)
-    # + alguma folga para as telas de atendente/admin; 24 cobre
-    # confortavelmente até ~10 empresas com folga para uso normal do
-    # totem. Se o feirão tiver muito mais empresas que isso, aumente este
-    # número (ou rode com waitress atrás de um proxy, se necessário).
-    serve(app, host="0.0.0.0", port=5000, threads=24)
+    # POR EMPRESA e resumo), cada tela operacional logada (atendente,
+    # recrutador, emissor) e a tela principal fazem polling HTTP a cada
+    # poucos segundos (padrão 2s, configurável em Configurações) — cada
+    # requisição em andamento ocupa uma thread do waitress até a
+    # resposta ser enviada. Um valor de threads menor que o número de
+    # clientes fazendo polling ao mesmo tempo faz requisições ESPERAREM
+    # uma thread livre, sentido pelo usuário como uma pequena travada —
+    # mais perceptível quanto mais dispositivos conectados ao mesmo
+    # tempo, como num feirão grande.
+    #
+    # Regra prática (revisada na auditoria de performance do sistema
+    # para o cenário de até 24 empresas cadastradas + 6 pontos de
+    # emissão de senha + 1 painel de TV, todos na mesma rede Wi-Fi):
+    #   threads >= (2 x nº de recrutadores/empresas logadas)
+    #            + nº de pontos de emissão
+    #            + 1 painel de TV
+    #            + folga para admin/relatórios
+    # Para 24 empresas: 2x24 = 48, +6 pontos de emissão, +1 painel de TV,
+    # +~9 de folga = 64. Se o feirão crescer bem além disso, aumente
+    # este número (cada thread ociosa custa pouca memória) ou rode atrás
+    # de um proxy reverso, se necessário.
+    serve(app, host="0.0.0.0", port=5000, threads=64)

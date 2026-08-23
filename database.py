@@ -71,13 +71,22 @@ from config import DATABASE_DIR, DATABASE_PATH, config_manager, logger
 from models import ChamadaEvento, Empresa, PerfilUsuario, Senha, StatusSenha, Usuario
 
 # Lock utilizado para proteger operações que precisam ser atômicas mesmo
-# quando o servidor Flask é executado em modo threaded=True (várias
-# requisições simultâneas). O SQLite já serializa escritas no nível do
-# arquivo, mas o lock evita condições de corrida na lógica de aplicação
-# (por exemplo, ler o contador, incrementar e gravar) — usado por
-# ``chamar_proxima``/``reiniciar_contador*`` (operações raras, disparadas
-# por ação humana, não por polling; o custo de serializar globalmente é
-# desprezível para elas).
+# quando o servidor roda com várias threads (waitress, múltiplas
+# requisições simultâneas — ver wsgi.py). O SQLite já serializa escritas
+# no nível do arquivo, mas o lock evita condições de corrida na lógica
+# de aplicação (por exemplo, ler o contador, incrementar e gravar).
+#
+# Reservado hoje apenas para ``ocupar_proximo_guiche_disponivel`` (pool
+# de guichês da fila GERAL do atendente, genuinamente compartilhado
+# entre todo mundo, sem recorte por empresa possível) e
+# ``reiniciar_contador`` (reset de TODAS as empresas de uma vez).
+# ``chamar_proxima``/``chamar_varias``/
+# ``ocupar_proximo_guiche_empresa_disponivel`` usam locks ESCOPADOS por
+# empresa (``_lock_da_empresa``/``_lock_para_chamar``) desde a revisão
+# de performance/concorrência do sistema — com até 24 empresas
+# cadastradas, serializar globalmente até operações que só tocam UMA
+# empresa por vez virou um gargalo real, perceptível como pequenas
+# travadas quando vários recrutadores agiam ao mesmo tempo.
 _lock = threading.Lock()
 
 # Locks SEPARADOS por empresa, usados especificamente por ``criar_senha``.
@@ -104,6 +113,56 @@ def _lock_da_empresa(empresa_id: int) -> threading.Lock:
         return lock_empresa
 
 
+@contextmanager
+def _lock_para_chamar(empresa_id: Optional[int]) -> Generator[None, None, None]:
+    """
+    Lock usado por ``chamar_proxima``/``chamar_varias`` para impedir que
+    duas chamadas concorrentes peguem a MESMA senha da fila (condição de
+    corrida) — escopado por empresa sempre que possível, em vez do lock
+    ``_lock`` global antigo.
+
+    Corrigido na revisão de performance/concorrência do sistema (feirão
+    com até 24 empresas + 6 pontos de emissão + painel de TV, todos na
+    mesma rede): o lock global antes usado aqui serializava TODAS as
+    chamadas de TODAS as empresas entre si, mesmo quando duas chamadas
+    concorrentes eram de empresas completamente diferentes (recrutadores
+    distintos, filas disjuntas) — um gargalo real quando muitos
+    recrutadores clicam "Chamar Próxima" ao mesmo tempo (ex.: logo após
+    um intervalo do evento), percebido como pequenas travadas.
+
+        - ``empresa_id`` informado (recrutador, restrito à própria fila):
+          usa só o lock DAQUELA empresa (``_lock_da_empresa``) — chamadas
+          de empresas diferentes não esperam umas pelas outras.
+        - ``empresa_id`` omitido (perfil "atendente", fila GERAL
+          compartilhada entre TODAS as empresas — ver
+          ``obter_proxima_emitida``): como a consulta pode pegar a senha
+          de QUALQUER empresa, é preciso adquirir o lock de TODAS as
+          empresas antes de ler a fila (mesmo princípio já usado por
+          ``reiniciar_contador``) — do contrário, um atendente da fila
+          geral e um recrutador de uma empresa específica, chamando
+          exatamente ao mesmo tempo, poderiam "disputar" a mesma senha
+          sem nenhum lock em comum protegendo os dois. Continua sendo uma
+          operação rara (clique humano, não polling), então o custo de
+          serializar com todas as empresas nesse caso específico é
+          aceitável.
+    """
+    if empresa_id is not None:
+        lock_empresa = _lock_da_empresa(empresa_id)
+        with lock_empresa:
+            yield
+        return
+
+    ids_empresas = [linha["id"] for linha in listar_empresas()]
+    locks = [_lock_da_empresa(eid) for eid in sorted(ids_empresas)]
+    for lock_empresa in locks:
+        lock_empresa.acquire()
+    try:
+        yield
+    finally:
+        for lock_empresa in locks:
+            lock_empresa.release()
+
+
 # ---------------------------------------------------------------------------
 # Conexão e inicialização do banco
 # ---------------------------------------------------------------------------
@@ -119,8 +178,28 @@ def get_connection() -> Generator[sqlite3.Connection, None, None]:
     """
     conexao = sqlite3.connect(str(DATABASE_PATH), timeout=10, check_same_thread=False)
     conexao.row_factory = sqlite3.Row
-    # PRAGMA para melhorar concorrência de leitura/escrita.
+    # PRAGMAs para melhorar concorrência e desempenho de leitura/escrita
+    # (revisados na auditoria de performance do sistema, para o cenário
+    # de até 24 empresas + 6 pontos de emissão + painel de TV, todos
+    # consultando o banco simultaneamente pela rede local):
+    #   - journal_mode=WAL: leitores nunca bloqueiam escritores e
+    #     vice-versa (essencial com múltiplas telas em polling
+    #     constante enquanto senhas são emitidas/chamadas).
+    #   - synchronous=NORMAL: seguro em conjunto com WAL (só sincroniza
+    #     no disco a cada checkpoint, não a cada commit) e bem mais
+    #     rápido que o padrão FULL — a perda teórica (alguns commits
+    #     recentes em caso de queda de energia/SO, não de corrupção do
+    #     banco) é um trade-off aceitável para este sistema.
+    #   - cache_size=-20000: ~20 MB de cache de páginas em memória por
+    #     conexão, reduzindo leitura de disco nas consultas mais
+    #     repetidas (fila, resumo, painéis).
+    #   - temp_store=MEMORY: tabelas temporárias/ordenações (ORDER BY,
+    #     GROUP BY dos relatórios) usam memória em vez de arquivo
+    #     temporário em disco.
     conexao.execute("PRAGMA journal_mode = WAL")
+    conexao.execute("PRAGMA synchronous = NORMAL")
+    conexao.execute("PRAGMA cache_size = -20000")
+    conexao.execute("PRAGMA temp_store = MEMORY")
     conexao.execute("PRAGMA foreign_keys = ON")
     try:
         yield conexao
@@ -1480,15 +1559,17 @@ def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) 
     ``empresa_id`` restringe a chamada à fila de uma empresa específica
     (ver ``obter_proxima_emitida``) — usado pelo perfil "recrutador".
 
-    A operação é protegida por lock para impedir que duas chamadas
-    simultâneas peguem a mesma senha (condição de corrida).
+    A operação é protegida por lock (``_lock_para_chamar``, escopado por
+    empresa quando possível) para impedir que duas chamadas simultâneas
+    peguem a mesma senha (condição de corrida) sem serializar
+    desnecessariamente chamadas de empresas diferentes entre si.
 
     Grava um ``lote_chamada`` próprio (lote de uma única senha) — ver
     ``_gerar_lote_chamada`` — para que ``obter_chamada_atual`` trate
     chamadas individuais e chamadas em conjunto (``chamar_varias``) da
     mesma forma.
     """
-    with _lock:
+    with _lock_para_chamar(empresa_id):
         proxima = obter_proxima_emitida(empresa_id)
         if proxima is None:
             return None
@@ -1572,9 +1653,11 @@ def chamar_varias(
     chamadas, outras não) que confundiria o recrutador sobre o que
     realmente aconteceu.
 
-    Protegida pelo mesmo lock global de ``chamar_proxima``, para não
-    disputar a mesma senha com uma chamada concorrente (individual ou em
-    lote) de outro guichê/mesa.
+    Protegida pelo mesmo lock de ``chamar_proxima``
+    (``_lock_para_chamar``, escopado por empresa quando possível), para
+    não disputar a mesma senha com uma chamada concorrente (individual
+    ou em lote) de outro guichê/mesa — sem serializar desnecessariamente
+    com lotes de OUTRAS empresas.
     """
     if not senha_ids:
         raise ValueError("Nenhuma senha selecionada.")
@@ -1584,7 +1667,7 @@ def chamar_varias(
     # eventos de chamada para a mesma senha.
     ids_unicos = list(dict.fromkeys(senha_ids))
 
-    with _lock:
+    with _lock_para_chamar(empresa_id):
         with get_connection() as conexao:
             senhas_validadas: List[Senha] = []
             for senha_id in ids_unicos:
@@ -3043,8 +3126,16 @@ def ocupar_proximo_guiche_empresa_disponivel(
     — não deveria acontecer em uso normal, mas a busca já é por
     ``usuario_id`` sem filtrar empresa), retorna a mesma mesa (idempotente).
     Retorna ``None`` se não houver nenhuma mesa livre nesta empresa.
+
+    Usa o lock POR EMPRESA (``_lock_da_empresa``), não o lock global —
+    corrigido na revisão de performance/concorrência do sistema: o pool
+    de mesas já é restrito a ``empresa_id``, então não há motivo para o
+    login de um recrutador da Empresa A esperar o login de um
+    recrutador da Empresa B terminar. Com até 24 empresas fazendo login
+    ao mesmo tempo (ex.: início do evento), o lock global aqui era uma
+    serialização desnecessária.
     """
-    with _lock:
+    with _lock_da_empresa(empresa_id):
         guiche_atual = obter_guiche_empresa_do_usuario(usuario_id)
         if guiche_atual is not None:
             return guiche_atual

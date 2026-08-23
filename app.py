@@ -1193,7 +1193,21 @@ def api_fila():
         )
 
         total_emitidas_hoje = database.contar_emitidas_hoje(empresa_id=empresa_id_filtro)
-        ultimas_por_empresa = database.listar_ultima_senha_por_empresa()
+        # "Última Senha por Empresa" só é exibida no HTML para o perfil
+        # Emissor (ver templates/index.html) — para os demais perfis, o
+        # elemento nem existe no DOM (renderizarUltimasPorEmpresa em
+        # index.js já se protege contra isso). Corrigido na revisão de
+        # performance/concorrência do sistema: antes, esta consulta (com
+        # DUAS subconsultas correlacionadas POR EMPRESA ATIVA) rodava em
+        # TODO poll de TODO perfil, mesmo os que nunca exibem o dado —
+        # com até 24 empresas cadastradas e ~30 telas operacionais
+        # fazendo polling a cada poucos segundos, isso era trabalho de
+        # banco desperdiçado na grande maioria das requisições.
+        ultimas_por_empresa = (
+            database.listar_ultima_senha_por_empresa()
+            if usuario_sessao.get("perfil") == PerfilUsuario.EMISSOR
+            else []
+        )
 
         return resposta_sucesso(
             {

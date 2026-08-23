@@ -48,6 +48,20 @@ let filaBuscaAtual = "";
 let filaPaginaAtual = 1;
 let filaTimeoutBusca = null;
 
+// Evita requisições SOBREPOSTAS de ``atualizarFila`` — adicionado na
+// revisão de performance/concorrência do sistema (feirão com até 24
+// empresas + 6 pontos de emissão, todos na mesma rede Wi-Fi via AP
+// Ruckus): é a tela mais usada do sistema (todo perfil operacional fica
+// com ela aberta o evento inteiro) e é atualizada tanto pelo polling
+// automático (a cada poucos segundos) quanto por ações do próprio
+// usuário (digitar na busca, trocar de página) — sob variação de
+// latência da rede Wi-Fi, duas respostas podiam chegar fora de ordem e
+// deixar a tela mostrando uma fila/página desatualizada por engano
+// (colisão de informação). Enquanto uma chamada ainda está em voo, a
+// próxima é simplesmente pulada — a leitura seguinte (poll ou ação do
+// usuário) corrige o estado poucos instantes depois.
+let atualizandoFila = false;
+
 // Ids das senhas marcadas para "Chamar Selecionadas" (só usado pelo
 // perfil Recrutador — ver templates/index.html). Escopo por PÁGINA da
 // fila, de propósito: é limpo sempre que a busca ou a página mudam (ver
@@ -516,6 +530,10 @@ async function carregarChamadaAtualInicial() {
  * exatamente o mesmo caminho, sem duplicar lógica.
  */
 async function atualizarFila() {
+    if (atualizandoFila) {
+        return;
+    }
+    atualizandoFila = true;
     try {
         const parametros = new URLSearchParams();
         if (filaBuscaAtual) {
@@ -531,6 +549,8 @@ async function atualizarFila() {
         renderizarFila(dados);
     } catch (erro) {
         console.error("Erro ao atualizar fila:", erro);
+    } finally {
+        atualizandoFila = false;
     }
 }
 
