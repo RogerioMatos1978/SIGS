@@ -12,7 +12,7 @@
 {% block titulo %}SIGS - Tela Principal{% endblock %}
 
 {% block conteudo %}
-<div class="pagina">
+<div class="pagina pagina-larga">
 
     <header class="cabecalho">
         <!-- Se o recrutador logado tiver empresa com logo proprio (ver
@@ -27,7 +27,16 @@
         </div>
     </header>
 
-    <main class="conteudo-principal">
+    <!-- Layout em duas colunas (ver .conteudo-principal--tela-principal em
+         style.css, restrito a ESTA página — as demais telas continuam
+         usando .conteudo-principal em coluna única): à esquerda, o
+         cartão de identificação (Atendente/Recrutador/Emissor/
+         Administrador Logado) e o menu de botões; à direita, a Fila de
+         Espera (e, para o Emissor, também "Última Senha por Empresa"),
+         que se beneficia de mais largura por ser uma tabela. Em telas
+         estreitas, as duas colunas voltam a empilhar (ver media query). -->
+    <main class="conteudo-principal conteudo-principal--tela-principal">
+        <div class="coluna-menu">
 
         {% if usuario_logado.perfil == 'atendente' %}
         <section class="card card-identificacao">
@@ -194,30 +203,37 @@
             {% endif %}
         </section>
 
+        </div>
+        <div class="coluna-fila">
+
         {% if usuario_logado.perfil == 'emissor' %}
         <section class="card card-ultimas-por-empresa">
             <h2>Última Senha por Empresa</h2>
-            <!-- Mostra, para CADA empresa ativa, a última senha emitida —
-                 qualquer que seja o status atual (inclui as opções fixas
-                 "Criar Currículos"/"Imprimir Currículos", que nascem
-                 direto 'Finalizada'). Serve para o Emissor conferir
-                 rapidamente até onde a numeração de cada empresa já
-                 chegou, sem precisar abrir o Painel Geral. Atualiza
-                 sozinho no mesmo polling da Fila de Espera logo abaixo
-                 (ver database.listar_ultima_senha_por_empresa/
-                 app.py:api_fila) — tanto ao emitir uma nova senha quanto
-                 ao cadastrar uma nova empresa. -->
+            <!-- Mostra, para CADA empresa ativa, a última senha EMITIDA e a
+                 última senha CHAMADA — qualquer que seja o status atual
+                 (inclui as opções fixas "Criar Currículos"/"Imprimir
+                 Currículos", que nascem direto 'Finalizada' e por isso já
+                 contam como "chamadas" também). Serve para o Emissor
+                 conferir rapidamente até onde a numeração de cada empresa
+                 já chegou, e qual senha já foi atendida, sem precisar
+                 abrir o Painel Geral. Atualiza sozinho no mesmo polling da
+                 Fila de Espera logo abaixo (ver
+                 database.listar_ultima_senha_por_empresa/app.py:api_fila)
+                 — tanto ao emitir uma nova senha quanto ao cadastrar uma
+                 nova empresa. -->
             <table class="tabela-fila tabela-ultimas-por-empresa">
                 <thead>
                     <tr>
                         <th>Empresa</th>
-                        <th>Última Senha</th>
+                        <th>Última Emitida</th>
                         <th>Nome</th>
                         <th>Emitida em</th>
+                        <th>Última Chamada</th>
+                        <th>Chamada em</th>
                     </tr>
                 </thead>
                 <tbody id="ultimas-por-empresa-corpo">
-                    <tr><td colspan="4">Carregando...</td></tr>
+                    <tr><td colspan="6">Carregando...</td></tr>
                 </tbody>
             </table>
         </section>
@@ -242,9 +258,36 @@
                  rapidamente uma senha antes de reimprimir ou cancelar. -->
             <input type="text" id="busca-fila" class="campo-busca-tabela"
                    placeholder="🔎 Buscar por número da senha ou nome...">
+
+            {% if usuario_logado.perfil == 'recrutador' %}
+            <!-- Chamada em conjunto: o recrutador marca uma ou mais senhas
+                 (checkbox por linha, ver renderizarFila em index.js) e
+                 chama todas de uma vez — útil para adiantar a fila
+                 chamando vários candidatos ao mesmo tempo, em vez de um
+                 por um. Todas compartilham um "lote" no Painel Público
+                 (ver database.chamar_varias/obter_chamada_atual), exibido
+                 como uma sequência (ex.: "005, 006, 007"), sem se misturar
+                 com a chamada de OUTRA empresa acontecendo ao mesmo tempo
+                 — cada painel de empresa só vê o próprio lote mais
+                 recente. Só existe para o perfil Recrutador (fila já
+                 restrita à própria empresa); os demais perfis continuam
+                 usando só "Chamar Próxima" (FIFO, uma de cada vez). -->
+            <div class="barra-selecao-fila">
+                <button type="button" id="btn-chamar-selecionadas" class="botao botao-primario botao-acao-pequeno" disabled>
+                    📢 Chamar Selecionadas (<span id="fila-selecionadas-total">0</span>)
+                </button>
+                <button type="button" id="btn-limpar-selecao" class="botao botao-terciario botao-acao-pequeno" disabled>
+                    Limpar seleção
+                </button>
+            </div>
+            {% endif %}
+
             <table class="tabela-fila">
                 <thead>
                     <tr>
+                        {% if usuario_logado.perfil == 'recrutador' %}
+                        <th class="coluna-checkbox"><input type="checkbox" id="fila-selecionar-todas" title="Selecionar todas as senhas desta página"></th>
+                        {% endif %}
                         <th>Senha</th>
                         <th>Nome</th>
                         <th>Empresa</th>
@@ -253,7 +296,7 @@
                     </tr>
                 </thead>
                 <tbody id="fila-corpo">
-                    <tr><td colspan="5">Carregando...</td></tr>
+                    <tr><td colspan="6">Carregando...</td></tr>
                 </tbody>
             </table>
             <!-- Paginação: a fila é limitada a FILA_ITENS_POR_PAGINA (ver
@@ -271,6 +314,7 @@
             </div>
         </section>
 
+        </div>
     </main>
 
     {% if usuario_logado.perfil == 'emissor' %}

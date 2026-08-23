@@ -26,6 +26,10 @@ const elementoFilaBotaoAnterior = document.getElementById("btn-fila-anterior");
 const elementoFilaBotaoProxima = document.getElementById("btn-fila-proxima");
 const elementoTotalEmitidasHoje = document.getElementById("total-emitidas-hoje");
 const elementoUltimasPorEmpresaCorpo = document.getElementById("ultimas-por-empresa-corpo");
+const elementoFilaSelecionarTodas = document.getElementById("fila-selecionar-todas");
+const elementoBtnChamarSelecionadas = document.getElementById("btn-chamar-selecionadas");
+const elementoBtnLimparSelecao = document.getElementById("btn-limpar-selecao");
+const elementoFilaSelecionadasTotal = document.getElementById("fila-selecionadas-total");
 const elementoNotificacoes = document.getElementById("area-notificacoes");
 const elementoModalImpressao = document.getElementById("modal-impressao");
 const elementoModalEmpresaSelect = document.getElementById("modal-empresa-select");
@@ -43,6 +47,15 @@ const TEMPO_ATUALIZACAO_MS = (window.SIGS_CONFIG && window.SIGS_CONFIG.tempoAtua
 let filaBuscaAtual = "";
 let filaPaginaAtual = 1;
 let filaTimeoutBusca = null;
+
+// Ids das senhas marcadas para "Chamar Selecionadas" (só usado pelo
+// perfil Recrutador — ver templates/index.html). Escopo por PÁGINA da
+// fila, de propósito: é limpo sempre que a busca ou a página mudam (ver
+// aoDigitarBuscaFila/irParaPaginaAnteriorFila/irParaProximaPaginaFila),
+// evitando manter selecionado o id de uma senha que nem está mais
+// visível — e também depois que a chamada em conjunto é confirmada com
+// sucesso (ver chamarSelecionadas), já que essas senhas saem da fila.
+let filaSelecionadas = new Set();
 
 // -----------------------------------------------------------------------
 // Utilitários de interface
@@ -443,7 +456,14 @@ function atualizarDestaqueSenha(chamada) {
     if (!chamada) {
         return;
     }
-    elementoSenhaDestaque.textContent = String(chamada.numero).padStart(3, "0");
+    // Quando "Chamar Selecionadas" chama várias senhas de uma vez,
+    // ``chamada.senhas`` traz todos os eventos do mesmo lote (ver
+    // database.chamar_varias/obter_chamada_atual) — exibe a sequência
+    // inteira aqui também, e não só a primeira senha chamada.
+    const numeros = chamada.senhas && chamada.senhas.length > 0
+        ? chamada.senhas.map((senha) => String(senha.numero).padStart(3, "0")).join(", ")
+        : String(chamada.numero).padStart(3, "0");
+    elementoSenhaDestaque.textContent = numeros;
     // Para o atendente (fila GERAL, com senhas de várias empresas
     // misturadas), mostrar a empresa aqui é essencial — sem isso não há
     // como saber para qual empresa é a senha que acabou de ser chamada.
@@ -542,15 +562,56 @@ function renderizarFila(dados) {
         }
     }
 
+    const podeChamarVarias = window.SIGS_CONFIG && window.SIGS_CONFIG.perfilUsuario === "recrutador";
+    const colunasTabela = podeChamarVarias ? 6 : 5;
+
     if (!fila || fila.length === 0) {
         const mensagem = filaBuscaAtual ? "Nenhuma senha encontrada para esta busca." : "Nenhuma senha aguardando.";
-        elementoFilaCorpo.innerHTML = `<tr><td colspan="5">${mensagem}</td></tr>`;
+        elementoFilaCorpo.innerHTML = `<tr><td colspan="${colunasTabela}">${mensagem}</td></tr>`;
+        if (podeChamarVarias) {
+            // A fila ficou vazia (ou sem resultados de busca) — nenhuma
+            // linha para marcar, então a seleção não faz mais sentido.
+            filaSelecionadas.clear();
+            atualizarBarraSelecaoFila();
+        }
         return;
     }
 
     elementoFilaCorpo.innerHTML = "";
+
+    // Remove da seleção qualquer id que não esteja mais nesta página (ex.:
+    // outra pessoa já chamou a senha entre um polling e outro) — mantém a
+    // contagem da barra de seleção sempre correspondente ao que está
+    // realmente marcado na tela.
+    if (podeChamarVarias) {
+        const idsNaPagina = new Set(fila.map((senha) => senha.id));
+        filaSelecionadas.forEach((id) => {
+            if (!idsNaPagina.has(id)) {
+                filaSelecionadas.delete(id);
+            }
+        });
+    }
+
     fila.forEach((senha) => {
         const linha = document.createElement("tr");
+
+        if (podeChamarVarias) {
+            const celulaSelecao = document.createElement("td");
+            celulaSelecao.className = "coluna-checkbox";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = filaSelecionadas.has(senha.id);
+            checkbox.addEventListener("change", () => {
+                if (checkbox.checked) {
+                    filaSelecionadas.add(senha.id);
+                } else {
+                    filaSelecionadas.delete(senha.id);
+                }
+                atualizarBarraSelecaoFila();
+            });
+            celulaSelecao.appendChild(checkbox);
+            linha.appendChild(celulaSelecao);
+        }
 
         const celulaNumero = document.createElement("td");
         celulaNumero.textContent = String(senha.numero).padStart(3, "0");
@@ -597,6 +658,94 @@ function renderizarFila(dados) {
 
         elementoFilaCorpo.appendChild(linha);
     });
+
+    if (podeChamarVarias) {
+        atualizarBarraSelecaoFila();
+        if (elementoFilaSelecionarTodas) {
+            elementoFilaSelecionarTodas.checked = fila.length > 0 && fila.every((senha) => filaSelecionadas.has(senha.id));
+        }
+    }
+}
+
+/**
+ * Atualiza o contador e o estado (habilitado/desabilitado) dos botões da
+ * barra de seleção da Fila de Espera, conforme a quantidade de senhas
+ * atualmente marcadas em ``filaSelecionadas``.
+ */
+function atualizarBarraSelecaoFila() {
+    if (elementoFilaSelecionadasTotal) {
+        elementoFilaSelecionadasTotal.textContent = filaSelecionadas.size;
+    }
+    if (elementoBtnChamarSelecionadas) {
+        elementoBtnChamarSelecionadas.disabled = filaSelecionadas.size === 0;
+    }
+    if (elementoBtnLimparSelecao) {
+        elementoBtnLimparSelecao.disabled = filaSelecionadas.size === 0;
+    }
+}
+
+/** Marca/desmarca todas as senhas da página atual da Fila de Espera. */
+function alternarSelecaoTodasFila() {
+    const marcarTodas = elementoFilaSelecionarTodas.checked;
+    const checkboxes = elementoFilaCorpo.querySelectorAll("input[type=checkbox]");
+    checkboxes.forEach((checkbox, indice) => {
+        checkbox.checked = marcarTodas;
+        checkbox.dispatchEvent(new Event("change"));
+    });
+    // Fallback caso a fila esteja vazia (nenhum checkbox para disparar o
+    // evento acima) — garante que a barra reflita "0" corretamente.
+    if (checkboxes.length === 0) {
+        atualizarBarraSelecaoFila();
+    }
+}
+
+/** Limpa toda a seleção atual da Fila de Espera (botão "Limpar seleção"). */
+function limparSelecaoFila() {
+    filaSelecionadas.clear();
+    if (elementoFilaSelecionarTodas) {
+        elementoFilaSelecionarTodas.checked = false;
+    }
+    elementoFilaCorpo.querySelectorAll("input[type=checkbox]").forEach((checkbox) => {
+        checkbox.checked = false;
+    });
+    atualizarBarraSelecaoFila();
+}
+
+/**
+ * Chama, de uma vez, todas as senhas atualmente marcadas na Fila de
+ * Espera (ver database.chamar_varias/app.py:api_chamar_varias). Todas
+ * passam a compartilhar um mesmo "lote" no Painel Público, exibidas como
+ * uma sequência — sem interferir na chamada de OUTRA empresa acontecendo
+ * ao mesmo tempo (cada painel de empresa só vê o próprio lote).
+ */
+async function chamarSelecionadas() {
+    if (filaSelecionadas.size === 0) {
+        return;
+    }
+
+    try {
+        const dados = await chamarApi("/api/chamar-varias", {
+            method: "POST",
+            body: JSON.stringify({ senha_ids: Array.from(filaSelecionadas) }),
+        });
+
+        const numeros = (dados.chamada.chamadas || [dados.chamada])
+            .map((item) => String(item.numero).padStart(3, "0"))
+            .join(", ");
+        atualizarDestaqueSenha(dados.chamada);
+        exibirNotificacao(`Senhas ${numeros} chamadas.`, "sucesso");
+
+        filaSelecionadas.clear();
+        await atualizarFila();
+    } catch (erro) {
+        exibirNotificacao(erro.message, "erro");
+        // Uma das senhas selecionadas pode ter deixado de ser válida
+        // (ex.: já chamada por outra pessoa nesse meio-tempo) — atualiza a
+        // fila para refletir a realidade atual, mas mantém a seleção
+        // intacta para o usuário só desmarcar a que falhou, sem perder o
+        // resto da seleção.
+        await atualizarFila();
+    }
 }
 
 /**
@@ -613,7 +762,7 @@ function renderizarUltimasPorEmpresa(lista) {
     }
 
     if (!lista || lista.length === 0) {
-        elementoUltimasPorEmpresaCorpo.innerHTML = "<tr><td colspan=\"4\">Nenhuma empresa cadastrada.</td></tr>";
+        elementoUltimasPorEmpresaCorpo.innerHTML = "<tr><td colspan=\"6\">Nenhuma empresa cadastrada.</td></tr>";
         return;
     }
 
@@ -633,10 +782,21 @@ function renderizarUltimasPorEmpresa(lista) {
         const celulaData = document.createElement("td");
         celulaData.textContent = item.data_hora || "—";
 
+        // Última senha CHAMADA (hora_chamada preenchida) — pode ser
+        // diferente da última EMITIDA acima, já que a chamada segue a
+        // ordem real de atendimento, não a de emissão.
+        const celulaChamadaNumero = document.createElement("td");
+        celulaChamadaNumero.textContent = item.chamada_numero ? String(item.chamada_numero).padStart(3, "0") : "—";
+
+        const celulaChamadaHora = document.createElement("td");
+        celulaChamadaHora.textContent = item.chamada_hora || "—";
+
         linha.appendChild(celulaEmpresa);
         linha.appendChild(celulaNumero);
         linha.appendChild(celulaNome);
         linha.appendChild(celulaData);
+        linha.appendChild(celulaChamadaNumero);
+        linha.appendChild(celulaChamadaHora);
 
         elementoUltimasPorEmpresaCorpo.appendChild(linha);
     });
@@ -689,6 +849,10 @@ async function cancelarSenha(senhaId) {
 function aoDigitarBuscaFila() {
     filaBuscaAtual = elementoFilaBusca.value.trim();
     filaPaginaAtual = 1;
+    // A seleção é sempre restrita à página atual (ver comentário em
+    // ``filaSelecionadas``) — uma nova busca troca completamente o
+    // conjunto de resultados, então a seleção anterior perde sentido.
+    filaSelecionadas.clear();
 
     if (filaTimeoutBusca) {
         clearTimeout(filaTimeoutBusca);
@@ -700,6 +864,7 @@ function aoDigitarBuscaFila() {
 function irParaPaginaAnteriorFila() {
     if (filaPaginaAtual > 1) {
         filaPaginaAtual -= 1;
+        filaSelecionadas.clear();
         atualizarFila();
     }
 }
@@ -707,6 +872,7 @@ function irParaPaginaAnteriorFila() {
 /** Vai para a próxima página da Fila de Espera, se houver. */
 function irParaProximaPaginaFila() {
     filaPaginaAtual += 1;
+    filaSelecionadas.clear();
     atualizarFila();
 }
 
@@ -746,6 +912,14 @@ function inicializar() {
     vincularClique("btn-fila-proxima", irParaProximaPaginaFila);
     if (elementoFilaBusca) {
         elementoFilaBusca.addEventListener("input", aoDigitarBuscaFila);
+    }
+
+    // Seleção múltipla + "Chamar Selecionadas" — só existem no DOM para o
+    // perfil recrutador (ver templates/index.html), por isso vincularClique.
+    vincularClique("btn-chamar-selecionadas", chamarSelecionadas);
+    vincularClique("btn-limpar-selecao", limparSelecaoFila);
+    if (elementoFilaSelecionarTodas) {
+        elementoFilaSelecionarTodas.addEventListener("change", alternarSelecaoTodasFila);
     }
 
     carregarChamadaAtualInicial();

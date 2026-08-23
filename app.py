@@ -24,6 +24,8 @@ Rotas principais:
     POST /api/emitir            Emite uma nova senha (grava + imprime)
     POST /api/chamar            Chama a próxima senha da fila (FIFO; escopo automático por
                                  empresa quando o usuário logado é "recrutador")
+    POST /api/chamar-varias     Chama um CONJUNTO de senhas escolhidas manualmente de uma vez
+                                 (corpo: {"senha_ids": [...]}, mesmo escopo por empresa acima)
     POST /api/repetir           Repete a última chamada realizada (mesmo escopo acima)
     POST /api/finalizar-atendimento  Finaliza o atendimento e já chama a próxima (idem)
     POST /api/reiniciar         Reinicia o contador de senhas
@@ -787,6 +789,90 @@ def api_chamar():
         return resposta_erro(f"Erro ao chamar próxima senha: {erro}", 500)
 
 
+@app.route("/api/chamar-varias", methods=["POST"])
+@auth.login_required
+def api_chamar_varias():
+    """
+    Chama, de uma vez, um CONJUNTO específico de senhas selecionadas
+    manualmente pelo recrutador na Fila de Espera (checkbox por linha —
+    ver templates/index.html/static/js/index.js), diferente de
+    ``/api/chamar`` (sempre a próxima em ordem FIFO). Usada pelo botão
+    "Chamar Selecionadas".
+
+    Corpo esperado (JSON): ``{"senha_ids": [1, 2, 3]}``.
+
+    Sempre em nome do guichê e do usuário atualmente logados (obtidos da
+    sessão, nunca do corpo da requisição — mesmo princípio de
+    ``/api/chamar``). Quando o perfil logado é "recrutador", cada id é
+    validado contra a empresa vinculada ao usuário (dupla checagem: uma
+    vez aqui via ``_pode_gerenciar_senha``, por id, e de novo dentro de
+    ``database.chamar_varias`` via ``empresa_id`` — defesa em
+    profundidade contra um recrutador tentar chamar a senha de outra
+    empresa manipulando os ids enviados).
+
+    Todas as senhas chamadas nesta operação compartilham um mesmo
+    "lote" (ver ``database.chamar_varias``/``obter_chamada_atual``), que
+    é o que o Painel Público usa para exibir a sequência chamada — sem
+    misturar com o lote de OUTRA empresa chamando ao mesmo tempo, já
+    que a busca do lote mais recente no painel sempre é escopada por
+    empresa.
+    """
+    try:
+        usuario_sessao = auth.usuario_logado()
+        eh_recrutador = usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR
+
+        if not usuario_sessao.get("guiche"):
+            mensagem = (
+                "Você não possui uma mesa atribuída no momento (todas ocupadas "
+                "nesta empresa). Faça logout e login novamente ou contate um "
+                "administrador."
+                if eh_recrutador
+                else "Você não possui um guichê atribuído no momento (todos "
+                "ocupados). Faça logout e login novamente ou contate um "
+                "administrador."
+            )
+            return resposta_erro(mensagem, 409)
+
+        dados = request.get_json(silent=True) or {}
+        senha_ids_brutos = dados.get("senha_ids")
+        if not isinstance(senha_ids_brutos, list) or not senha_ids_brutos:
+            return resposta_erro("Selecione ao menos uma senha para chamar.", 400)
+
+        try:
+            senha_ids = [int(item) for item in senha_ids_brutos]
+        except (TypeError, ValueError):
+            return resposta_erro("Lista de senhas inválida.", 400)
+
+        # Checagem de permissão POR ID, antes de chegar em database.chamar_varias
+        # (que também valida por empresa_id) — mesmo padrão já usado por
+        # api_cancelar/api_reimprimir, garantindo uma mensagem de erro
+        # consistente (403, não 400/500) quando um recrutador tenta
+        # chamar a senha de outra empresa.
+        for senha_id in senha_ids:
+            if not _pode_gerenciar_senha(usuario_sessao, senha_id):
+                return resposta_erro("Você não tem permissão para chamar uma das senhas selecionadas.", 403)
+
+        empresa_id_filtro = usuario_sessao.get("empresa_id") if eh_recrutador else None
+
+        guiche = _guiche_formatado(usuario_sessao)
+        usuario = usuario_sessao.get("nome_completo")
+
+        resultado = database.chamar_varias(
+            senha_ids=senha_ids, guiche=guiche, usuario=usuario, empresa_id=empresa_id_filtro
+        )
+        return resposta_sucesso({"chamada": resultado})
+
+    # database.chamar_varias levanta ValueError para qualquer senha
+    # inválida (não encontrada, já chamada/finalizada/cancelada, ou de
+    # outra empresa) — 409 (conflito de estado), igual ao já usado por
+    # /api/repetir para o mesmo tipo de situação.
+    except ValueError as erro:
+        return resposta_erro(str(erro), 409)
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao chamar senhas selecionadas: {erro}", 500)
+
+
 @app.route("/api/repetir", methods=["POST"])
 @auth.login_required
 def api_repetir():
@@ -1268,14 +1354,19 @@ def api_painel_geral_status():
     painel não tem seletor de data), exibidos na seção "Resumo do
     Feirão" da tela (ver templates/painel_geral.html):
 
-        - ``total_emitidas``: todas as senhas emitidas, em qualquer
-          status (mesmo valor de ``resumo.total_emitidas``, repetido
-          aqui por conveniência do frontend).
+        - ``total_emitidas``: todas as senhas emitidas, EXCETO as
+          Canceladas (``resumo.total_emitidas - resumo.total_canceladas``
+          — uma senha cancelada não reflete um atendimento nem uma
+          emissão "válida" para fins deste indicador, então não deve
+          inflar o total exibido no painel). Continua incluindo as duas
+          opções fixas ("Criar Currículos"/"Imprimir Currículos", que
+          nascem direto 'Finalizada').
         - ``total_atendidas``: quantas senhas foram efetivamente
           atendidas (``database.contar_chamadas_realizadas_periodo``,
           sem período = todo o histórico) — já inclui as duas opções
           fixas ("Criar Currículos"/"Imprimir Currículos", ver seção
-          12.11 do README).
+          12.11 do README), já que "emitir" uma delas É o próprio
+          atendimento (não existe fila/chamada para elas).
         - ``tempo_medio``: tempo médio entre emissão e primeira chamada
           (``database.tempo_medio_atendimento``, sem período).
     """
@@ -1287,7 +1378,7 @@ def api_painel_geral_status():
             {
                 "resumo": resumo,
                 "resumo_feirao": {
-                    "total_emitidas": resumo["total_emitidas"],
+                    "total_emitidas": resumo["total_emitidas"] - resumo["total_canceladas"],
                     "total_atendidas": database.contar_chamadas_realizadas_periodo(),
                     "tempo_medio": database.tempo_medio_atendimento(),
                 },

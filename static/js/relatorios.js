@@ -84,7 +84,7 @@ function renderizarResumoEmpresas(porEmpresa) {
     }
 
     if (!porEmpresa || porEmpresa.length === 0) {
-        elementoResumoEmpresasCorpo.innerHTML = '<tr><td colspan="2">Nenhuma senha emitida no período.</td></tr>';
+        elementoResumoEmpresasCorpo.innerHTML = '<tr><td colspan="3">Nenhuma senha emitida no período.</td></tr>';
         return;
     }
 
@@ -98,8 +98,16 @@ function renderizarResumoEmpresas(porEmpresa) {
         const celulaTotal = document.createElement("td");
         celulaTotal.textContent = item.total;
 
+        // "Senhas Atendidas" usa o mesmo critério de hora_chamada
+        // preenchida já usado no Resumo do Período (ver
+        // database.listar_contagem_por_empresa) — nunca maior que
+        // "Senhas Emitidas" da mesma linha.
+        const celulaAtendidas = document.createElement("td");
+        celulaAtendidas.textContent = item.atendidas ?? 0;
+
         linha.appendChild(celulaEmpresa);
         linha.appendChild(celulaTotal);
+        linha.appendChild(celulaAtendidas);
         elementoResumoEmpresasCorpo.appendChild(linha);
     });
 }

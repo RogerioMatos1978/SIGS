@@ -162,6 +162,14 @@ def inicializar_banco() -> None:
                 guiche TEXT,
                 usuario TEXT,
                 data_hora TEXT NOT NULL,
+                -- Identificador compartilhado por TODOS os eventos criados na
+                -- MESMA operação de chamada (uma chamada única = lote de 1
+                -- senha; "Chamar Selecionadas" = lote com várias senhas de
+                -- uma vez — ver chamar_varias/chamar_proxima). Usado por
+                -- obter_chamada_atual para montar a "sequência chamada"
+                -- exibida no Painel Público, sem misturar lotes de
+                -- operações diferentes nem de empresas diferentes.
+                lote_chamada TEXT,
                 FOREIGN KEY (senha_id) REFERENCES senhas (id)
             )
             """
@@ -368,6 +376,12 @@ def inicializar_banco() -> None:
         # chamada mais abaixo, DEPOIS que esta migração garante a coluna).
         _migrar_tabela_empresas_adicionar_fixa(conexao)
 
+        # Adiciona a coluna "lote_chamada" à tabela "eventos_chamada"
+        # (identifica quais eventos pertencem à MESMA operação de chamada
+        # — ver chamar_varias/chamar_proxima/obter_chamada_atual, usada
+        # pelo botão "Chamar Selecionadas" da Fila de Espera).
+        _migrar_tabela_eventos_chamada_adicionar_lote(conexao)
+
         # Só agora a coluna "empresa_id" está garantidamente presente
         # (bancos novos já a criam direto; bancos antigos acabaram de
         # recebê-la na migração acima), então é seguro criar o índice.
@@ -383,6 +397,9 @@ def inicializar_banco() -> None:
         # chamada de UM guichê/mesa específico (texto formatado, ex.:
         # "Mesa 01 — Empresa A"), sem varrer a tabela inteira.
         conexao.execute("CREATE INDEX IF NOT EXISTS idx_eventos_guiche ON eventos_chamada (guiche, id)")
+        # Usado por obter_chamada_atual para buscar rapidamente todos os
+        # eventos de um mesmo lote (chamada em conjunto de várias senhas).
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_eventos_lote ON eventos_chamada (lote_chamada)")
         conexao.commit()
 
     # Garante que as duas empresas fixas do sistema existam — feito FORA
@@ -1015,6 +1032,41 @@ def _migrar_tabela_empresas_adicionar_fixa(conexao: sqlite3.Connection) -> None:
     )
 
 
+def _migrar_tabela_eventos_chamada_adicionar_lote(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona a coluna ``lote_chamada`` (TEXT, opcional) à tabela
+    ``eventos_chamada`` — identifica quais eventos de chamada pertencem à
+    MESMA operação (uma chamada normal gera um lote de 1 senha; "Chamar
+    Selecionadas" gera um lote com várias senhas de uma vez — ver
+    ``chamar_proxima``/``chamar_varias``). Usada por
+    ``obter_chamada_atual`` para montar a "sequência chamada" exibida no
+    Painel Público sem misturar lotes de operações (ou empresas)
+    diferentes que aconteçam ao mesmo tempo.
+
+    Eventos já existentes (gravados antes desta migração) ficam com
+    ``lote_chamada = NULL`` — ``obter_chamada_atual`` trata isso como um
+    lote de uma única senha (o próprio evento), preservando o
+    comportamento antigo para o histórico já gravado.
+    """
+    colunas = conexao.execute("PRAGMA table_info(eventos_chamada)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "lote_chamada" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    logger.warning(
+        "Esquema antigo da tabela 'eventos_chamada' detectado (sem a "
+        "coluna 'lote_chamada'). Adicionando automaticamente..."
+    )
+    conexao.execute("ALTER TABLE eventos_chamada ADD COLUMN lote_chamada TEXT")
+    conexao.commit()
+    logger.warning(
+        "Migração concluída: a tabela 'eventos_chamada' agora possui a "
+        "coluna 'lote_chamada', usada para agrupar senhas chamadas juntas "
+        "de uma vez ('Chamar Selecionadas')."
+    )
+
+
 def _migrar_tabela_usuarios_adicionar_empresa_id(conexao: sqlite3.Connection) -> None:
     """
     Adiciona a coluna ``empresa_id`` (INTEGER, opcional) à tabela
@@ -1398,6 +1450,24 @@ def obter_proxima_emitida(empresa_id: Optional[int] = None) -> Optional[Senha]:
     return Senha.from_row(linha) if linha else None
 
 
+def _gerar_lote_chamada() -> str:
+    """
+    Gera um identificador curto e aleatório para agrupar todos os
+    eventos de ``eventos_chamada`` criados em UMA mesma operação de
+    chamada (uma chamada normal = lote de 1 senha; "Chamar Selecionadas"
+    = lote com várias senhas de uma vez — ver ``chamar_proxima``/
+    ``chamar_varias``). Usado por ``obter_chamada_atual`` para montar a
+    "sequência chamada" exibida no Painel Público sem misturar lotes de
+    operações (ou empresas) diferentes que aconteçam ao mesmo tempo.
+
+    Não precisa ser criptograficamente imprevisível (não é um segredo,
+    como a chave de acesso de empresa) — só precisa ser praticamente
+    único a cada chamada; ``token_hex`` já é aleatório o bastante para
+    isso.
+    """
+    return secrets.token_hex(6)
+
+
 def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) -> Optional[Dict]:
     """
     Chama a próxima senha da fila (a mais antiga com status 'Emitida').
@@ -1412,6 +1482,11 @@ def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) 
 
     A operação é protegida por lock para impedir que duas chamadas
     simultâneas peguem a mesma senha (condição de corrida).
+
+    Grava um ``lote_chamada`` próprio (lote de uma única senha) — ver
+    ``_gerar_lote_chamada`` — para que ``obter_chamada_atual`` trate
+    chamadas individuais e chamadas em conjunto (``chamar_varias``) da
+    mesma forma.
     """
     with _lock:
         proxima = obter_proxima_emitida(empresa_id)
@@ -1419,6 +1494,7 @@ def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) 
             return None
 
         data_hora = _agora_iso()
+        lote = _gerar_lote_chamada()
         with get_connection() as conexao:
             # "hora_chamada" é gravada aqui, na PRIMEIRA (e única) vez que
             # esta senha transiciona de Emitida para Chamada — repetições
@@ -1431,10 +1507,10 @@ def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) 
             )
             cursor = conexao.execute(
                 """
-                INSERT INTO eventos_chamada (senha_id, numero, guiche, usuario, data_hora)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO eventos_chamada (senha_id, numero, guiche, usuario, data_hora, lote_chamada)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (proxima.id, proxima.numero, guiche, usuario, data_hora),
+                (proxima.id, proxima.numero, guiche, usuario, data_hora, lote),
             )
             conexao.commit()
             evento_id = cursor.lastrowid
@@ -1446,6 +1522,7 @@ def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) 
 
     return {
         "evento_id": evento_id,
+        "lote_chamada": lote,
         "senha_id": proxima.id,
         "numero": proxima.numero,
         "guiche": guiche,
@@ -1458,6 +1535,122 @@ def chamar_proxima(guiche: str, usuario: str, empresa_id: Optional[int] = None) 
         # onde a fila mistura senhas de várias empresas — sem isso, quem
         # acabou de chamar não sabia para qual empresa era a senha.
         "empresa": proxima.empresa,
+    }
+
+
+def chamar_varias(
+    senha_ids: List[int], guiche: str, usuario: str, empresa_id: Optional[int] = None
+) -> Dict:
+    """
+    Chama, de uma só vez, um CONJUNTO específico de senhas escolhidas
+    manualmente pelo recrutador na Fila de Espera (ao contrário de
+    ``chamar_proxima``, que sempre pega a mais antiga da fila em ordem
+    FIFO) — usada pelo botão "Chamar Selecionadas".
+
+    Todas as senhas chamadas nesta mesma operação compartilham o mesmo
+    ``lote_chamada`` (ver ``_gerar_lote_chamada``), permitindo que o
+    Painel Público monte a "sequência chamada" (ver
+    ``obter_chamada_atual``) sem misturar com chamadas de OUTRAS
+    empresas acontecendo ao mesmo tempo: cada lote pertence a uma única
+    operação de chamada, e ``obter_chamada_atual`` sempre filtra por
+    ``empresa_id`` (via JOIN com ``senhas``) antes de decidir qual é o
+    lote mais recente a exibir — o lote de uma empresa nunca aparece no
+    painel de outra, mesmo que as duas chamem simultaneamente.
+
+    Validação "tudo ou nada": cada id em ``senha_ids`` precisa
+    - existir;
+    - estar com status ``'Emitida'`` (não é possível chamar uma senha
+      que já foi chamada, finalizada ou cancelada);
+    - pertencer à empresa de ``empresa_id``, quando informado (protege
+      contra um recrutador tentar chamar a senha de outra empresa
+      manipulando o id na requisição — mesmo princípio já aplicado em
+      ``app.py:_pode_gerenciar_senha``).
+
+    Se QUALQUER id da lista falhar em uma dessas checagens, a função
+    levanta ``ValueError`` descrevendo o problema e NADA é alterado no
+    banco — evita um estado parcialmente aplicado (algumas senhas
+    chamadas, outras não) que confundiria o recrutador sobre o que
+    realmente aconteceu.
+
+    Protegida pelo mesmo lock global de ``chamar_proxima``, para não
+    disputar a mesma senha com uma chamada concorrente (individual ou em
+    lote) de outro guichê/mesa.
+    """
+    if not senha_ids:
+        raise ValueError("Nenhuma senha selecionada.")
+
+    # Remove duplicatas preservando a ordem original de seleção — evita
+    # que o mesmo id repetido na lista (ex.: duplo clique) gere dois
+    # eventos de chamada para a mesma senha.
+    ids_unicos = list(dict.fromkeys(senha_ids))
+
+    with _lock:
+        with get_connection() as conexao:
+            senhas_validadas: List[Senha] = []
+            for senha_id in ids_unicos:
+                linha = conexao.execute("SELECT * FROM senhas WHERE id = ?", (senha_id,)).fetchone()
+                if linha is None:
+                    raise ValueError(f"Senha id={senha_id} não encontrada.")
+
+                senha = Senha.from_row(linha)
+
+                if empresa_id and senha.empresa_id != empresa_id:
+                    raise ValueError(
+                        f"Senha {senha.numero:03d} não pertence à sua empresa."
+                    )
+                if senha.status != StatusSenha.EMITIDA:
+                    raise ValueError(
+                        f"Senha {senha.numero:03d} não está mais aguardando "
+                        f"(status atual: {senha.status})."
+                    )
+                senhas_validadas.append(senha)
+
+            lote = _gerar_lote_chamada()
+            data_hora = _agora_iso()
+            chamadas = []
+            for senha in senhas_validadas:
+                conexao.execute(
+                    "UPDATE senhas SET status = ?, guiche = ?, usuario = ?, hora_chamada = ? WHERE id = ?",
+                    (StatusSenha.CHAMADA, guiche, usuario, data_hora, senha.id),
+                )
+                cursor = conexao.execute(
+                    """
+                    INSERT INTO eventos_chamada (senha_id, numero, guiche, usuario, data_hora, lote_chamada)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (senha.id, senha.numero, guiche, usuario, data_hora, lote),
+                )
+                chamadas.append(
+                    {
+                        "evento_id": cursor.lastrowid,
+                        "senha_id": senha.id,
+                        "numero": senha.numero,
+                        "empresa": senha.empresa,
+                    }
+                )
+            conexao.commit()
+
+    numeros_formatados = ", ".join(f"{c['numero']:03d}" for c in chamadas)
+    registrar_log(
+        "INFO",
+        f"Senhas {numeros_formatados} chamadas em conjunto no guichê '{guiche}' "
+        f"por '{usuario}' (lote {lote}).",
+    )
+
+    primeira = chamadas[0]
+    return {
+        "lote_chamada": lote,
+        "guiche": guiche,
+        "usuario": usuario,
+        "data_hora": data_hora,
+        "chamadas": chamadas,
+        # Campos no nível raiz espelhando a PRIMEIRA senha do lote, para
+        # quem só precisa de uma confirmação simples (ex.: notificação de
+        # sucesso na tela) sem percorrer a lista "chamadas".
+        "evento_id": primeira["evento_id"],
+        "senha_id": primeira["senha_id"],
+        "numero": primeira["numero"],
+        "empresa": primeira["empresa"],
     }
 
 
@@ -1533,13 +1726,19 @@ def repetir_ultima_chamada(guiche: Optional[str] = None) -> Optional[Dict]:
     empresa_da_senha = senha_atual["empresa"] if senha_atual is not None else None
 
     data_hora = _agora_iso()
+    # Repetição sempre gera um lote NOVO, de uma única senha — mesmo que a
+    # chamada original tenha sido feita em conjunto com outras (ver
+    # chamar_varias): "Repetir" reanuncia especificamente a ÚLTIMA senha
+    # chamada naquele guichê/mesa, não o lote inteiro de origem. Ver
+    # _gerar_lote_chamada/obter_chamada_atual.
+    lote = _gerar_lote_chamada()
     with get_connection() as conexao:
         cursor = conexao.execute(
             """
-            INSERT INTO eventos_chamada (senha_id, numero, guiche, usuario, data_hora)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO eventos_chamada (senha_id, numero, guiche, usuario, data_hora, lote_chamada)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (ultimo["senha_id"], ultimo["numero"], ultimo["guiche"], ultimo["usuario"], data_hora),
+            (ultimo["senha_id"], ultimo["numero"], ultimo["guiche"], ultimo["usuario"], data_hora, lote),
         )
         conexao.commit()
         evento_id = cursor.lastrowid
@@ -1548,6 +1747,7 @@ def repetir_ultima_chamada(guiche: Optional[str] = None) -> Optional[Dict]:
 
     return {
         "evento_id": evento_id,
+        "lote_chamada": lote,
         "senha_id": ultimo["senha_id"],
         "numero": ultimo["numero"],
         "guiche": ultimo["guiche"],
@@ -1618,47 +1818,107 @@ def finalizar_atendimento_e_chamar_proxima(guiche: str, usuario: str, empresa_id
 
 def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
     """
-    Retorna os dados do evento de chamada mais recente (a senha que deve
-    estar em destaque no painel neste momento), ou ``None`` se nenhuma
-    chamada foi realizada ainda.
+    Retorna os dados do LOTE de chamada mais recente — uma ou mais
+    senhas chamadas JUNTAS na mesma operação (ver
+    ``chamar_varias``/``_gerar_lote_chamada``) — ou ``None`` se nenhuma
+    chamada foi realizada ainda. Usado para popular o destaque "senha em
+    atendimento" nos painéis públicos e na tela principal (caixa "Última
+    Senha Chamada").
 
-    ``empresa_id`` restringe a busca à última chamada de uma empresa
-    específica (via JOIN com ``senhas``) — usado pelo painel público de
-    uma empresa (``/painel/empresa/<id>``). Quando omitido, considera
-    todas as empresas — comportamento do painel geral (``/painel``).
+    Antes de existir o conceito de lote, esta função retornava só o
+    EVENTO mais recente isoladamente. Agora, quando o recrutador chama
+    várias senhas de uma vez ("Chamar Selecionadas"), o painel deve
+    mostrar a sequência inteira — não só a última da lista — então esta
+    função primeiro descobre qual foi o lote mais recente e depois busca
+    TODOS os eventos daquele lote.
+
+    ``empresa_id`` restringe a busca à empresa específica (via JOIN com
+    ``senhas``) — usado pelo painel público de uma empresa
+    (``/painel/empresa/<id>``). Quando omitido, considera todas as
+    empresas — comportamento do painel geral (``/painel``).
+
+    IMPORTANTE (isolamento entre empresas chamando ao mesmo tempo): como
+    o passo 1 (achar o lote mais recente) já filtra por
+    ``s.empresa_id`` quando ``empresa_id`` é informado, e o passo 2
+    (buscar os eventos do lote) reaplica o mesmo filtro, o lote de uma
+    empresa NUNCA aparece no painel de outra — mesmo que duas empresas
+    chamem senhas exatamente ao mesmo tempo, cada painel de empresa
+    continua vendo apenas o próprio lote mais recente. Eventos antigos
+    sem ``lote_chamada`` (gravados antes desta coluna existir — ver
+    ``_migrar_tabela_eventos_chamada_adicionar_lote``) são tratados como
+    um lote de uma única senha (o próprio evento).
     """
-    with get_connection() as conexao:
-        if empresa_id:
-            linha = conexao.execute(
-                """
-                SELECT e.*, s.empresa AS empresa
-                FROM eventos_chamada e
-                JOIN senhas s ON s.id = e.senha_id
-                WHERE s.empresa_id = ?
-                ORDER BY e.id DESC
-                LIMIT 1
-                """,
-                (empresa_id,),
-            ).fetchone()
-        else:
-            # JOIN com "senhas" para trazer também a empresa associada
-            # (usado pelo painel GERAL, /painel, onde a fila mistura
-            # senhas de várias empresas — ver ChamadaEvento.empresa).
-            linha = conexao.execute(
-                """
-                SELECT e.*, s.empresa AS empresa
-                FROM eventos_chamada e
-                JOIN senhas s ON s.id = e.senha_id
-                ORDER BY e.id DESC
-                LIMIT 1
-                """
-            ).fetchone()
+    condicao_empresa = "WHERE s.empresa_id = ?" if empresa_id else ""
+    parametros_empresa = [empresa_id] if empresa_id else []
 
-    if linha is None:
+    with get_connection() as conexao:
+        # Passo 1: descobre o evento (e o lote) mais recente.
+        ultimo = conexao.execute(
+            f"""
+            SELECT e.id, e.lote_chamada
+            FROM eventos_chamada e
+            JOIN senhas s ON s.id = e.senha_id
+            {condicao_empresa}
+            ORDER BY e.id DESC
+            LIMIT 1
+            """,
+            parametros_empresa,
+        ).fetchone()
+
+        if ultimo is None:
+            return None
+
+        # Passo 2: busca TODOS os eventos daquele lote (1 ou vários). Para
+        # eventos antigos sem lote_chamada, cai de volta a buscar só pelo
+        # próprio id (equivalente ao comportamento anterior a esta função
+        # existir).
+        if ultimo["lote_chamada"]:
+            condicao_lote = "WHERE e.lote_chamada = ?"
+            parametros_lote = [ultimo["lote_chamada"]]
+        else:
+            condicao_lote = "WHERE e.id = ?"
+            parametros_lote = [ultimo["id"]]
+
+        if empresa_id:
+            condicao_lote += " AND s.empresa_id = ?"
+            parametros_lote.append(empresa_id)
+
+        linhas = conexao.execute(
+            f"""
+            SELECT e.*, s.empresa AS empresa
+            FROM eventos_chamada e
+            JOIN senhas s ON s.id = e.senha_id
+            {condicao_lote}
+            ORDER BY e.id ASC
+            """,
+            parametros_lote,
+        ).fetchall()
+
+    if not linhas:
         return None
 
-    evento = ChamadaEvento.from_row(linha)
-    return evento.to_dict()
+    eventos = [ChamadaEvento.from_row(linha).to_dict() for linha in linhas]
+    primeiro = eventos[0]
+
+    return {
+        # Campos no nível raiz espelhando o PRIMEIRO evento do lote —
+        # mantém compatibilidade com quem só lia um evento único antes de
+        # existir o conceito de lote (ex.: comparar "id" para detectar
+        # mudança e disparar bip/animação continua funcionando, já que o
+        # "id" do primeiro evento do lote muda a cada novo lote).
+        "id": primeiro["id"],
+        "lote_chamada": primeiro["lote_chamada"],
+        "senha_id": primeiro["senha_id"],
+        "numero": primeiro["numero"],
+        "guiche": primeiro["guiche"],
+        "usuario": primeiro["usuario"],
+        "data_hora": primeiro["data_hora"],
+        "empresa": primeiro["empresa"],
+        # Lista com TODAS as senhas do lote (1 ou mais) — usada pelo
+        # painel público para montar a "sequência chamada" (ver
+        # static/js/painel.js e static/js/painel_empresa.js).
+        "senhas": eventos,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -2026,9 +2286,20 @@ def listar_contagem_por_empresa(
 ) -> List[Dict]:
     """
     Retorna a quantidade de senhas emitidas por empresa dentro de um
-    período, ordenada da mais requisitada para a menos requisitada.
-    Senhas sem empresa associada (emitidas antes desta funcionalidade
-    existir) são agrupadas sob o rótulo "Não informado".
+    período, ordenada da mais requisitada para a menos requisitada, e
+    também quantas dessas senhas foram efetivamente ATENDIDAS
+    (``atendidas``) — usado pela coluna "Senhas Atendidas" da tabela
+    "Senhas por Empresa" da tela de Relatórios (ver
+    app.py:api_relatorios_resumo/templates/relatorios.html). Senhas sem
+    empresa associada (emitidas antes desta funcionalidade existir) são
+    agrupadas sob o rótulo "Não informado".
+
+    ``atendidas`` usa o mesmo critério de ``hora_chamada IS NOT NULL``
+    de ``contar_chamadas_realizadas_periodo`` (preenchida na primeira
+    chamada de guichê, ou na criação de uma senha das duas opções
+    fixas "Criar Currículos"/"Imprimir Currículos") — nunca maior que
+    ``total`` da mesma linha, e imune à inflação por repetição de
+    chamada, pelo mesmo motivo já documentado naquela função.
 
     ``empresa_id``, quando informado, restringe o resultado a UMA única
     empresa (usado pelo relatório do recrutador, que só vê a própria).
@@ -2051,7 +2322,10 @@ def listar_contagem_por_empresa(
     with get_connection() as conexao:
         linhas = conexao.execute(
             f"""
-            SELECT COALESCE(empresa, 'Não informado') AS empresa, COUNT(*) AS total
+            SELECT
+                COALESCE(empresa, 'Não informado') AS empresa,
+                COUNT(*) AS total,
+                SUM(CASE WHEN hora_chamada IS NOT NULL THEN 1 ELSE 0 END) AS atendidas
             FROM senhas
             {where}
             GROUP BY COALESCE(empresa, 'Não informado')
@@ -2060,7 +2334,10 @@ def listar_contagem_por_empresa(
             parametros,
         ).fetchall()
 
-    return [{"empresa": linha["empresa"], "total": linha["total"]} for linha in linhas]
+    return [
+        {"empresa": linha["empresa"], "total": linha["total"], "atendidas": linha["atendidas"]}
+        for linha in linhas
+    ]
 
 
 def resumo_geral_senhas() -> Dict:
@@ -2901,24 +3178,34 @@ def listar_empresas(somente_ativas: bool = False) -> List[Dict]:
 def listar_ultima_senha_por_empresa(somente_ativas: bool = True) -> List[Dict]:
     """
     Retorna, para CADA empresa cadastrada, os dados da última senha
-    emitida para ela (número, nome da pessoa, data/hora e status) — ou
-    ``None`` nesses campos, se a empresa ainda não recebeu nenhuma
-    senha. Usado pelo card "Última Senha por Empresa" da tela principal
-    do perfil Emissor (ver app.py:api_fila/templates/index.html),
-    exibido ACIMA da Fila de Espera para dar uma visão rápida do
-    andamento de cada empresa sem precisar abrir o Painel Geral.
+    EMITIDA para ela (número, nome da pessoa, data/hora e status) e,
+    separadamente, os dados da última senha CHAMADA (``hora_chamada``
+    preenchida) — ou ``None`` nesses campos, quando a empresa ainda não
+    tem nenhuma senha emitida/chamada. Usado pelo card "Última Senha
+    por Empresa" da tela principal do perfil Emissor (ver
+    app.py:api_fila/templates/index.html), exibido ACIMA da Fila de
+    Espera para dar uma visão rápida do andamento de cada empresa sem
+    precisar abrir o Painel Geral.
 
     Diferente da Fila de Espera (que só lista senhas com status
-    'Emitida'), aqui a última senha aparece qualquer que seja o status
+    'Emitida'), a última EMITIDA aparece qualquer que seja o status
     atual — inclusive senhas já chamadas/finalizadas, e as das duas
     opções fixas ("Criar Currículos"/"Imprimir Currículos", que nascem
     direto 'Finalizada') — o objetivo é mostrar "até onde a numeração
     de cada empresa já chegou", não o estado da fila.
 
-    A subconsulta correlacionada busca o id da senha mais recente
-    (``MAX(id)``, equivalente a mais recente já que ``id`` é
-    autoincremental) de cada empresa; o ``LEFT JOIN`` garante que
-    empresas sem nenhuma senha ainda apareçam na lista mesmo assim.
+    A última CHAMADA usa ``hora_chamada`` (preenchida tanto por uma
+    chamada de guichê de verdade quanto pela criação de uma senha das
+    opções fixas — ver ``criar_senha``/``chamar_proxima``, mesmo campo
+    já usado por ``contar_chamadas_realizadas_periodo``), ordenando por
+    ``hora_chamada DESC`` em vez de ``id DESC``: normalmente coincidem
+    (a fila é FIFO), mas usar o horário real da chamada é mais preciso
+    caso uma senha mais antiga acabe sendo chamada depois de uma mais
+    nova já ter sido emitida.
+
+    As subconsultas correlacionadas buscam o id da senha mais recente
+    de cada empresa; os ``LEFT JOIN`` garantem que empresas sem nenhuma
+    senha (emitida ou chamada) ainda apareçam na lista mesmo assim.
 
     ``somente_ativas=True`` (padrão) esconde empresas desativadas — não
     faz sentido mostrar "última senha" de uma empresa que não está mais
@@ -2936,10 +3223,18 @@ def listar_ultima_senha_por_empresa(somente_ativas: bool = True) -> List[Dict]:
                 s.numero AS senha_numero,
                 s.nome_pessoa AS senha_nome_pessoa,
                 s.data_hora AS senha_data_hora,
-                s.status AS senha_status
+                s.status AS senha_status,
+                c.numero AS chamada_numero,
+                c.nome_pessoa AS chamada_nome_pessoa,
+                c.hora_chamada AS chamada_hora
             FROM empresas e
             LEFT JOIN senhas s ON s.id = (
                 SELECT id FROM senhas WHERE empresa_id = e.id ORDER BY id DESC LIMIT 1
+            )
+            LEFT JOIN senhas c ON c.id = (
+                SELECT id FROM senhas
+                WHERE empresa_id = e.id AND hora_chamada IS NOT NULL
+                ORDER BY hora_chamada DESC LIMIT 1
             )
             {condicao}
             ORDER BY e.fixa DESC, e.nome ASC
@@ -2955,6 +3250,9 @@ def listar_ultima_senha_por_empresa(somente_ativas: bool = True) -> List[Dict]:
             "nome_pessoa": linha["senha_nome_pessoa"],
             "data_hora": linha["senha_data_hora"],
             "status": linha["senha_status"],
+            "chamada_numero": linha["chamada_numero"],
+            "chamada_nome_pessoa": linha["chamada_nome_pessoa"],
+            "chamada_hora": linha["chamada_hora"],
         }
         for linha in linhas
     ]

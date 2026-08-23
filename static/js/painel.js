@@ -70,7 +70,12 @@ function atualizarChamadaAtual(chamada) {
         return;
     }
 
-    elementoNumeroAtual.textContent = String(chamada.numero).padStart(3, "0");
+    const numeros = formatarNumerosChamada(chamada);
+    elementoNumeroAtual.textContent = numeros;
+    // Classe usada pelo CSS para reduzir a fonte quando várias senhas
+    // aparecem juntas (ver "Chamar Selecionadas" em index.js), já que o
+    // texto fica bem mais longo que um número isolado de 3 dígitos.
+    elementoNumeroAtual.classList.toggle("painel-numero--sequencia", chamada.senhas && chamada.senhas.length > 1);
     // Fica vazio (e some via CSS ":empty") para senhas emitidas antes da
     // funcionalidade de empresas existir, que não têm esse dado.
     elementoEmpresaAtual.textContent = chamada.empresa || "";
@@ -87,6 +92,20 @@ function atualizarChamadaAtual(chamada) {
         }
         ultimoEventoAnunciadoId = chamada.id;
     }
+}
+
+/**
+ * Formata o(s) número(s) da chamada atual em destaque. Quando o
+ * recrutador chama várias senhas de uma vez ("Chamar Selecionadas" — ver
+ * database.chamar_varias/obter_chamada_atual), ``chamada.senhas`` traz
+ * TODOS os eventos do mesmo lote (em ordem de chamada) e o painel exibe
+ * a sequência inteira separada por vírgula (ex.: "005, 006, 007"), em
+ * vez de mostrar só o primeiro número. Chamadas individuais continuam
+ * mostrando um único número, como sempre.
+ */
+function formatarNumerosChamada(chamada) {
+    const lista = chamada.senhas && chamada.senhas.length > 0 ? chamada.senhas : [chamada];
+    return lista.map((senha) => String(senha.numero).padStart(3, "0")).join(", ");
 }
 
 /** Dispara a animação de pulso e o bip sonoro no painel. */

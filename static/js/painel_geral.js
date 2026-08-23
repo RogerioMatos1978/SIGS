@@ -8,14 +8,21 @@
  * anúncio de senha.
  *
  * Os cards de topo ("Aguardando"/"Em Atendimento"/"Total em Andamento")
- * e a tabela "Por Empresa" propositalmente NÃO exibem "Atendidas"
- * (Finalizada) nem "Canceladas" — mesmo critério aplicado a todos os
- * painéis públicos (ver templates/painel_geral.html e
- * database.listar_ultimas_emitidas): refletem só a situação ATUAL da
- * fila. Já a seção "Resumo do Feirão" (``atualizarResumoFeirao``,
- * abaixo) mostra o TOTAL geral do evento — inclui as senhas já
- * finalizadas, de propósito, pois ali o objetivo é o resultado
- * acumulado, não a fila do momento.
+ * propositalmente NÃO exibem "Atendidas" (Finalizada) nem "Canceladas"
+ * — mesmo critério aplicado a todos os painéis públicos (ver
+ * templates/painel_geral.html e database.listar_ultimas_emitidas):
+ * refletem só a situação ATUAL da fila.
+ *
+ * Já a tabela "Por Empresa" (``atualizarTabelaEmpresas``) mostra
+ * Aguardando/Em Atendimento normalmente, mas a coluna "Total" é o
+ * total GERAL da empresa (``linha.total``, vindo pronto do backend —
+ * ver database.resumo_geral_senhas), incluindo Finalizada/Cancelada —
+ * do contrário, empresas com tudo já atendido (ou as duas opções
+ * fixas "Criar Currículos"/"Imprimir Currículos", que nascem direto
+ * 'Finalizada') sempre apareceriam com "Total: 0" ali, mesmo tendo
+ * emitido senhas normalmente. Mesma lógica da seção "Resumo do
+ * Feirão" (``atualizarResumoFeirao``, abaixo): o objetivo desta coluna
+ * é o resultado acumulado da empresa, não a fila do momento.
  */
 
 "use strict";
@@ -68,10 +75,13 @@ function atualizarTotais(resumo) {
 }
 
 /**
- * Atualiza a tabela com o detalhamento por empresa — mesmo critério da
- * função acima: só Aguardando/Em Atendimento/Total (soma dos dois),
- * mesmo que ``linha.atendidas``/``linha.canceladas`` venham preenchidos
- * do servidor.
+ * Atualiza a tabela com o detalhamento por empresa: Aguardando/Em
+ * Atendimento refletem só a fila do momento, mas "Total" é o total
+ * GERAL da empresa (``linha.total``, já vem pronto do backend — soma
+ * de TODOS os status, inclusive Finalizada/Cancelada). Ver docstring
+ * do arquivo para o motivo de não recalcular "Total" como só
+ * aguardando + em_atendimento (isso fazia empresas já totalmente
+ * atendidas, ou as duas opções fixas, aparecerem com "Total: 0").
  */
 function atualizarTabelaEmpresas(porEmpresa) {
     elementoEmpresasCorpo.innerHTML = "";
@@ -87,7 +97,7 @@ function atualizarTabelaEmpresas(porEmpresa) {
             linha.empresa,
             linha.aguardando,
             linha.em_atendimento,
-            linha.aguardando + linha.em_atendimento,
+            linha.total,
         ].forEach((valor) => {
             const td = document.createElement("td");
             td.textContent = valor;

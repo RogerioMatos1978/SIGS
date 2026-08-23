@@ -75,3 +75,46 @@ def test_contar_chamadas_realizadas_respeita_filtro_de_empresa(banco_teste):
 
     assert database.contar_chamadas_realizadas_periodo(empresa_id=empresa_a.id) == 1
     assert database.contar_chamadas_realizadas_periodo(empresa_id=empresa_b.id) == 0
+
+
+def test_listar_contagem_por_empresa_inclui_coluna_atendidas(banco_teste):
+    """
+    A coluna "Senhas Atendidas" da tabela "Senhas por Empresa" (tela de
+    Relatórios do Administrador) usa o mesmo critério de
+    ``hora_chamada IS NOT NULL`` de ``contar_chamadas_realizadas_periodo``
+    — nunca maior que "total" (senhas emitidas) da mesma linha, e imune
+    à inflação por repetição de chamada.
+    """
+    empresa_a = database.criar_empresa("Empresa A")
+    empresa_b = database.criar_empresa("Empresa B")
+
+    database.criar_senha(empresa_id=empresa_a.id, empresa=empresa_a.nome)  # será chamada
+    database.criar_senha(empresa_id=empresa_a.id, empresa=empresa_a.nome)  # continua esperando
+    database.criar_senha(empresa_id=empresa_b.id, empresa=empresa_b.nome)  # nunca chamada
+
+    database.chamar_proxima(guiche="Mesa A", usuario="Recrutador A", empresa_id=empresa_a.id)
+    database.repetir_ultima_chamada(guiche="Mesa A")
+    database.repetir_ultima_chamada(guiche="Mesa A")
+
+    contagem = database.listar_contagem_por_empresa()
+    por_nome = {item["empresa"]: item for item in contagem}
+
+    assert por_nome["Empresa A"]["total"] == 2
+    # Só 1 das 2 senhas da Empresa A foi chamada, mesmo com repetições.
+    assert por_nome["Empresa A"]["atendidas"] == 1
+    assert por_nome["Empresa A"]["atendidas"] <= por_nome["Empresa A"]["total"]
+
+    assert por_nome["Empresa B"]["total"] == 1
+    assert por_nome["Empresa B"]["atendidas"] == 0
+
+
+def test_listar_contagem_por_empresa_conta_opcoes_fixas_como_atendidas(banco_teste):
+    fixa = next(l for l in database.listar_empresas() if l["nome"] == database.NOMES_EMPRESAS_FIXAS[0])
+    database.criar_senha(empresa_id=fixa["id"], empresa=fixa["nome"], finalizar_imediatamente=True)
+    database.criar_senha(empresa_id=fixa["id"], empresa=fixa["nome"], finalizar_imediatamente=True)
+
+    contagem = database.listar_contagem_por_empresa()
+    item = next(i for i in contagem if i["empresa"] == database.NOMES_EMPRESAS_FIXAS[0])
+
+    assert item["total"] == 2
+    assert item["atendidas"] == 2

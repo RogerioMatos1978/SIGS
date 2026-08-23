@@ -235,6 +235,12 @@ class ChamadaEvento:
     usuario: Optional[str]
     data_hora: str
     empresa: Optional[str] = None
+    # Identificador compartilhado por todos os eventos criados na MESMA
+    # operação de chamada (ver database._gerar_lote_chamada/chamar_varias).
+    # ``None`` para eventos gravados antes desta coluna existir (bancos
+    # antigos migrados) — database.obter_chamada_atual trata esse caso
+    # como um lote de uma única senha.
+    lote_chamada: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -248,7 +254,9 @@ class ChamadaEvento:
         JOIN com a tabela ``senhas`` (ver database.obter_chamada_atual e
         database.listar_chamadas_periodo); ``eventos_chamada`` sozinha não
         possui essa coluna. Por isso a leitura é defensiva (``"empresa" in
-        linha.keys()``), igual ao já feito em ``Senha.from_row``.
+        linha.keys()``), igual ao já feito em ``Senha.from_row``. O mesmo
+        vale para ``lote_chamada``, adicionada por migração em bancos
+        antigos (ver database._migrar_tabela_eventos_chamada_adicionar_lote).
         """
         chaves = linha.keys()
         return ChamadaEvento(
@@ -259,6 +267,7 @@ class ChamadaEvento:
             usuario=linha["usuario"],
             data_hora=linha["data_hora"],
             empresa=linha["empresa"] if "empresa" in chaves else None,
+            lote_chamada=linha["lote_chamada"] if "lote_chamada" in chaves else None,
         )
 
 

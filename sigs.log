@@ -2169,3 +2169,63 @@
 2026-08-23 10:12:30 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
 2026-08-23 10:12:47 | INFO     | SIGS | Senha emitida: número 002 (id=37, empresa='IEL')
 2026-08-23 10:12:53 | INFO     | SIGS | Ticket impresso com sucesso: senha 002 na impressora 'Microsoft Print to PDF'.
+2026-08-23 10:18:21 | WARNING  | SIGS | Senha id=30 cancelada.
+2026-08-23 10:18:23 | WARNING  | SIGS | Senha id=31 cancelada.
+2026-08-23 10:18:25 | WARNING  | SIGS | Senha id=32 cancelada.
+2026-08-23 10:18:48 | WARNING  | SIGS | Senha id=33 cancelada.
+2026-08-23 10:18:51 | WARNING  | SIGS | Senha id=34 cancelada.
+2026-08-23 10:18:55 | WARNING  | SIGS | Senha id=36 cancelada.
+2026-08-23 10:19:05 | WARNING  | SIGS | Senha id=37 cancelada.
+2026-08-23 10:43:17 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 10:44:15 | INFO     | SIGS | Senha emitida: número 004 (id=38, empresa='Imprimir Currículos') — já registrada como realizada, sem fila.
+2026-08-23 10:44:20 | INFO     | SIGS | Ticket impresso com sucesso: senha 004 na impressora 'Microsoft Print to PDF'.
+2026-08-23 11:02:42 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 11:16:18 | INFO     | SIGS | Conta de recrutador provisionada automaticamente para 'Rogerio' (empresa id=1) via chave de acesso.
+2026-08-23 11:16:18 | INFO     | SIGS | Mesa 1 (empresa id=1) atribuída automaticamente a 'Rogerio'.
+2026-08-23 11:16:18 | INFO     | SIGS | Login realizado: 'chave-empresa-1-c20cba14892bc19f' (perfil recrutador, guichê 1).
+2026-08-23 11:16:23 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:24 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:24 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:24 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:25 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:25 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:25 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:25 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:26 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:26 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:27 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:27 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 11:16:39 | INFO     | SIGS | Senha emitida: número 006 (id=39, empresa='COMIGO')
+2026-08-23 11:16:42 | ERROR    | SIGS | Falha ao imprimir senha 006 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 11:16:53 | INFO     | SIGS | Senha 006 chamada no guichê 'Mesa 01 — COMIGO' por 'Rogerio'.
+2026-08-23 11:17:11 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-23 11:17:14 | INFO     | SIGS | Repetição de chamada da senha 006.
+2026-08-23 11:18:09 | INFO     | SIGS | Senha id=39 finalizada.
+2026-08-23 12:19:29 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 12:20:14 | INFO     | SIGS | Senha emitida: número 005 (id=40, empresa='Imprimir Currículos') — já registrada como realizada, sem fila.
+2026-08-23 12:20:21 | INFO     | SIGS | Ticket impresso com sucesso: senha 005 na impressora 'Microsoft Print to PDF'.
+2026-08-23 12:20:40 | INFO     | SIGS | Senha emitida: número 007 (id=41, empresa='COMIGO')
+2026-08-23 12:20:42 | ERROR    | SIGS | Falha ao imprimir senha 007 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 12:20:50 | INFO     | SIGS | Senha emitida: número 008 (id=42, empresa='COMIGO')
+2026-08-23 12:20:52 | ERROR    | SIGS | Falha ao imprimir senha 008 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 12:20:57 | INFO     | SIGS | Senha emitida: número 009 (id=43, empresa='COMIGO')
+2026-08-23 12:20:58 | ERROR    | SIGS | Falha ao imprimir senha 009 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 12:21:17 | ERROR    | SIGS | Falha ao imprimir senha 007 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 12:21:17 | ERROR    | SIGS | Falha ao reimprimir: Falha ao imprimir o ticket na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 12:22:09 | INFO     | SIGS | Senha emitida: número 010 (id=44, empresa='COMIGO')
+2026-08-23 12:22:11 | ERROR    | SIGS | Falha ao imprimir senha 010 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 12:22:27 | INFO     | SIGS | Senha 007 chamada no guichê 'Mesa 01 — COMIGO' por 'Rogerio'.
+2026-08-23 12:22:59 | INFO     | SIGS | Senha 008 chamada no guichê 'Mesa 01 — COMIGO' por 'Rogerio'.
+2026-08-23 12:54:19 | WARNING  | SIGS | Esquema antigo da tabela 'eventos_chamada' detectado (sem a coluna 'lote_chamada'). Adicionando automaticamente...
+2026-08-23 12:54:19 | WARNING  | SIGS | Migração concluída: a tabela 'eventos_chamada' agora possui a coluna 'lote_chamada', usada para agrupar senhas chamadas juntas de uma vez ('Chamar Selecionadas').
+2026-08-23 12:54:19 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 12:55:02 | INFO     | SIGS | Senhas 009, 010 chamadas em conjunto no guichê 'Mesa 01 — COMIGO' por 'Rogerio' (lote 4b94ed8c7ca3).
+2026-08-23 12:56:24 | INFO     | SIGS | Senha id=44 finalizada.
+2026-08-23 12:56:29 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 12:56:43 | INFO     | SIGS | Senha id=43 finalizada.
+2026-08-23 12:56:44 | INFO     | SIGS | Senha id=42 finalizada.
+2026-08-23 12:56:46 | INFO     | SIGS | Senha id=41 finalizada.
+2026-08-23 13:10:00 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 13:10:34 | INFO     | SIGS | Senha emitida: número 006 (id=45, empresa='Imprimir Currículos') — já registrada como realizada, sem fila.
+2026-08-23 13:10:42 | ERROR    | SIGS | Falha ao imprimir senha 006 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 13:11:08 | ERROR    | SIGS | Não há senhas aguardando chamada.

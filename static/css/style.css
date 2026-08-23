@@ -82,6 +82,62 @@ body {
     gap: 18px;
 }
 
+/* Página um pouco mais larga que o padrão (1200px) — usada só pela
+   tela principal (ver .pagina-larga em templates/index.html), que
+   passou a ter duas colunas lado a lado e se beneficia de mais espaço
+   horizontal. As demais telas (Relatórios, Empresas, Usuários,
+   Configurações) continuam com .pagina no tamanho padrão. */
+.pagina-larga {
+    max-width: 1600px;
+}
+
+/* Layout em duas colunas da tela principal (ver templates/index.html):
+   à esquerda, o cartão de identificação do usuário logado e o menu de
+   botões (largura fixa, não precisa de muito espaço); à direita, a
+   Fila de Espera — e, para o Emissor, também "Última Senha por
+   Empresa" — que se beneficia de mais largura por serem tabelas.
+   Restrito a esta página via classe modificadora, para não afetar as
+   outras telas que reaproveitam .conteudo-principal em coluna única. */
+.conteudo-principal--tela-principal {
+    flex-direction: row;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.conteudo-principal--tela-principal .coluna-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    flex: 0 0 380px;
+    min-width: 300px;
+}
+
+.conteudo-principal--tela-principal .coluna-fila {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    /* min-width: 0 evita que a tabela interna force a coluna a crescer
+       além do espaço disponível (comportamento padrão de flex item com
+       conteúdo "não encolhível" como tabelas). */
+    flex: 1 1 480px;
+    min-width: 0;
+}
+
+/* Em telas estreitas, volta a empilhar em coluna única — mesmo
+   critério de largura já usado pelo restante do layout responsivo. */
+@media (max-width: 900px) {
+    .conteudo-principal--tela-principal {
+        flex-direction: column;
+    }
+
+    .conteudo-principal--tela-principal .coluna-menu,
+    .conteudo-principal--tela-principal .coluna-fila {
+        flex: 1 1 auto;
+        min-width: 0;
+        width: 100%;
+    }
+}
+
 /* -------------------- Cards -------------------- */
 .card {
     background: var(--cor-branco);
@@ -267,6 +323,30 @@ input:focus, select:focus {
     font-size: 0.95rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+/* Coluna do checkbox de seleção (só existe para o perfil recrutador —
+   ver templates/index.html) — bem estreita, só cabe a caixinha. */
+.tabela-fila .coluna-checkbox {
+    width: 36px;
+    text-align: center;
+}
+
+.tabela-fila input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* Barra "Chamar Selecionadas" / "Limpar seleção" acima da tabela da
+   Fila de Espera (ver index.js: filaSelecionadas). Só aparece para o
+   perfil recrutador. */
+.barra-selecao-fila {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
 }
 
 .botao-acao-pequeno {
@@ -460,6 +540,15 @@ input:focus, select:focus {
     font-weight: 900;
     line-height: 1;
     margin: 10px 0;
+}
+
+/* Quando o recrutador chama várias senhas de uma vez ("Chamar
+   Selecionadas" — ver index.js/painel.js/painel_empresa.js), o texto
+   vira uma sequência tipo "005, 006, 007" — bem mais longo que um
+   número isolado, então a fonte precisa ser bem menor para caber. */
+.painel-numero.painel-numero--sequencia {
+    font-size: 4.5rem;
+    word-break: break-word;
 }
 
 .painel-empresa {
@@ -1006,6 +1095,13 @@ input:focus, select:focus {
     .tabela-fila, .painel-resumo-tabela {
         min-width: 480px;
     }
+
+    /* 6 colunas (Empresa/Última Emitida/Nome/Emitida em/Última
+       Chamada/Chamada em) precisam de mais espaço que a Fila de
+       Espera (5 colunas) para não ficarem ilegíveis. */
+    .tabela-ultimas-por-empresa {
+        min-width: 640px;
+    }
 }
 
 @media (max-width: 900px) {
@@ -1015,6 +1111,10 @@ input:focus, select:focus {
 
     .painel-numero {
         font-size: 7rem;
+    }
+
+    .painel-numero.painel-numero--sequencia {
+        font-size: 3rem;
     }
 
     .cabecalho {
@@ -1073,6 +1173,10 @@ input:focus, select:focus {
 
     .painel-numero {
         font-size: 5rem;
+    }
+
+    .painel-numero.painel-numero--sequencia {
+        font-size: 2.2rem;
     }
 
     .painel-resumo-valor {

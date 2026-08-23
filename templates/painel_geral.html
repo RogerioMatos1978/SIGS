@@ -6,16 +6,23 @@
     o detalhe por empresa. Sem controles de chamada (apenas leitura) e
     sem exigência de login — ver /api/painel/geral/status.
 
-    Os cards "em andamento" e a tabela "Por Empresa" propositalmente NÃO
-    mostram senhas "Finalizada" nem "Cancelada" — mesmo critério
-    aplicado a todos os painéis públicos (ver também
-    database.listar_ultimas_emitidas, usada por
-    painel.html/painel_empresa.html): devem refletir a situação ATUAL
-    da fila, não o histórico de atendimentos já encerrados ou
-    cancelados. A seção "Resumo do Feirão" logo abaixo é a exceção
-    proposital: mostra o TOTAL acumulado do evento inteiro (inclusive
-    finalizadas), já que ali o objetivo é o resultado geral do feirão,
-    não a fila do momento.
+    Os cards "em andamento" propositalmente NÃO mostram senhas
+    "Finalizada" nem "Cancelada" — mesmo critério aplicado a todos os
+    painéis públicos (ver também database.listar_ultimas_emitidas,
+    usada por painel.html/painel_empresa.html): devem refletir a
+    situação ATUAL da fila, não o histórico de atendimentos já
+    encerrados ou cancelados.
+
+    Já a tabela "Por Empresa" logo abaixo mistura os dois critérios de
+    propósito: as colunas "Aguardando"/"Em Atendimento" mostram só a
+    fila do momento, mas a coluna "Total" é o total GERAL daquela
+    empresa (inclusive Finalizada/Cancelada) — sem isso, uma empresa já
+    totalmente atendida (ou as duas opções fixas "Criar
+    Currículos"/"Imprimir Currículos", que nascem direto 'Finalizada')
+    sempre apareceria com "Total: 0" ali, mesmo tendo emitido senhas
+    normalmente. Mesmo espírito da seção "Resumo do Feirão" logo
+    abaixo: mostra o TOTAL acumulado do evento inteiro, já que ali o
+    objetivo é o resultado geral do feirão, não a fila do momento.
 -->
 {% extends "layout.html" %}
 
@@ -54,10 +61,13 @@
 
         <!-- Resumo do Feirão: totais de TODO o evento (sem filtro de
              período — este painel não tem seletor de data), distintos
-             dos cards "em andamento" acima. Inclui as senhas já
-             finalizadas/canceladas nos totais (diferente dos cards e da
-             tabela "Por Empresa" abaixo, que mostram só o que está em
-             andamento de propósito) — ver app.py:api_painel_geral_status. -->
+             dos cards "em andamento" acima. "Total de Senhas Emitidas"
+             inclui as já finalizadas (inclusive Criar/Imprimir
+             Currículos) mas EXCLUI as Canceladas — uma senha cancelada
+             não é um atendimento nem uma emissão válida para este
+             indicador. Diferente da tabela "Por Empresa" abaixo (coluna
+             "Total"), que continua somando também as Canceladas, de
+             propósito — ver app.py:api_painel_geral_status. -->
         <h2 class="painel-resumo-feirao-titulo">Resumo do Feirão</h2>
         <section class="painel-resumo-grade painel-resumo-feirao" id="painel-resumo-feirao">
             <div class="painel-resumo-item">

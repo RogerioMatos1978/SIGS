@@ -125,3 +125,80 @@ def test_api_painel_geral_status_expoe_resumo_do_feirao(banco_teste):
     assert corpo["resumo_feirao"]["total_emitidas"] == 2
     assert "total_atendidas" in corpo["resumo_feirao"]
     assert "tempo_medio_formatado" in corpo["resumo_feirao"]["tempo_medio"]
+
+
+def test_resumo_do_feirao_soma_empresas_fixas_mas_exclui_canceladas(banco_teste):
+    """
+    ``resumo_feirao.total_emitidas`` deve contar as senhas das duas
+    opções fixas ("Criar Currículos"/"Imprimir Currículos" — são
+    atendimentos reais, mesmo sem fila/chamada), mas NÃO as Canceladas
+    — uma senha cancelada não representa um atendimento nem uma emissão
+    válida para este indicador (regra explícita a partir da v2.15.0;
+    antes disso, canceladas eram somadas também). ``total_atendidas``
+    continua contando as duas fixas normalmente, já que "emiti-las" JÁ É
+    o próprio atendimento.
+    """
+    import app as app_modulo
+
+    empresa = database.criar_empresa("Empresa Alfa")
+    database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    cancelada = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    database.cancelar_senha(cancelada.id)
+
+    fixa1 = next(l for l in database.listar_empresas() if l["nome"] == database.NOMES_EMPRESAS_FIXAS[0])
+    fixa2 = next(l for l in database.listar_empresas() if l["nome"] == database.NOMES_EMPRESAS_FIXAS[1])
+    database.criar_senha(empresa_id=fixa1["id"], empresa=fixa1["nome"], finalizar_imediatamente=True)
+    database.criar_senha(empresa_id=fixa2["id"], empresa=fixa2["nome"], finalizar_imediatamente=True)
+
+    cliente = app_modulo.app.test_client()
+    corpo = cliente.get("/api/painel/geral/status").get_json()
+
+    # 1 aguardando + 2 das opções fixas = 3 — a cancelada fica de fora.
+    assert corpo["resumo_feirao"]["total_emitidas"] == 3
+    # As duas opções fixas contam como "atendidas" (nascem já
+    # 'Finalizada', com hora_chamada preenchida); a cancelada não conta
+    # em nenhum dos dois totais.
+    assert corpo["resumo_feirao"]["total_atendidas"] == 2
+
+
+def test_resumo_do_feirao_total_emitidas_nunca_conta_cancelada_isolada(banco_teste):
+    """
+    Regressão focada só na exclusão de Canceladas (sem outras senhas no
+    banco): uma única senha cancelada não deve aparecer em
+    ``total_emitidas`` nem em ``total_atendidas``.
+    """
+    import app as app_modulo
+
+    empresa = database.criar_empresa("Empresa Alfa")
+    cancelada = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    database.cancelar_senha(cancelada.id)
+
+    cliente = app_modulo.app.test_client()
+    corpo = cliente.get("/api/painel/geral/status").get_json()
+
+    assert corpo["resumo_feirao"]["total_emitidas"] == 0
+    assert corpo["resumo_feirao"]["total_atendidas"] == 0
+
+
+def test_resumo_do_feirao_atendimentos_realizados_inclui_curriculos_fixos(banco_teste):
+    """
+    Confirmação explícita do pedido do usuário: "Total de Atendimentos
+    Realizados" deve contabilizar as senhas de Criar Currículos/Imprimir
+    Currículos, já que são atendimentos (mesmo sem fila/chamada — a
+    própria emissão já é o atendimento, ver criar_senha,
+    finalizar_imediatamente). Cenário isolado, sem nenhuma outra senha
+    no banco, para não depender de nenhum outro comportamento.
+    """
+    import app as app_modulo
+
+    fixa1 = next(l for l in database.listar_empresas() if l["nome"] == database.NOMES_EMPRESAS_FIXAS[0])
+    fixa2 = next(l for l in database.listar_empresas() if l["nome"] == database.NOMES_EMPRESAS_FIXAS[1])
+    database.criar_senha(empresa_id=fixa1["id"], empresa=fixa1["nome"], finalizar_imediatamente=True)
+    database.criar_senha(empresa_id=fixa2["id"], empresa=fixa2["nome"], finalizar_imediatamente=True)
+    database.criar_senha(empresa_id=fixa1["id"], empresa=fixa1["nome"], finalizar_imediatamente=True)
+
+    cliente = app_modulo.app.test_client()
+    corpo = cliente.get("/api/painel/geral/status").get_json()
+
+    assert corpo["resumo_feirao"]["total_atendidas"] == 3
+    assert corpo["resumo_feirao"]["total_emitidas"] == 3

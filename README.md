@@ -1068,6 +1068,166 @@ seguintes pontos de atrito:
   apareçam na lista), exposto em `app.py:api_fila` (campo
   `ultimas_por_empresa`) e renderizado por `static/js/index.js`.
 
+### 12.14 Evolução recente do sistema (v2.12.0)
+
+- **Confirmado (sem necessidade de correção) — Resumo do Feirão já
+  soma Criar Currículos/Imprimir Currículos e senhas Canceladas**:
+  `database.resumo_geral_senhas` conta TODAS as senhas por status, sem
+  nenhum filtro de empresa ou status — então `total_emitidas` do
+  `resumo_feirao` (ver seção 12.13) já incluía as duas opções fixas e
+  as canceladas desde a v2.11.0. Foram adicionados testes de regressão
+  explícitos (`tests/test_paineis.py`) travando esse comportamento,
+  para garantir que uma mudança futura não quebre isso silenciosamente.
+
+- **"Última Senha por Empresa" (tela do Emissor) ganhou a última senha
+  CHAMADA, além da última EMITIDA**: agora a tabela tem duas colunas a
+  mais — "Última Chamada" e "Chamada em" — mostrando qual senha foi
+  efetivamente chamada por último em cada empresa (usando
+  `hora_chamada`, o mesmo campo já usado por
+  `contar_chamadas_realizadas_periodo` — inclui as duas opções fixas,
+  que "chamam a si mesmas" ao nascer). Como a fila é FIFO, a última
+  chamada normalmente é uma senha mais ANTIGA que a última emitida
+  (ex.: emissor emite as senhas 001, 002 e 003; só a 001 foi chamada
+  até agora — a tela mostra "Última Emitida: 003" e "Última Chamada:
+  001" lado a lado). Implementado estendendo
+  `database.listar_ultima_senha_por_empresa` com um segundo `LEFT
+  JOIN` correlacionado (ordenado por `hora_chamada DESC`, não por
+  `id DESC`).
+
+- **Relatórios (Administrador) — nova coluna "Senhas Atendidas" em
+  "Senhas por Empresa"**: até aqui essa tabela só mostrava "Senhas
+  Emitidas" por empresa; agora mostra também quantas dessas senhas
+  foram efetivamente atendidas (mesmo critério de `hora_chamada IS NOT
+  NULL` usado no invariante "chamadas ≤ emitidas" da v2.7.0 — imune à
+  inflação por repetição de chamada, e nunca maior que "Senhas
+  Emitidas" da mesma linha). Implementado adicionando `SUM(CASE WHEN
+  hora_chamada IS NOT NULL THEN 1 ELSE 0 END)` à mesma consulta de
+  `database.listar_contagem_por_empresa` (evita uma segunda consulta
+  separada e problemas de sincronização entre duas listas agrupadas
+  por empresa).
+
+### 12.15 Evolução recente do sistema (v2.12.1)
+
+- **Correção — coluna "Total" da tabela "Por Empresa" no Painel Geral
+  ficava sempre em 0 para empresas sem senha "em andamento"**: a
+  coluna era calculada no frontend como `aguardando + em_atendimento`,
+  ignorando o campo `total` que o backend já calculava (soma de TODOS
+  os status, inclusive Finalizada/Cancelada — ver
+  `database.resumo_geral_senhas`). Na prática, qualquer empresa já
+  totalmente atendida no momento da consulta — e, sempre, as duas
+  opções fixas "Criar Currículos"/"Imprimir Currículos", que nascem
+  direto 'Finalizada' — aparecia com "Total: 0" na tabela, mesmo tendo
+  emitido senhas normalmente. Corrigido em
+  `static/js/painel_geral.js` (`atualizarTabelaEmpresas`), que agora
+  usa `linha.total` (já vem pronto do servidor) em vez de recalcular a
+  soma parcial. As colunas "Aguardando"/"Em Atendimento" continuam
+  mostrando só a fila do momento, de propósito — só "Total" passou a
+  refletir o total geral de cada empresa.
+
+### 12.16 Evolução recente do sistema (v2.13.0)
+
+- **Tela principal (index.html) ganhou layout em duas colunas**: antes,
+  o cartão de identificação (Atendente/Recrutador/Emissor/Administrador
+  Logado), o menu de botões e a Fila de Espera ficavam todos empilhados
+  em uma única coluna estreita, deixando bastante espaço horizontal sem
+  uso em telas grandes e obrigando bastante rolagem vertical até
+  chegar na Fila. Agora, à esquerda fica uma coluna estreita (cartão de
+  identificação + menu de botões) e à direita uma coluna larga com a
+  Fila de Espera (e, para o Emissor, também "Última Senha por
+  Empresa") — tabelas se beneficiam de mais espaço horizontal. A
+  página também ficou um pouco mais larga (1600px em vez do padrão de
+  1200px usado pelas demais telas) para acomodar as duas colunas
+  confortavelmente. Em telas estreitas (celular/tablet), as duas
+  colunas voltam a empilhar verticalmente, como antes. Implementado
+  via duas classes CSS restritas a esta tela
+  (`.conteudo-principal--tela-principal`/`.pagina-larga`), sem afetar o
+  layout das demais páginas (Relatórios, Empresas, Usuários,
+  Configurações), que continuam reaproveitando `.conteudo-principal`
+  em coluna única.
+
+### 12.17 Evolução recente do sistema (v2.14.0)
+
+- **Fila de Espera — o recrutador agora pode selecionar várias senhas e
+  chamá-las de uma vez ("Chamar Selecionadas")**: até aqui, cada senha
+  só podia ser chamada individualmente (uma de cada vez, sempre a
+  próxima da fila em ordem FIFO, via "Chamar Próxima"). Agora, na Fila
+  de Espera, o recrutador marca os checkboxes das senhas desejadas
+  (uma coluna nova, só visível para o perfil recrutador) e clica em
+  "Chamar Selecionadas" para chamar todas de uma vez, em qualquer
+  ordem escolhida — útil quando várias vagas da mesma empresa vão ser
+  atendidas juntas. A seleção é restrita à página atual da fila (some
+  ao trocar de página ou buscar, evitando ids "fantasma" de uma tela
+  antiga) e existe também "Selecionar todas" (cabeçalho da tabela) e
+  "Limpar seleção".
+
+- **Painel Público exibe a sequência inteira chamada em conjunto**: as
+  senhas chamadas juntas por "Chamar Selecionadas" aparecem no painel
+  (geral, por empresa, e na caixa "Última Senha Chamada" da tela do
+  recrutador/atendente) como uma sequência única, ex. "005, 006, 007",
+  em vez de mostrar só a primeira ou disparar várias animações
+  separadas. Chamadas individuais continuam mostrando um único número,
+  como sempre.
+
+- **Isolamento entre empresas chamando ao mesmo tempo**: o requisito
+  explícito era que a sequência chamada por uma empresa NUNCA vaze ou
+  se misture com a de outra empresa chamando simultaneamente. Isso é
+  garantido por um novo conceito de "lote" (`eventos_chamada.lote_chamada`,
+  um identificador aleatório de 12 caracteres gerado a cada operação de
+  chamada — ver `database._gerar_lote_chamada`): todas as senhas
+  chamadas juntas numa mesma operação compartilham o mesmo lote, e
+  `database.obter_chamada_atual` sempre escopa a busca do "lote mais
+  recente" por `empresa_id` antes de buscar os eventos daquele lote —
+  então o painel de uma empresa nunca enxerga o lote de outra, mesmo
+  com chamadas em lote intercaladas no tempo. Testado explicitamente em
+  `tests/test_chamar_varias.py`
+  (`test_obter_chamada_atual_isolamento_entre_empresas_com_lotes_simultaneos`).
+
+- **"Repetir Chamada" continua repetindo só a última senha**, mesmo que
+  ela tenha feito parte de uma chamada em lote — decisão deliberada
+  para não reanunciar o lote inteiro sem o recrutador pedir
+  explicitamente (gera um novo lote próprio, de uma única senha).
+
+- Implementado em: `database.py` (`chamar_varias` — validação "tudo ou
+  nada", nenhuma senha é alterada se qualquer uma da lista for
+  inválida/já chamada/de outra empresa; `obter_chamada_atual`
+  reescrito para buscar o lote inteiro), `app.py` (rota
+  `POST /api/chamar-varias`, com a mesma checagem de permissão por id
+  já usada em `/api/cancelar`/`/api/reimprimir`), `templates/index.html`
+  + `static/js/index.js` (checkboxes, barra de seleção, botão) e
+  `static/js/painel.js`/`painel_empresa.js` (exibição da sequência).
+
+### 12.18 Evolução recente do sistema (v2.15.0)
+
+- **Confirmado (sem necessidade de correção) — "Total de Atendimentos
+  Realizados" (Resumo do Feirão, Painel Geral) já contabiliza Criar
+  Currículos/Imprimir Currículos**: esse total é calculado por
+  `database.contar_chamadas_realizadas_periodo` (baseado em
+  `senhas.hora_chamada IS NOT NULL`), e as duas opções fixas já nascem
+  com `hora_chamada` preenchida no momento da emissão (ver
+  `criar_senha`, `finalizar_imediatamente` — elas não têm fila nem
+  chamada, a própria emissão já É o atendimento). Foi adicionado um
+  teste de regressão explícito e isolado
+  (`test_resumo_do_feirao_atendimentos_realizados_inclui_curriculos_fixos`
+  em `tests/test_paineis.py`) para travar esse comportamento, já que
+  era exatamente o que foi pedido.
+
+- **Correção — "Total de Senhas Emitidas" (Resumo do Feirão) não deve
+  contar senhas Canceladas**: antes, esse total somava TODOS os
+  status (Aguardando + Em Atendimento + Finalizada + Cancelada), então
+  uma senha cancelada ainda inflava o número exibido no painel público,
+  mesmo não representando nenhum atendimento real. Agora o cálculo
+  subtrai as Canceladas (`resumo.total_emitidas - resumo.total_canceladas`
+  em `app.py:api_painel_geral_status`), sem alterar o dado bruto
+  retornado por `database.resumo_geral_senhas` (que continua somando
+  por status sem filtro, usado por outras partes do sistema, como a
+  coluna "Total" da tabela "Por Empresa" do mesmo painel — essa
+  continua incluindo Canceladas de propósito, para não voltar a mostrar
+  "Total: 0" em empresas já totalmente atendidas). "Total de
+  Atendimentos Realizados" não muda com esta correção — já não contava
+  Canceladas antes (soma por `hora_chamada`, que na prática nunca é
+  preenchida antes do cancelamento: o botão "Cancelar" só é oferecido
+  na Fila de Espera, que só lista senhas ainda com status 'Emitida').
+
 ---
 
 ## 13. Referências e projetos utilizados como case de sucesso
