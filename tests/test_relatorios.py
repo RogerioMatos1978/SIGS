@@ -1,0 +1,77 @@
+# -*- coding: utf-8 -*-
+"""
+test_relatorios.py
+===================
+
+Testa o invariante de negócio do "Resumo do Período" (tela de
+Relatórios): "chamadas realizadas" nunca pode ser maior que "senhas
+emitidas" (ver database.contar_chamadas_realizadas_periodo). Antes desta
+correção, cada clique em "Repetir Chamada" inflava a contagem de
+chamadas (um novo evento por repetição, para a MESMA senha), podendo
+facilmente ultrapassar o total de senhas emitidas.
+"""
+
+import database
+
+
+def test_repetir_chamada_nao_infla_total_de_chamadas(banco_teste):
+    empresa = database.criar_empresa("Empresa Alfa")
+    database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+
+    database.chamar_proxima(guiche="Guichê 01", usuario="Atendente")
+    # Repete a chamada várias vezes — cada repetição grava um NOVO evento
+    # em eventos_chamada para a MESMA senha.
+    for _ in range(5):
+        database.repetir_ultima_chamada(guiche="Guichê 01")
+
+    total_emitidas = len(database.listar_senhas_periodo())
+    total_chamadas = database.contar_chamadas_realizadas_periodo()
+
+    assert total_emitidas == 1
+    # Sem a correção, total_chamadas seria 6 (1 chamada original + 5
+    # repetições) — mais que o total de senhas emitidas.
+    assert total_chamadas == 1
+    assert total_chamadas <= total_emitidas
+
+
+def test_invariante_chamadas_menor_ou_igual_emitidas_com_varias_senhas(banco_teste):
+    """
+    Cenário mais realista: várias senhas emitidas, algumas chamadas (com
+    repetições em quantidades diferentes), outras ainda esperando. O
+    invariante "chamadas <= emitidas" precisa valer sempre, qualquer que
+    seja a combinação.
+    """
+    empresa = database.criar_empresa("Empresa Alfa")
+    senhas = [database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome) for _ in range(4)]
+
+    # Chama e repete a primeira senha 3 vezes.
+    database.chamar_proxima(guiche="Guichê 01", usuario="Atendente")
+    database.repetir_ultima_chamada(guiche="Guichê 01")
+    database.repetir_ultima_chamada(guiche="Guichê 01")
+    database.repetir_ultima_chamada(guiche="Guichê 01")
+
+    # Chama a segunda senha, sem repetir.
+    database.chamar_proxima(guiche="Guichê 01", usuario="Atendente")
+
+    # As outras duas continuam esperando (nunca chamadas).
+
+    total_emitidas = len(database.listar_senhas_periodo())
+    total_chamadas = database.contar_chamadas_realizadas_periodo()
+
+    assert total_emitidas == 4
+    assert total_chamadas == 2  # só 2 das 4 senhas foram chamadas
+    assert total_chamadas <= total_emitidas
+
+
+def test_contar_chamadas_realizadas_respeita_filtro_de_empresa(banco_teste):
+    empresa_a = database.criar_empresa("Empresa A")
+    empresa_b = database.criar_empresa("Empresa B")
+    database.criar_senha(empresa_id=empresa_a.id, empresa=empresa_a.nome)
+    database.criar_senha(empresa_id=empresa_b.id, empresa=empresa_b.nome)
+
+    database.chamar_proxima(guiche="Mesa 01 — Empresa A", usuario="Recrutador A", empresa_id=empresa_a.id)
+    database.repetir_ultima_chamada(guiche="Mesa 01 — Empresa A")
+    database.repetir_ultima_chamada(guiche="Mesa 01 — Empresa A")
+
+    assert database.contar_chamadas_realizadas_periodo(empresa_id=empresa_a.id) == 1
+    assert database.contar_chamadas_realizadas_periodo(empresa_id=empresa_b.id) == 0

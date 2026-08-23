@@ -2,10 +2,16 @@
     painel_geral.html
     ==================
     Painel público resumo de TODO o feirão do emprego, projetado para
-    exibição em tela cheia (TV/monitor): total de senhas emitidas,
-    aguardando, em atendimento, atendidas e canceladas, com o detalhe por
-    empresa. Sem controles de chamada (apenas leitura) e sem exigência de
-    login — ver /api/painel/geral/status.
+    exibição em tela cheia (TV/monitor): aguardando e em atendimento, com
+    o detalhe por empresa. Sem controles de chamada (apenas leitura) e
+    sem exigência de login — ver /api/painel/geral/status.
+
+    Propositalmente NÃO mostra senhas "Finalizada" nem "Cancelada" (nem
+    o total, nem por empresa) — mesmo critério aplicado a todos os
+    painéis públicos (ver também database.listar_ultimas_emitidas,
+    usada por painel.html/painel_empresa.html): um painel de tela cheia
+    deve refletir a situação ATUAL da fila, não o histórico de
+    atendimentos já encerrados ou cancelados.
 -->
 {% extends "layout.html" %}
 
@@ -36,17 +42,9 @@
                 <span id="resumo-em-atendimento" class="painel-resumo-valor">0</span>
                 <span class="painel-resumo-label">Em Atendimento</span>
             </div>
-            <div class="painel-resumo-item">
-                <span id="resumo-atendidas" class="painel-resumo-valor">0</span>
-                <span class="painel-resumo-label">Atendidas</span>
-            </div>
-            <div class="painel-resumo-item">
-                <span id="resumo-canceladas" class="painel-resumo-valor">0</span>
-                <span class="painel-resumo-label">Canceladas</span>
-            </div>
             <div class="painel-resumo-item painel-resumo-item-total">
                 <span id="resumo-total" class="painel-resumo-valor">0</span>
-                <span class="painel-resumo-label">Total Emitidas</span>
+                <span class="painel-resumo-label">Total em Andamento</span>
             </div>
         </section>
 
@@ -58,13 +56,11 @@
                         <th>Empresa</th>
                         <th>Aguardando</th>
                         <th>Em Atendimento</th>
-                        <th>Atendidas</th>
-                        <th>Canceladas</th>
                         <th>Total</th>
                     </tr>
                 </thead>
                 <tbody id="painel-resumo-empresas-corpo">
-                    <tr><td colspan="6">Carregando...</td></tr>
+                    <tr><td colspan="4">Carregando...</td></tr>
                 </tbody>
             </table>
         </section>

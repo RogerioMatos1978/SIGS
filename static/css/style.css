@@ -140,6 +140,17 @@ input:focus, select:focus {
     margin-bottom: 14px;
 }
 
+.resumo-emitidas-hoje {
+    font-size: 0.9rem;
+    color: #5A6572;
+    margin: -6px 0 14px;
+}
+
+.resumo-emitidas-hoje strong {
+    color: #003C71;
+    font-size: 1rem;
+}
+
 @media (max-width: 600px) {
     .campo-busca-tabela {
         max-width: 100%;
@@ -811,6 +822,19 @@ input:focus, select:focus {
 .status-badge-inativo {
     background: rgba(198, 40, 40, 0.15);
     color: var(--cor-erro);
+}
+
+/* Badge "🔒 Fixa" (ver templates/empresas.html) — indica uma das duas
+   opções fixas do sistema ("Criar Currículos"/"Imprimir Currículos"),
+   sem o tom de alerta usado por .status-badge-inativo (não é um problema,
+   é só uma informação). */
+.badge-fixa {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: rgba(31, 95, 168, 0.15);
+    color: var(--cor-principal);
 }
 
 .acoes-usuario {

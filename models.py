@@ -332,6 +332,17 @@ class Empresa:
     # ``to_dict_publico()`` (que a remove) em qualquer endpoint acessível
     # sem ser administrador, como o painel público de uma empresa.
     chave_acesso: Optional[str] = None
+    # ``True`` para as duas opções fixas do sistema, "Criar Currículos" e
+    # "Imprimir Currículos" (ver database.NOMES_EMPRESAS_FIXAS e
+    # database._semear_empresas_fixas) — não representam empresas reais
+    # participantes do feirão, e sim dois serviços de apoio ao candidato
+    # sempre disponíveis para o Emissor emitir senha. Uma empresa fixa
+    # não pode ser renomeada nem desativada (ver
+    # database.renomear_empresa/definir_status_empresa) e não aparece no
+    # login público de recrutador por chave (ver
+    # app.py:empresas_entrar_tela) — sempre ``False`` para empresas
+    # comuns, cadastradas por um administrador.
+    fixa: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -367,4 +378,5 @@ class Empresa:
                 linha["emissao_bloqueada_em"] if "emissao_bloqueada_em" in chaves else None
             ),
             chave_acesso=linha["chave_acesso"] if "chave_acesso" in chaves else None,
+            fixa=bool(linha["fixa"]) if "fixa" in chaves else False,
         )

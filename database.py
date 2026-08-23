@@ -362,6 +362,12 @@ def inicializar_banco() -> None:
         # maiúsculas/minúsculas (ex.: "Empresa Alfa" e "empresa alfa").
         _migrar_indice_empresas_nome_nocase(conexao)
 
+        # Adiciona a coluna "fixa" à tabela "empresas" (marca as duas
+        # opções fixas de emissão "Criar Currículos"/"Imprimir
+        # Currículos" — ver NOMES_EMPRESAS_FIXAS/_semear_empresas_fixas,
+        # chamada mais abaixo, DEPOIS que esta migração garante a coluna).
+        _migrar_tabela_empresas_adicionar_fixa(conexao)
+
         # Só agora a coluna "empresa_id" está garantidamente presente
         # (bancos novos já a criam direto; bancos antigos acabaram de
         # recebê-la na migração acima), então é seguro criar o índice.
@@ -378,6 +384,12 @@ def inicializar_banco() -> None:
         # "Mesa 01 — Empresa A"), sem varrer a tabela inteira.
         conexao.execute("CREATE INDEX IF NOT EXISTS idx_eventos_guiche ON eventos_chamada (guiche, id)")
         conexao.commit()
+
+    # Garante que as duas empresas fixas do sistema existam — feito FORA
+    # do "with" acima (abre sua própria conexão, como criar_empresa),
+    # depois que a coluna "fixa" já foi garantida pela migração logo
+    # acima.
+    _semear_empresas_fixas()
 
     logger.info("Banco de dados inicializado em: %s", DATABASE_PATH)
 
@@ -965,6 +977,44 @@ def _migrar_indice_empresas_nome_nocase(conexao: sqlite3.Connection) -> None:
         )
 
 
+def _migrar_tabela_empresas_adicionar_fixa(conexao: sqlite3.Connection) -> None:
+    """
+    Adiciona a coluna ``fixa`` (INTEGER, 0/1, padrão 0) à tabela
+    ``empresas`` — marca as duas opções fixas do sistema ("Criar
+    Currículos"/"Imprimir Currículos", ver ``NOMES_EMPRESAS_FIXAS`` e
+    ``_semear_empresas_fixas``), sempre disponíveis para o Emissor emitir
+    senha, independente de quais empresas o administrador cadastrou.
+
+    Diferente de uma empresa comum, uma empresa com ``fixa = 1`` não pode
+    ser renomeada nem desativada (ver ``renomear_empresa``/
+    ``definir_status_empresa``) e não aparece no login público de
+    recrutador por chave (ver ``app.py:empresas_entrar_tela``) — ela não
+    representa uma empresa real participante do feirão, e sim um serviço
+    de apoio ao candidato.
+
+    Idempotente: seguro chamar toda vez que o sistema inicia. Empresas já
+    cadastradas (todas reais, cadastradas por um administrador) recebem
+    ``fixa = 0`` automaticamente pelo próprio ``DEFAULT`` da coluna.
+    """
+    colunas = conexao.execute("PRAGMA table_info(empresas)").fetchall()
+    nomes_colunas = {coluna["name"] for coluna in colunas}
+
+    if "fixa" in nomes_colunas:
+        return  # Já está no formato atual.
+
+    logger.warning(
+        "Esquema antigo da tabela 'empresas' detectado (sem a coluna "
+        "'fixa'). Adicionando automaticamente..."
+    )
+    conexao.execute("ALTER TABLE empresas ADD COLUMN fixa INTEGER NOT NULL DEFAULT 0")
+    conexao.commit()
+    logger.warning(
+        "Migração concluída: a tabela 'empresas' agora possui a coluna "
+        "'fixa', usada pelas duas opções fixas de emissão de senha "
+        "('Criar Currículos'/'Imprimir Currículos')."
+    )
+
+
 def _migrar_tabela_usuarios_adicionar_empresa_id(conexao: sqlite3.Connection) -> None:
     """
     Adiciona a coluna ``empresa_id`` (INTEGER, opcional) à tabela
@@ -1130,6 +1180,7 @@ def criar_senha(
     guiche: Optional[str] = None,
     usuario: Optional[str] = None,
     nome_pessoa: Optional[str] = None,
+    finalizar_imediatamente: bool = False,
 ) -> Senha:
     """
     Cria (emite) uma nova senha.
@@ -1162,6 +1213,22 @@ def criar_senha(
     no ticket quando preenchido (ver printer.py:imprimir_senha) e
     preservado em reimpressões, já que fica gravado na própria senha.
 
+    ``finalizar_imediatamente`` (usado pelas duas opções fixas do sistema
+    — ver ``NOMES_EMPRESAS_FIXAS`` e ``app.py:api_emitir``): quando
+    ``True``, a senha já nasce com status ``'Finalizada'`` (em vez de
+    ``'Emitida'``), com ``hora_chamada`` e ``hora_finalizada`` iguais à
+    própria hora de emissão. "Criar Currículos"/"Imprimir Currículos" são
+    serviços de apoio ao candidato sem fila nem chamada (não há
+    guichê/mesa "chamando" ninguém) — a senha serve só como registro de
+    que o atendimento aconteceu, então já entra direto como "realizada":
+    nunca aparece na Fila de Espera (``listar_fila_atual`` só lista
+    ``'Emitida'``) e nunca gera um evento em ``eventos_chamada`` (não há
+    guichê anunciando nada). Mesmo assim, CONTA normalmente tanto como
+    "senha emitida" quanto como "chamada realizada" nos relatórios e no
+    Painel Geral — ver ``contar_chamadas_realizadas_periodo``, que conta
+    por ``hora_chamada`` (preenchida aqui) em vez de por linhas em
+    ``eventos_chamada``, exatamente para incluir este caso.
+
     Retorna a instância de ``Senha`` recém-criada.
     """
     with _lock_da_empresa(empresa_id):
@@ -1179,40 +1246,51 @@ def criar_senha(
             )
 
             data_hora = _agora_iso()
+            status_inicial = StatusSenha.FINALIZADA if finalizar_imediatamente else StatusSenha.EMITIDA
+            hora_chamada = data_hora if finalizar_imediatamente else None
+            hora_finalizada = data_hora if finalizar_imediatamente else None
+
             cursor = conexao.execute(
                 """
                 INSERT INTO senhas
-                    (numero, status, data_hora, guiche, usuario, empresa, empresa_id, nome_pessoa)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (numero, status, data_hora, guiche, usuario, empresa, empresa_id,
+                     nome_pessoa, hora_chamada, hora_finalizada)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     novo_numero,
-                    StatusSenha.EMITIDA,
+                    status_inicial,
                     data_hora,
                     guiche,
                     usuario,
                     empresa,
                     empresa_id,
                     nome_pessoa,
+                    hora_chamada,
+                    hora_finalizada,
                 ),
             )
             conexao.commit()
             senha_id = cursor.lastrowid
 
     registrar_log(
-        "INFO", f"Senha emitida: número {novo_numero:03d} (id={senha_id}, empresa='{empresa}')"
+        "INFO",
+        f"Senha emitida: número {novo_numero:03d} (id={senha_id}, empresa='{empresa}')"
+        + (" — já registrada como realizada, sem fila." if finalizar_imediatamente else ""),
     )
 
     return Senha(
         id=senha_id,
         numero=novo_numero,
-        status=StatusSenha.EMITIDA,
+        status=status_inicial,
         data_hora=data_hora,
         guiche=guiche,
         usuario=usuario,
         empresa=empresa,
         empresa_id=empresa_id,
         nome_pessoa=nome_pessoa,
+        hora_chamada=hora_chamada,
+        hora_finalizada=hora_finalizada,
     )
 
 
@@ -1589,17 +1667,23 @@ def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
 
 def listar_ultimas_emitidas(quantidade: int = 10, empresa_id: Optional[int] = None) -> List[Dict]:
     """
-    Retorna as últimas N senhas emitidas (independentemente do status),
-    ordenadas da mais recente para a mais antiga. Utilizado pelo painel
-    para exibir o histórico de senhas emitidas.
+    Retorna as últimas N senhas emitidas, ordenadas da mais recente para
+    a mais antiga. Utilizado pelos painéis públicos (``painel.html`` e
+    ``painel_empresa.html``) para exibir o histórico de senhas emitidas.
+
+    Exclui senhas com status 'Finalizada' ou 'Cancelada': os painéis
+    públicos devem mostrar apenas o que está em andamento (aguardando
+    chamada ou em atendimento) — um atendimento já encerrado ou
+    cancelado não tem mais utilidade nesse tipo de display, projetado
+    para tela cheia (TV/monitor) mostrando a situação ATUAL da fila.
 
     ``empresa_id`` restringe o histórico a uma única empresa — usado pelo
     painel público de uma empresa (``/painel/empresa/<id>``).
     """
-    condicao = ""
-    parametros: List = []
+    condicao = "WHERE status NOT IN (?, ?)"
+    parametros: List = [StatusSenha.FINALIZADA, StatusSenha.CANCELADA]
     if empresa_id:
-        condicao = "WHERE empresa_id = ?"
+        condicao += " AND empresa_id = ?"
         parametros.append(empresa_id)
     parametros.append(quantidade)
 
@@ -1634,6 +1718,45 @@ def contar_aguardando(empresa_id: Optional[int] = None, busca: Optional[str] = N
         condicao += " AND (printf('%03d', numero) LIKE ? OR nome_pessoa LIKE ?)"
         termo_busca = f"%{busca.strip()}%"
         parametros.extend([termo_busca, termo_busca])
+
+    with get_connection() as conexao:
+        linha = conexao.execute(
+            f"SELECT COUNT(*) AS total FROM senhas {condicao}", parametros
+        ).fetchone()
+    return int(linha["total"])
+
+
+def contar_emitidas_hoje(empresa_id: Optional[int] = None) -> int:
+    """
+    Retorna quantas senhas foram emitidas HOJE, em QUALQUER status
+    (Emitida, Chamada, Finalizada ou Cancelada) — usado pelo contador
+    "Emitidas Hoje" da tela principal (ver app.py:api_fila).
+
+    Existe porque nem "Fila de Espera" (``contar_aguardando``, só conta
+    status Emitida) nem os Painéis públicos (``listar_ultimas_emitidas``/
+    ``resumo_geral_senhas`` renderizado por ``painel_geral.js``, que
+    propositalmente ocultam Finalizada/Cancelada — ver Painel Geral)
+    servem como confirmação, para quem está EMITINDO senhas, de que uma
+    senha realmente foi registrada: as duas opções fixas de emissão
+    ("Criar Currículos"/"Imprimir Currículos", ver
+    ``NOMES_EMPRESAS_FIXAS``) nascem já com status 'Finalizada' (ver
+    ``criar_senha``, ``finalizar_imediatamente``), então NUNCA aparecem
+    na Fila de Espera nem nesses painéis — para quem só usa a tela do
+    Emissor, era como se a emissão tivesse "sumido", mesmo estando
+    corretamente contabilizada nos Relatórios (tela que o perfil Emissor
+    não tem permissão para abrir). Esta função conta por
+    ``date(data_hora)``, sem nenhum filtro de status, para servir de
+    confirmação visível também para essas senhas fixas.
+
+    ``empresa_id``, quando informado, restringe a contagem a uma única
+    empresa (usado para o recrutador ver só o total da própria empresa).
+    """
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    condicao = "WHERE date(data_hora) = date(?)"
+    parametros: List = [hoje]
+    if empresa_id:
+        condicao += " AND empresa_id = ?"
+        parametros.append(empresa_id)
 
     with get_connection() as conexao:
         linha = conexao.execute(
@@ -1836,6 +1959,66 @@ def listar_chamadas_periodo(
         evento["empresa"] = linha["empresa"]
         resultado.append(evento)
     return resultado
+
+
+def contar_chamadas_realizadas_periodo(
+    inicio: Optional[str] = None,
+    fim: Optional[str] = None,
+    empresa_id: Optional[int] = None,
+) -> int:
+    """
+    Conta quantas senhas foram efetivamente chamadas (ou, no caso das
+    duas opções fixas do sistema, já nasceram diretamente "realizadas")
+    dentro de um período — usado pelo "Resumo do Período" da tela de
+    Relatórios (ver app.py:api_relatorios_resumo).
+
+    Baseada em ``senhas.hora_chamada`` (``WHERE hora_chamada IS NOT
+    NULL``), em vez de contar linhas em ``eventos_chamada`` — essa coluna
+    é preenchida em exatamente DOIS momentos, e nunca mais reescrita
+    depois:
+
+        1. Na PRIMEIRA transição de uma senha para o status 'Chamada'
+           (ver ``chamar_proxima``). Repetições de chamada
+           (``repetir_ultima_chamada``) gravam um NOVO evento em
+           ``eventos_chamada`` para a MESMA senha, mas NÃO tocam em
+           ``hora_chamada`` — por isso contar por esta coluna já não
+           sofre com a inflação de "repetição = mais uma chamada",
+           preservando o invariante de negócio "chamadas realizadas"
+           nunca é maior que "senhas emitidas".
+        2. Na CRIAÇÃO de uma senha para uma das duas opções fixas do
+           sistema, "Criar Currículos"/"Imprimir Currículos" (ver
+           ``criar_senha``, parâmetro ``finalizar_imediatamente``) —
+           elas não têm fila nem chamada, mas SÃO um atendimento
+           realizado, então devem contar aqui também. Como não geram
+           nenhum evento em ``eventos_chamada`` (não existe guichê
+           "chamando" ninguém), contar a partir de ``eventos_chamada``
+           (como esta função fazia antes) as deixava de fora da soma —
+           usar ``hora_chamada`` inclui-as automaticamente, sem precisar
+           fabricar um evento de chamada artificial (o que poluiria o
+           relatório de exportação "Chamadas Realizadas", que é um log
+           real de anúncios feitos em guichês/mesas).
+    """
+    condicoes = ["hora_chamada IS NOT NULL"]
+    parametros: List = []
+
+    if inicio:
+        condicoes.append("date(hora_chamada) >= date(?)")
+        parametros.append(inicio)
+    if fim:
+        condicoes.append("date(hora_chamada) <= date(?)")
+        parametros.append(fim)
+    if empresa_id:
+        condicoes.append("empresa_id = ?")
+        parametros.append(empresa_id)
+
+    where = " AND ".join(condicoes)
+
+    with get_connection() as conexao:
+        linha = conexao.execute(
+            f"SELECT COUNT(*) AS total FROM senhas WHERE {where}",
+            parametros,
+        ).fetchone()
+    return int(linha["total"])
 
 
 def listar_contagem_por_empresa(
@@ -2551,7 +2734,7 @@ def listar_guiches_empresa_ocupados() -> List[Dict]:
 # gravado em senhas já emitidas, preservando o histórico exato de cada
 # atendimento para fins de relatório.
 
-def criar_empresa(nome: str) -> Empresa:
+def criar_empresa(nome: str, fixa: bool = False) -> Empresa:
     """
     Cadastra uma nova empresa participante do feirão. O nome é
     normalizado (espaços nas pontas removidos) e deve ser único.
@@ -2560,6 +2743,12 @@ def criar_empresa(nome: str) -> Empresa:
     automaticamente — é ela que os recrutadores dessa empresa usarão para
     entrar no sistema (ver app.py: rotas "/empresas/entrar" e
     "/empresas/<id>/entrar"), no lugar de login/senha individuais.
+
+    ``fixa`` (``False`` por padrão — todo cadastro feito por um
+    administrador pela tela Empresas usa o padrão) marca uma das duas
+    opções fixas do sistema ("Criar Currículos"/"Imprimir Currículos" —
+    ver ``NOMES_EMPRESAS_FIXAS``/``_semear_empresas_fixas``, única
+    chamadora que passa ``fixa=True``).
     """
     nome_normalizado = (nome or "").strip()
     if not nome_normalizado:
@@ -2571,8 +2760,8 @@ def criar_empresa(nome: str) -> Empresa:
         chave_acesso = _gerar_chave_acesso_unica(conexao)
         try:
             cursor = conexao.execute(
-                "INSERT INTO empresas (nome, ativa, data_criacao, chave_acesso) VALUES (?, 1, ?, ?)",
-                (nome_normalizado, data_criacao, chave_acesso),
+                "INSERT INTO empresas (nome, ativa, data_criacao, chave_acesso, fixa) VALUES (?, 1, ?, ?, ?)",
+                (nome_normalizado, data_criacao, chave_acesso, 1 if fixa else 0),
             )
             conexao.commit()
         except sqlite3.IntegrityError as erro:
@@ -2592,7 +2781,53 @@ def criar_empresa(nome: str) -> Empresa:
         ativa=True,
         data_criacao=data_criacao,
         chave_acesso=chave_acesso,
+        fixa=fixa,
     )
+
+
+# Nomes das duas opções fixas de emissão de senha do sistema (ver
+# _semear_empresas_fixas). Não representam empresas reais participantes
+# do feirão, e sim dois serviços de apoio ao candidato — ajuda para
+# montar e para imprimir o currículo — sempre disponíveis para o Emissor,
+# independente de quais empresas o administrador cadastrou. Senhas
+# emitidas para elas já nascem "Finalizada" (ver criar_senha, parâmetro
+# finalizar_imediatamente, e app.py:api_emitir): não existe fila nem
+# chamada para esses dois serviços, então a senha entra direto como
+# "realizada".
+NOMES_EMPRESAS_FIXAS = ("Criar Currículos", "Imprimir Currículos")
+
+
+def _semear_empresas_fixas() -> None:
+    """
+    Garante que as duas opções fixas do sistema (``NOMES_EMPRESAS_FIXAS``)
+    existam como empresas com ``fixa = 1``, criando as que ainda
+    faltarem. Chamada toda vez que o sistema inicia
+    (``inicializar_banco``), depois que a coluna ``fixa`` já foi
+    garantida pela migração — por isso não recebe ``conexao`` como
+    parâmetro (abre sua própria conexão a cada nome, como
+    ``criar_empresa``), em vez de rodar dentro do mesmo bloco ``with``
+    das migrações.
+
+    Idempotente: se uma empresa com esse nome já existir (comparação sem
+    diferenciar maiúsculas/minúsculas, mesma regra de ``criar_empresa``),
+    apenas garante que ``fixa`` esteja marcada, sem duplicar nem
+    sobrescrever nada mais (chave de acesso, logo, cor etc. de uma
+    empresa já existente com esse nome são preservados).
+    """
+    for nome in NOMES_EMPRESAS_FIXAS:
+        with get_connection() as conexao:
+            linha = conexao.execute(
+                "SELECT id, fixa FROM empresas WHERE nome = ? COLLATE NOCASE", (nome,)
+            ).fetchone()
+
+        if linha is None:
+            criar_empresa(nome, fixa=True)
+            continue
+
+        if not linha["fixa"]:
+            with get_connection() as conexao:
+                conexao.execute("UPDATE empresas SET fixa = 1 WHERE id = ?", (linha["id"],))
+                conexao.commit()
 
 
 def obter_empresa_por_chave(chave: str) -> Optional[Empresa]:
@@ -2645,11 +2880,17 @@ def listar_empresas(somente_ativas: bool = False) -> List[Dict]:
     de relatórios, por outro lado, precisam ver TODAS as empresas
     (inclusive inativas), pois relatórios de eventos passados continuam
     consultáveis mesmo após a empresa ser desativada.
+
+    As duas opções fixas do sistema ("Criar Currículos"/"Imprimir
+    Currículos" — ver ``NOMES_EMPRESAS_FIXAS``) sempre aparecem PRIMEIRO
+    na lista (``ORDER BY fixa DESC``), antes das empresas comuns em ordem
+    alfabética — assim ficam fáceis de encontrar tanto no seletor de
+    emissão quanto na tela de administração.
     """
     consulta = "SELECT * FROM empresas"
     if somente_ativas:
         consulta += " WHERE ativa = 1"
-    consulta += " ORDER BY nome ASC"
+    consulta += " ORDER BY fixa DESC, nome ASC"
 
     with get_connection() as conexao:
         linhas = conexao.execute(consulta).fetchall()
@@ -2670,12 +2911,26 @@ def obter_empresa_por_id(empresa_id: int) -> Optional[Empresa]:
 def renomear_empresa(empresa_id: int, novo_nome: str) -> bool:
     """Altera o nome de uma empresa já cadastrada. Senhas já emitidas
     mantêm o nome antigo gravado (sem retroatividade), preservando o
-    histórico exato de cada atendimento."""
+    histórico exato de cada atendimento.
+
+    Levanta ``ValueError`` se a empresa for uma das duas opções fixas do
+    sistema (``fixa = 1`` — ver ``NOMES_EMPRESAS_FIXAS``): seu nome faz
+    parte da identidade fixa da opção, então não pode ser alterado.
+    """
     novo_nome_normalizado = (novo_nome or "").strip()
     if not novo_nome_normalizado:
         raise ValueError("Informe o novo nome da empresa.")
 
     with get_connection() as conexao:
+        linha = conexao.execute("SELECT fixa FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
+        if linha is None:
+            return False
+        if linha["fixa"]:
+            raise ValueError(
+                "Esta é uma opção fixa do sistema (Criar Currículos / Imprimir "
+                "Currículos) e não pode ser renomeada."
+            )
+
         try:
             cursor = conexao.execute(
                 "UPDATE empresas SET nome = ? WHERE id = ?",
@@ -2699,8 +2954,24 @@ def renomear_empresa(empresa_id: int, novo_nome: str) -> bool:
 def definir_status_empresa(empresa_id: int, ativa: bool) -> bool:
     """Ativa ou desativa uma empresa (sem excluir o cadastro). Empresas
     inativas somem do seletor de emissão de senha, mas o histórico de
-    senhas já emitidas para elas permanece intacto."""
+    senhas já emitidas para elas permanece intacto.
+
+    Levanta ``ValueError`` se a empresa for uma das duas opções fixas do
+    sistema (``fixa = 1`` — ver ``NOMES_EMPRESAS_FIXAS``): elas devem
+    estar sempre disponíveis para o Emissor, então não podem ser
+    desativadas (nem reativadas manualmente, já que nunca ficam
+    inativas).
+    """
     with get_connection() as conexao:
+        linha = conexao.execute("SELECT fixa FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
+        if linha is None:
+            return False
+        if linha["fixa"]:
+            raise ValueError(
+                "Esta é uma opção fixa do sistema (Criar Currículos / Imprimir "
+                "Currículos) e está sempre ativa — não pode ser desativada."
+            )
+
         cursor = conexao.execute(
             "UPDATE empresas SET ativa = ? WHERE id = ?", (1 if ativa else 0, empresa_id)
         )

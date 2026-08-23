@@ -2105,3 +2105,44 @@
 2026-08-22 17:53:48 | INFO     | SIGS | Mesa 1 (empresa id=1) atribuída automaticamente a 'Rogerio'.
 2026-08-22 17:53:48 | INFO     | SIGS | Login realizado: 'chave-empresa-1-c402911bc3776bc0' (perfil recrutador, guichê 1).
 2026-08-22 17:54:23 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-22 18:00:37 | ERROR    | SIGS | Não é possível repetir: o atendimento desta senha já foi finalizado.
+2026-08-22 18:00:53 | INFO     | SIGS | Logout realizado: 'chave-empresa-1-c402911bc3776bc0'.
+2026-08-22 18:24:35 | WARNING  | SIGS | Esquema antigo da tabela 'empresas' detectado (sem a coluna 'fixa'). Adicionando automaticamente...
+2026-08-22 18:24:35 | WARNING  | SIGS | Migração concluída: a tabela 'empresas' agora possui a coluna 'fixa', usada pelas duas opções fixas de emissão de senha ('Criar Currículos'/'Imprimir Currículos').
+2026-08-22 18:24:35 | INFO     | SIGS | Empresa 'Criar Currículos' cadastrada (id=3).
+2026-08-22 18:24:35 | INFO     | SIGS | Empresa 'Imprimir Currículos' cadastrada (id=4).
+2026-08-22 18:24:35 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-22 18:26:03 | INFO     | SIGS | Logo da empresa id=3 atualizado (cor extraída automaticamente: #A9BBD7).
+2026-08-22 18:26:08 | INFO     | SIGS | Logo da empresa id=4 atualizado (cor extraída automaticamente: #A9BBD7).
+2026-08-22 18:26:58 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-22 18:27:13 | INFO     | SIGS | Login realizado: 'emissor' (perfil emissor, guichê None).
+2026-08-22 18:27:25 | INFO     | SIGS | Senha emitida: número 001 (id=24, empresa='Criar Currículos') — já registrada como realizada, sem fila.
+2026-08-22 18:28:48 | ERROR    | SIGS | Falha ao imprimir senha 001 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-22 18:30:24 | INFO     | SIGS | Logout realizado: 'emissor'.
+2026-08-22 18:35:27 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-22 18:36:10 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-22 18:38:36 | INFO     | SIGS | Login realizado: 'emissor' (perfil emissor, guichê None).
+2026-08-22 18:38:45 | INFO     | SIGS | Senha emitida: número 001 (id=25, empresa='Imprimir Currículos') — já registrada como realizada, sem fila.
+2026-08-22 18:38:48 | ERROR    | SIGS | Falha ao imprimir senha 001 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-22 18:47:38 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-22 18:57:00 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-22 18:57:42 | INFO     | SIGS | Logout realizado: 'emissor'.
+2026-08-22 18:57:57 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-22 18:59:50 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-22 19:00:05 | INFO     | SIGS | Login realizado: 'emissor' (perfil emissor, guichê None).
+2026-08-22 19:00:16 | INFO     | SIGS | Senha emitida: número 002 (id=26, empresa='Criar Currículos') — já registrada como realizada, sem fila.
+2026-08-22 19:00:20 | ERROR    | SIGS | Falha ao imprimir senha 002 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-22 19:00:58 | INFO     | SIGS | Senha emitida: número 002 (id=27, empresa='Imprimir Currículos') — já registrada como realizada, sem fila.
+2026-08-22 19:01:08 | INFO     | SIGS | Ticket impresso com sucesso: senha 002 na impressora 'Microsoft Print to PDF'.
+2026-08-22 19:02:47 | INFO     | SIGS | Senha emitida: número 003 (id=28, empresa='Criar Currículos') — já registrada como realizada, sem fila.
+2026-08-22 19:02:52 | INFO     | SIGS | Ticket impresso com sucesso: senha 003 na impressora 'Microsoft Print to PDF'.
+2026-08-22 19:03:31 | INFO     | SIGS | Logout realizado: 'emissor'.
+2026-08-22 19:04:23 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-22 19:24:46 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-22 19:25:45 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-22 19:25:55 | INFO     | SIGS | Login realizado: 'emissor' (perfil emissor, guichê None).
+2026-08-22 19:26:07 | INFO     | SIGS | Senha emitida: número 004 (id=29, empresa='Criar Currículos') — já registrada como realizada, sem fila.
+2026-08-22 19:26:11 | INFO     | SIGS | Ticket impresso com sucesso: senha 004 na impressora 'Microsoft Print to PDF'.
+2026-08-22 19:27:11 | INFO     | SIGS | Logout realizado: 'emissor'.
+2026-08-22 19:27:31 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-22 19:28:20 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db

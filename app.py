@@ -13,7 +13,7 @@ Rotas principais:
     GET  /                      Tela principal (emissão/chamada de senhas) [login]
     GET  /painel                Painel público geral de chamadas (tela cheia) [público]
     GET  /painel/empresa/<id>   Painel público de UMA empresa (tela cheia) [público]
-    GET  /painel/geral          Painel público resumo (emitidas/atendidas/canceladas) [público]
+    GET  /painel/geral          Painel público resumo (aguardando/em atendimento) [público]
     GET  /configuracoes         Tela de configurações do sistema [admin]
     GET  /relatorios            Tela de geração de relatórios [admin]
     GET/POST /login             Autenticação de usuários
@@ -362,10 +362,14 @@ def painel_empresa(empresa_id: int):
 @app.route("/painel/geral")
 def painel_geral():
     """
-    Painel público resumo do feirão inteiro: total de senhas emitidas,
-    aguardando, em atendimento, finalizadas e canceladas, com o detalhe
-    por empresa (ver ``/api/painel/geral/status``). Também projetado para
-    TV/monitor, sem exigência de login.
+    Painel público resumo do feirão inteiro: senhas aguardando e em
+    atendimento, com o detalhe por empresa (ver
+    ``/api/painel/geral/status``). Também projetado para TV/monitor, sem
+    exigência de login.
+
+    Propositalmente não mostra senhas finalizadas nem canceladas — mesmo
+    critério aplicado a todos os painéis públicos (ver
+    ``database.listar_ultimas_emitidas``).
     """
     configuracoes = config_manager.obter_todas()
     return render_template("painel_geral.html", config=configuracoes)
@@ -480,6 +484,12 @@ def empresas_entrar_tela():
     (``/empresas/<id>/entrar``), onde o recrutador informa seu nome e a
     chave de 8 dígitos da empresa — substitui o antigo cadastro individual
     de login/senha (ver auth.autenticar_por_chave_empresa).
+
+    As duas opções fixas do sistema ("Criar Currículos"/"Imprimir
+    Currículos" — ver ``database.NOMES_EMPRESAS_FIXAS``) NUNCA aparecem
+    aqui: elas não são empresas reais participantes do feirão, não têm
+    recrutador, e um login por chave para elas nunca faria sentido (ver
+    também ``empresa_login_tela``, que bloqueia o acesso direto pela URL).
     """
     if auth.usuario_logado():
         return redirect(url_for("index"))
@@ -490,6 +500,7 @@ def empresas_entrar_tela():
     empresas = [
         {chave: valor for chave, valor in empresa.items() if chave != "chave_acesso"}
         for empresa in database.listar_empresas(somente_ativas=True)
+        if not empresa.get("fixa")
     ]
     return render_template(
         "empresas_publico.html",
@@ -507,12 +518,19 @@ def empresa_login_tela(empresa_id: int):
     automaticamente (ver database.provisionar_usuario_recrutador) e a
     sessão é iniciada normalmente — o recrutador assume uma mesa da
     empresa exatamente como já acontecia com o login tradicional.
+
+    Bloqueado (mesma mensagem de "não encontrada") para as duas opções
+    fixas do sistema (``empresa.fixa`` — ver
+    ``database.NOMES_EMPRESAS_FIXAS``): mesmo que não apareçam na lista
+    de cards (ver ``empresas_entrar_tela``), alguém poderia tentar acessar
+    esta URL diretamente pelo id — elas não têm recrutador, então o login
+    por chave nunca deve funcionar para elas.
     """
     if auth.usuario_logado():
         return redirect(url_for("index"))
 
     empresa = database.obter_empresa_por_id(empresa_id)
-    if empresa is None or not empresa.ativa:
+    if empresa is None or not empresa.ativa or empresa.fixa:
         flash("Empresa não encontrada ou desativada.", "erro")
         return redirect(url_for("empresas_entrar_tela"))
 
@@ -677,6 +695,11 @@ def api_emitir():
             guiche=guiche,
             usuario=usuario,
             nome_pessoa=nome_pessoa,
+            # As duas opções fixas do sistema ("Criar Currículos"/
+            # "Imprimir Currículos" — ver database.NOMES_EMPRESAS_FIXAS)
+            # não têm fila nem chamada: a senha já nasce "Finalizada" (ver
+            # database.criar_senha para o motivo completo).
+            finalizar_imediatamente=empresa.fixa,
         )
 
         erro_impressao = None
@@ -1007,6 +1030,14 @@ def api_fila():
     INTEIRA (sem filtro de busca) — usado pelo contador no cabeçalho do
     card "Fila de Espera". ``total_filtrado``/``total_paginas`` refletem
     a busca atual, para desenhar a paginação.
+
+    ``total_emitidas_hoje`` (ver ``database.contar_emitidas_hoje``) é um
+    total à parte: TODAS as senhas emitidas hoje, em qualquer status —
+    inclui, por exemplo, as senhas das duas opções fixas ("Criar
+    Currículos"/"Imprimir Currículos"), que nascem já 'Finalizada' e por
+    isso nunca entram em ``total_aguardando`` nem nos painéis públicos.
+    Serve de confirmação visível para o perfil Emissor (que não tem
+    acesso a Relatórios) de que a emissão foi mesmo contabilizada.
     """
     try:
         usuario_sessao = auth.usuario_logado()
@@ -1039,6 +1070,8 @@ def api_fila():
             por_pagina=FILA_ITENS_POR_PAGINA,
         )
 
+        total_emitidas_hoje = database.contar_emitidas_hoje(empresa_id=empresa_id_filtro)
+
         return resposta_sucesso(
             {
                 "fila": fila,
@@ -1047,6 +1080,7 @@ def api_fila():
                 "pagina_atual": pagina,
                 "total_paginas": total_paginas,
                 "por_pagina": FILA_ITENS_POR_PAGINA,
+                "total_emitidas_hoje": total_emitidas_hoje,
             }
         )
     except Exception as erro:  # pragma: no cover
@@ -1472,18 +1506,25 @@ def api_relatorios_resumo():
     Acessível a administradores (todas as empresas, ou uma específica via
     querystring ``empresa_id``) e a recrutadores (sempre restrito à
     própria empresa — ver ``_parametros_periodo``).
+
+    ``total_chamadas`` usa ``database.contar_chamadas_realizadas_periodo``
+    (contagem de SENHAS distintas chamadas, não de eventos de chamada) —
+    invariante de negócio: "chamadas realizadas" nunca pode ser maior que
+    "senhas emitidas". Ver a docstring daquela função para o motivo de
+    não usarmos apenas ``len(listar_chamadas_periodo(...))`` aqui
+    (repetições de chamada inflavam essa contagem).
     """
     try:
         inicio, fim, empresa_id = _parametros_periodo()
         emitidas = database.listar_senhas_periodo(inicio, fim, empresa_id=empresa_id)
-        chamadas = database.listar_chamadas_periodo(inicio, fim, empresa_id=empresa_id)
+        total_chamadas = database.contar_chamadas_realizadas_periodo(inicio, fim, empresa_id=empresa_id)
         tempo_medio = database.tempo_medio_atendimento(inicio, fim, empresa_id=empresa_id)
         por_empresa = database.listar_contagem_por_empresa(inicio, fim, empresa_id=empresa_id)
 
         return resposta_sucesso(
             {
                 "total_emitidas": len(emitidas),
-                "total_chamadas": len(chamadas),
+                "total_chamadas": total_chamadas,
                 "tempo_medio": tempo_medio,
                 "por_empresa": por_empresa,
             }
@@ -2031,6 +2072,8 @@ def api_admin_status_empresa(empresa_id: int):
             return resposta_sucesso({"mensagem": "Status da empresa atualizado."})
         return resposta_erro("Empresa não encontrada.", 404)
 
+    except ValueError as erro:
+        return resposta_erro(str(erro), 409)
     except Exception as erro:  # pragma: no cover
         return resposta_erro(f"Erro ao atualizar status da empresa: {erro}", 500)
 

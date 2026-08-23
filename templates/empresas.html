@@ -73,7 +73,21 @@
                          sempre reconhecível. Sem cor definida (empresa ainda
                          sem logo), cai na cor padrão do sistema. -->
                     <tr data-empresa-id="{{ empresa.id }}" style="--cor-empresa: {{ empresa.cor_principal or 'var(--cor-principal-clara)' }};">
-                        <td class="celula-nome-empresa">{{ empresa.nome }}</td>
+                        <td class="celula-nome-empresa">
+                            {{ empresa.nome }}
+                            {% if empresa.fixa %}
+                            <!-- As duas opções fixas do sistema ("Criar Currículos"/
+                                 "Imprimir Currículos" — ver database.NOMES_EMPRESAS_FIXAS)
+                                 não são empresas reais do feirão: sempre disponíveis para
+                                 o Emissor, não podem ser renomeadas nem desativadas (ver
+                                 database.renomear_empresa/definir_status_empresa), e as
+                                 senhas emitidas para elas já nascem "Finalizada", sem
+                                 fila (ver database.criar_senha). -->
+                            <span class="badge-fixa" title="Opção fixa do sistema — sempre disponível para o Emissor, não pode ser renomeada nem desativada.">
+                                🔒 Fixa
+                            </span>
+                            {% endif %}
+                        </td>
                         <td class="identidade-visual-empresa">
                             <img class="logo-empresa-preview"
                                  id="logo-preview-{{ empresa.id }}"
@@ -121,6 +135,13 @@
                              login/senha individuais. "Nova Chave" invalida a atual na
                              hora (ver app.py:api_admin_regenerar_chave_empresa). -->
                         <td class="celula-chave-empresa">
+                            {% if empresa.fixa %}
+                            <!-- Opções fixas não têm recrutador — login por chave nunca
+                                 se aplica a elas (ver app.py:empresa_login_tela), então a
+                                 chave não é exibida aqui para não sugerir uma ação sem
+                                 utilidade. -->
+                            <span title="Não se aplica: esta opção não tem recrutador.">—</span>
+                            {% else %}
                             <code id="chave-empresa-{{ empresa.id }}">{{ empresa.chave_acesso }}</code>
                             <button type="button" class="botao botao-secundario botao-acao-pequeno btn-copiar-chave-empresa"
                                     data-empresa-id="{{ empresa.id }}" title="Copiar chave">
@@ -130,6 +151,7 @@
                                     data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}" title="Gerar uma nova chave (invalida a atual)">
                                 🔄 Nova Chave
                             </button>
+                            {% endif %}
                         </td>
                         <td>{{ empresa.data_criacao }}</td>
                         <td class="acoes-usuario">
@@ -147,10 +169,13 @@
                                target="_blank" rel="noopener">
                                 📲 WhatsApp (Painel)
                             </a>
+                            {% if not empresa.fixa %}
                             <!-- Compartilha, também via WhatsApp, o link de ACESSO da
                                  empresa (para os recrutadores entrarem) junto com a
                                  chave de 8 dígitos atual — diferente do botão acima,
-                                 que compartilha o link do painel de EXIBIÇÃO. -->
+                                 que compartilha o link do painel de EXIBIÇÃO. Omitido
+                                 para as opções fixas do sistema, que não têm recrutador
+                                 nem chave utilizável (ver celula-chave-empresa acima). -->
                             <a class="botao botao-secundario botao-acao-pequeno"
                                href="https://wa.me/?text={{ ('Acesso ao sistema de senhas — ' + empresa.nome + ': entre em ' + url_for('empresa_login_tela', empresa_id=empresa.id, _external=True) + ' e use a chave ' + (empresa.chave_acesso or '')) | urlencode }}"
                                target="_blank" rel="noopener">
@@ -159,14 +184,21 @@
                             <button class="botao botao-secundario botao-acao-pequeno btn-renomear-empresa" data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}">
                                 ✏️ Renomear
                             </button>
+                            {% endif %}
                             <button class="botao botao-secundario botao-acao-pequeno btn-reiniciar-contador-empresa"
                                     data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}">
                                 🔄 Reiniciar Contador
                             </button>
+                            {% if not empresa.fixa %}
+                            <!-- Ativar/Desativar também some para as opções fixas: elas
+                                 devem estar sempre disponíveis para o Emissor (ver
+                                 database.definir_status_empresa, que bloqueia a chamada
+                                 mesmo que alguém force pela API diretamente). -->
                             <button class="botao {{ 'botao-alerta' if empresa.ativa else 'botao-primario' }} botao-acao-pequeno btn-toggle-status-empresa"
                                     data-empresa-id="{{ empresa.id }}" data-ativa="{{ empresa.ativa | lower }}">
                                 {{ '🚫 Desativar' if empresa.ativa else '✅ Ativar' }}
                             </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}

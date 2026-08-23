@@ -181,7 +181,10 @@ outros administradores) pela tela Usuários.
   administrador na tela Usuários. Não ocupa guichê. Só enxerga o botão
   Emitir Senha — pensado para operar um totem de emissão na entrada do
   evento; as senhas que ele emite alimentam a fila consumida pelos
-  atendentes e recrutadores.
+  atendentes e recrutadores. O seletor de empresa sempre inclui, além das
+  empresas cadastradas pelo administrador, as duas opções fixas do
+  sistema "Criar Currículos" e "Imprimir Currículos" (ver seção 4.9) —
+  serviços de apoio ao candidato, sem fila nem chamada.
 - **Recrutador** — vinculado a UMA empresa específica pelo administrador
   (ver seção 4.6). Ao logar, assume automaticamente uma mesa dentro da
   fila DAQUELA empresa (pool independente da fila geral do atendente) e
@@ -326,9 +329,17 @@ direto o painel da sua própria empresa.
 
 **Painel Geral** (`http://localhost:5000/painel/geral`, público, sem
 login): mostra o resumo agregado de todo o feirão — total de senhas
-aguardando, em atendimento, atendidas e canceladas — e uma tabela com o
-mesmo detalhamento por empresa. Acessível pelo botão "📺 Painel Geral" na
-tela principal (visível para qualquer perfil logado).
+aguardando e em atendimento — e uma tabela com o mesmo detalhamento por
+empresa. Acessível pelo botão "📺 Painel Geral" na tela principal
+(visível para qualquer perfil logado).
+
+> **Nenhum painel público mostra senhas "Finalizada" nem "Cancelada"**
+> (nem na lista de "Últimas Senhas Emitidas" do painel geral de chamadas
+> e do painel por empresa, nem nos totais/tabela do Painel Geral) — um
+> painel de tela cheia (TV/monitor) deve refletir a situação ATUAL da
+> fila, não o histórico de atendimentos já encerrados. Esses números
+> continuam disponíveis normalmente na tela `/relatorios` (ver seção
+> 4.9.1), que é onde o histórico completo tem utilidade.
 
 **Mesas (guichês por empresa):** ao logar, um recrutador assume
 automaticamente a primeira mesa disponível (entre 1 e a quantidade
@@ -424,6 +435,72 @@ restrito, no servidor, à SUA PRÓPRIA empresa: o seletor "Empresa" nem é
 exibido para esse perfil, e tentar forçar outra empresa manualmente pela
 URL (`?empresa_id=...`) é ignorado — o servidor sempre resolve a empresa
 a partir da sessão de login, nunca do que o cliente envia.
+
+### 4.9 Opções fixas de emissão: Criar Currículos / Imprimir Currículos
+
+Além das empresas cadastradas por um administrador, o seletor de empresa
+exibido ao Emissor sempre traz, fixas no topo da lista, duas opções que
+não representam empresas reais participantes do feirão: **"Criar
+Currículos"** e **"Imprimir Currículos"** — dois serviços de apoio ao
+candidato (ajuda para montar e para imprimir o currículo antes de entrar
+na fila das empresas).
+
+**Como funcionam** (por baixo dos panos, ambas são empresas com
+`fixa = 1` no banco de dados — ver `database.NOMES_EMPRESAS_FIXAS`):
+
+- São criadas automaticamente na primeira vez que o sistema inicia (e
+  recriadas se, por algum motivo, tiverem sido removidas do banco), sem
+  qualquer ação manual do administrador.
+- Não podem ser renomeadas nem desativadas (a tela `/admin/empresas`
+  esconde os botões "Renomear" e "Desativar"/"Ativar" para essas duas
+  linhas, marcadas com o selo "🔒 Fixa"; tentar forçar pela API retorna
+  erro 409 com uma mensagem explicando o motivo).
+- **Não têm fila nem chamada**: diferente de uma senha emitida para uma
+  empresa comum (que nasce "Emitida" e espera ser chamada), uma senha
+  emitida para "Criar Currículos"/"Imprimir Currículos" já nasce
+  **"Finalizada"** — o ticket ainda é impresso normalmente (como
+  comprovante), mas a senha nunca aparece na Fila de Espera, nunca é
+  chamada de fato, e não gera nenhum evento em `eventos_chamada` (não
+  existe guichê anunciando nada — ver `database.criar_senha`, parâmetro
+  `finalizar_imediatamente`). Mesmo assim, ela CONTA normalmente tanto
+  como "senha emitida" quanto como "chamada realizada" nos relatórios e
+  no Painel Geral (e aparece na tabela "Senhas por Empresa") — ver seção
+  4.9.1 sobre como esse invariante inclui as duas opções fixas.
+- Não têm recrutador: não aparecem na página pública de login por chave
+  (`/empresas/entrar`), e acessar a URL de login de uma delas
+  diretamente é bloqueado.
+
+#### 4.9.1 Invariante: "chamadas realizadas" nunca é maior que "senhas emitidas" (e inclui as opções fixas)
+
+O "Resumo do Período" da tela de Relatórios usa
+`database.contar_chamadas_realizadas_periodo`, que conta **senhas com
+`hora_chamada` preenchida** dentro do período — não o total bruto de
+eventos em `eventos_chamada`, e não exige que a senha tenha
+necessariamente passado pela fila. Essa coluna é gravada em exatamente
+dois momentos, e nunca reescrita depois:
+
+- Na PRIMEIRA vez que uma senha é chamada (`chamar_proxima`). Cada
+  clique em "Repetir Chamada" grava um NOVO evento em `eventos_chamada`
+  para a MESMA senha, mas NÃO altera `hora_chamada` — uma senha repetida
+  5 vezes continua contando como UMA chamada, não cinco. Contar os
+  eventos brutos (comportamento antigo) podia fazer "Chamadas
+  Realizadas" ultrapassar "Senhas Emitidas" no resumo — algo que nunca
+  deveria acontecer.
+- Na criação de uma senha para uma das duas opções fixas ("Criar
+  Currículos"/"Imprimir Currículos" — ver seção 4.9), que nasce direto
+  como "Finalizada" com `hora_chamada` já preenchida. Mesmo sem fila,
+  sem chamada de guichê e sem nenhum evento em `eventos_chamada`, ela É
+  um atendimento realizado — por isso conta normalmente na soma de
+  "Chamadas Realizadas", tanto no Resumo do Período quanto (por
+  consequência) em qualquer outro lugar do sistema que use essa mesma
+  função.
+
+O relatório de exportação "Chamadas Realizadas" (CSV/Excel/PDF)
+continua listando apenas eventos reais de `eventos_chamada` (inclusive
+repetições) — ali o objetivo é um log auditável de anúncios feitos em
+guichês/mesas, então as opções fixas (que nunca são anunciadas em
+guichê nenhum) propositalmente não aparecem nesse log específico, só na
+contagem-resumo.
 
 ---
 
@@ -870,6 +947,88 @@ seguintes pontos de atrito:
   `por_pagina` (ver `database.listar_fila_atual`/`contar_aguardando`).
   O contador "Fila de Espera (N)" no topo do card continua mostrando o
   total geral da fila, independente do filtro de busca aplicado.
+
+### 12.9 Evolução recente do sistema (v2.7.0)
+
+- **Correção — "Chamadas Realizadas" nunca mais ultrapassa "Senhas
+  Emitidas"**: o "Resumo do Período" (tela Relatórios) contava todo
+  EVENTO de chamada, inclusive repetições geradas por "Repetir Chamada"
+  — uma senha repetida 5 vezes contava como 5 chamadas, podendo
+  facilmente superar o total de senhas emitidas. Agora conta senhas
+  DISTINTAS chamadas ao menos uma vez (ver
+  `database.contar_chamadas_realizadas_periodo` e seção 4.9.1). O
+  relatório de exportação "Chamadas Realizadas" (CSV/Excel/PDF) não
+  mudou — continua listando cada evento individualmente, como um log
+  auditável.
+- **Duas opções fixas de emissão: "Criar Currículos" e "Imprimir
+  Currículos"** (ver seção 4.9): sempre disponíveis para o Emissor,
+  independente de quais empresas o administrador cadastrou. Senhas
+  emitidas para elas já nascem "Finalizada" (sem fila, sem chamada) —
+  ainda imprimem o ticket normalmente, mas contam só como "emitidas" nos
+  relatórios, nunca como "chamadas". Não podem ser renomeadas nem
+  desativadas, e não aparecem no login público de recrutador por chave.
+
+### 12.10 Evolução recente do sistema (v2.8.0)
+
+- **Painéis públicos não mostram mais senhas Finalizadas nem Canceladas**
+  (ver seção 4.6): antes, a lista "Últimas Senhas Emitidas" do painel
+  geral de chamadas (`/painel`) e do painel por empresa
+  (`/painel/empresa/<id>`) misturava senhas de qualquer status,
+  incluindo atendimentos já encerrados ou cancelados há tempo. O Painel
+  Geral (`/painel/geral`) também exibia cartões e uma coluna "Atendidas"
+  e "Canceladas" na tabela por empresa. Agora todos os três painéis
+  mostram só o que está em andamento (aguardando ou em atendimento) —
+  ver `database.listar_ultimas_emitidas`. O cálculo completo (incluindo
+  atendidas/canceladas) continua disponível no backend
+  (`database.resumo_geral_senhas`) e na tela `/relatorios`, para quem
+  precisar do histórico.
+
+### 12.11 Evolução recente do sistema (v2.9.0)
+
+- **Correção — "Criar Currículos"/"Imprimir Currículos" agora contam
+  como "Chamadas Realizadas"** (ver seção 4.9.1): desde que essas duas
+  opções fixas passaram a existir (v2.7.0), elas já contavam
+  corretamente como "senhas emitidas" em todo o sistema (Painel Geral,
+  Resumo do Período, relatórios de exportação), mas ficavam de fora da
+  contagem de "chamadas realizadas" — por não gerarem nenhum evento em
+  `eventos_chamada` (não têm fila nem guichê chamando), a antiga lógica
+  (baseada em `eventos_chamada`) simplesmente não as via. Como uma
+  senha emitida para elas nasce diretamente "Finalizada" — ou seja, o
+  atendimento de fato aconteceu — isso estava incorreto: elas deveriam
+  contar como "realizadas", só não como "chamadas por um guichê".
+  `database.contar_chamadas_realizadas_periodo` foi reescrita para
+  contar por `senhas.hora_chamada` (preenchida tanto por uma chamada de
+  verdade quanto pela criação de uma senha fixa) em vez de por linhas em
+  `eventos_chamada` — resultado idêntico para empresas comuns (o
+  invariante "chamadas ≤ emitidas" da v2.7.0 continua valendo), e agora
+  inclui as duas opções fixas também. O relatório de exportação
+  "Chamadas Realizadas" (CSV/Excel/PDF, um log de eventos reais em
+  guichê) continua sem incluí-las — critério inalterado.
+
+### 12.12 Evolução recente do sistema (v2.10.0)
+
+- **Correção — perfil Emissor não tinha nenhuma confirmação visível de
+  que uma emissão para "Criar Currículos"/"Imprimir Currículos" havia
+  sido contabilizada**: essas duas opções fixas nascem já com status
+  'Finalizada' (sem fila, sem chamada — ver seção 4.9), então nunca
+  aparecem no contador "Fila de Espera" (`database.contar_aguardando`,
+  só conta status 'Emitida') nem nos Painéis públicos
+  (`database.listar_ultimas_emitidas`, que desde a v2.8.0 oculta
+  Finalizada/Cancelada de propósito — ver seção 12.10). O total correto
+  já existia nos Relatórios, mas essa tela é restrita a admin/recrutador
+  (`auth.admin_ou_recrutador_required`) — o perfil Emissor não consegue
+  abri-la. Na prática, um operador Emissor que emitia um ticket dessas
+  duas opções não via NENHUM número mudar na própria tela, dando a
+  impressão de que a emissão "sumiu" (mesmo estando corretamente
+  registrada no banco e nos Relatórios). Corrigido adicionando um novo
+  contador "📋 Emitidas hoje" no card "Fila de Espera" da tela principal
+  (`templates/index.html`), alimentado por
+  `database.contar_emitidas_hoje` — conta por `date(data_hora)`, em
+  QUALQUER status, sem a exclusão de Finalizada/Cancelada que os
+  Painéis aplicam de propósito. O campo `total_emitidas_hoje` foi
+  adicionado à resposta de `/api/fila` (já consultada em polling pela
+  tela principal, sem precisar de uma rota nova) e é renderizado por
+  `static/js/index.js`.
 
 ---
 

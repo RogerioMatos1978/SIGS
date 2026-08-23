@@ -24,6 +24,7 @@ const elementoFilaBusca = document.getElementById("busca-fila");
 const elementoFilaPaginaInfo = document.getElementById("fila-pagina-info");
 const elementoFilaBotaoAnterior = document.getElementById("btn-fila-anterior");
 const elementoFilaBotaoProxima = document.getElementById("btn-fila-proxima");
+const elementoTotalEmitidasHoje = document.getElementById("total-emitidas-hoje");
 const elementoNotificacoes = document.getElementById("area-notificacoes");
 const elementoModalImpressao = document.getElementById("modal-impressao");
 const elementoModalEmpresaSelect = document.getElementById("modal-empresa-select");
@@ -516,6 +517,14 @@ async function atualizarFila() {
 function renderizarFila(dados) {
     const fila = dados.fila || [];
     elementoFilaTotal.textContent = dados.total_aguardando || 0;
+
+    // Total de HOJE em qualquer status — inclui as senhas das opções
+    // fixas "Criar Currículos"/"Imprimir Currículos", que nascem já
+    // finalizadas e por isso nunca aparecem em "total_aguardando" acima
+    // nem no Painel Geral (ver database.contar_emitidas_hoje).
+    if (elementoTotalEmitidasHoje) {
+        elementoTotalEmitidasHoje.textContent = dados.total_emitidas_hoje ?? 0;
+    }
 
     if (elementoFilaPaginaInfo) {
         const totalPaginas = dados.total_paginas || 1;

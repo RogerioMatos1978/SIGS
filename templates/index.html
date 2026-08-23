@@ -196,6 +196,16 @@
 
         <section class="card card-fila">
             <h2>Fila de Espera (<span id="fila-total">0</span>)</h2>
+            <!-- Total de HOJE, em qualquer status (inclui Finalizada/Cancelada
+                 e as duas opções fixas "Criar Currículos"/"Imprimir
+                 Currículos", que nascem finalizadas e por isso nunca aparecem
+                 no contador da fila acima nem no Painel Geral). Existe para
+                 dar ao perfil Emissor uma confirmação visível de que toda
+                 emissão foi contabilizada, já que ele não acessa Relatórios
+                 (ver database.contar_emitidas_hoje/app.py:api_fila). -->
+            <p class="resumo-emitidas-hoje">
+                📋 Emitidas hoje: <strong id="total-emitidas-hoje">0</strong>
+            </p>
             <!-- Busca client -> servidor: filtra a fila INTEIRA (não só o
                  que já está na tela), já que a fila pode ter mais senhas
                  do que cabem em uma página (ver database.listar_fila_atual

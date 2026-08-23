@@ -3,9 +3,16 @@
  * ================
  * Lógica do painel público resumo do feirão inteiro: consulta
  * periodicamente /api/painel/geral/status e atualiza os totais
- * (aguardando, em atendimento, atendidas, canceladas, total emitidas) e a
- * tabela detalhada por empresa. Sem chamada/bip/animação — é um painel de
- * leitura, não de anúncio de senha.
+ * (aguardando, em atendimento, total em andamento) e a tabela detalhada
+ * por empresa. Sem chamada/bip/animação — é um painel de leitura, não de
+ * anúncio de senha.
+ *
+ * Propositalmente NÃO exibe "Atendidas" (Finalizada) nem "Canceladas" —
+ * mesmo critério aplicado a todos os painéis públicos (ver
+ * templates/painel_geral.html e database.listar_ultimas_emitidas). O
+ * backend (database.resumo_geral_senhas) continua calculando esses
+ * números normalmente (usados em outros lugares, como relatórios); esta
+ * tela apenas não os lê/renderiza.
  */
 
 "use strict";
@@ -14,8 +21,6 @@ const elementoData = document.getElementById("painel-data");
 const elementoHora = document.getElementById("painel-hora");
 const elementoAguardando = document.getElementById("resumo-aguardando");
 const elementoEmAtendimento = document.getElementById("resumo-em-atendimento");
-const elementoAtendidas = document.getElementById("resumo-atendidas");
-const elementoCanceladas = document.getElementById("resumo-canceladas");
 const elementoTotal = document.getElementById("resumo-total");
 const elementoEmpresasCorpo = document.getElementById("painel-resumo-empresas-corpo");
 
@@ -42,21 +47,30 @@ async function atualizarPainelGeral() {
     }
 }
 
-/** Atualiza os cinco cartões de totais gerais. */
+/**
+ * Atualiza os cartões de totais gerais — só "Aguardando", "Em
+ * Atendimento" e "Total em Andamento" (soma dos dois). "Atendidas" e
+ * "Canceladas" continuam vindo do servidor (``resumo.total_atendidas``/
+ * ``resumo.total_canceladas``), mas propositalmente não são lidos aqui
+ * (ver docstring do arquivo).
+ */
 function atualizarTotais(resumo) {
     elementoAguardando.textContent = resumo.total_aguardando;
     elementoEmAtendimento.textContent = resumo.total_em_atendimento;
-    elementoAtendidas.textContent = resumo.total_atendidas;
-    elementoCanceladas.textContent = resumo.total_canceladas;
-    elementoTotal.textContent = resumo.total_emitidas;
+    elementoTotal.textContent = resumo.total_aguardando + resumo.total_em_atendimento;
 }
 
-/** Atualiza a tabela com o detalhamento por empresa. */
+/**
+ * Atualiza a tabela com o detalhamento por empresa — mesmo critério da
+ * função acima: só Aguardando/Em Atendimento/Total (soma dos dois),
+ * mesmo que ``linha.atendidas``/``linha.canceladas`` venham preenchidos
+ * do servidor.
+ */
 function atualizarTabelaEmpresas(porEmpresa) {
     elementoEmpresasCorpo.innerHTML = "";
 
     if (!porEmpresa || porEmpresa.length === 0) {
-        elementoEmpresasCorpo.innerHTML = "<tr><td colspan=\"6\">Nenhuma senha emitida ainda.</td></tr>";
+        elementoEmpresasCorpo.innerHTML = "<tr><td colspan=\"4\">Nenhuma senha emitida ainda.</td></tr>";
         return;
     }
 
@@ -66,9 +80,7 @@ function atualizarTabelaEmpresas(porEmpresa) {
             linha.empresa,
             linha.aguardando,
             linha.em_atendimento,
-            linha.atendidas,
-            linha.canceladas,
-            linha.total,
+            linha.aguardando + linha.em_atendimento,
         ].forEach((valor) => {
             const td = document.createElement("td");
             td.textContent = valor;
