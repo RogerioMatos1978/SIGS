@@ -80,6 +80,68 @@ def test_repetir_ultima_chamada_sem_chamada_anterior_retorna_none(banco_teste):
     assert database.repetir_ultima_chamada() is None
 
 
+def test_obter_chamada_atual_some_depois_de_finalizada_sem_nova_chamada(banco_teste):
+    """
+    Regressão: uma senha já 'Finalizada' não deve mais aparecer como
+    "chamada atual" nos painéis públicos (pedido explícito do usuário) —
+    mesmo continuando sendo, tecnicamente, o evento mais recente em
+    ``eventos_chamada`` (log que nunca é reescrito). Sem nenhuma NOVA
+    chamada acontecendo depois da finalização, ``obter_chamada_atual``
+    deve retornar ``None`` (não deve "ressuscitar" um lote mais antigo).
+    """
+    empresa = database.criar_empresa("Empresa Alfa")
+    senha = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+
+    database.chamar_proxima(guiche="Mesa 01", usuario="Recepção", empresa_id=empresa.id)
+    assert database.obter_chamada_atual(empresa_id=empresa.id) is not None
+
+    database.finalizar_senha(senha.id)
+
+    assert database.obter_chamada_atual(empresa_id=empresa.id) is None
+    assert database.obter_chamada_atual() is None  # também some do painel geral
+
+
+def test_obter_chamada_atual_lote_parcialmente_finalizado_mostra_so_as_ativas(banco_teste):
+    """
+    Um lote de "Chamar Selecionadas" com 2 senhas, onde uma já foi
+    finalizada e a outra continua em atendimento: o destaque deve
+    mostrar SÓ a que ainda está ativa, não as duas.
+    """
+    empresa = database.criar_empresa("Empresa Alfa")
+    s1 = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    s2 = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+
+    database.chamar_varias(senha_ids=[s1.id, s2.id], guiche="Mesa 01", usuario="Recepção")
+    database.finalizar_senha(s1.id)
+
+    atual = database.obter_chamada_atual(empresa_id=empresa.id)
+    assert atual is not None
+    numeros = {evento["numero"] for evento in atual["senhas"]}
+    assert numeros == {s2.numero}
+
+
+def test_obter_chamada_atual_nao_recua_para_lote_antigo_apos_finalizar_o_ultimo(banco_teste):
+    """
+    Depois que o lote mais recente é totalmente finalizado, o painel não
+    deve "voltar" a mostrar um lote mais antigo (mesmo que ele ainda
+    tenha, teoricamente, alguma senha 'Chamada' pendurada) — um destaque
+    velho seria tão confuso quanto nenhum destaque. A função deve
+    retornar ``None`` nesse caso.
+    """
+    empresa = database.criar_empresa("Empresa Alfa")
+    antiga = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    recente = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+
+    database.chamar_proxima(guiche="Mesa 01", usuario="Rec 1", empresa_id=empresa.id)  # chama "antiga"
+    database.chamar_proxima(guiche="Mesa 02", usuario="Rec 2", empresa_id=empresa.id)  # chama "recente"
+    database.finalizar_senha(recente.id)
+
+    # "antiga" continua 'Chamada' (nunca foi finalizada), mas como não é
+    # mais o lote mais recente, o painel não deve voltar a exibi-la.
+    assert database.obter_senha_por_id(antiga.id).status == "Chamada"
+    assert database.obter_chamada_atual(empresa_id=empresa.id) is None
+
+
 def test_finalizar_atendimento_e_chamar_proxima(banco_teste):
     empresa = database.criar_empresa("Empresa Alfa")
     primeira = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)

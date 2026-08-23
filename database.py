@@ -1847,12 +1847,30 @@ def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
     sem ``lote_chamada`` (gravados antes desta coluna existir — ver
     ``_migrar_tabela_eventos_chamada_adicionar_lote``) são tratados como
     um lote de uma única senha (o próprio evento).
+
+    IMPORTANTE (senhas já finalizadas somem do destaque): o passo 2 só
+    traz eventos cuja senha AINDA esteja com status 'Chamada' (em
+    atendimento) — uma senha já 'Finalizada' (ou cancelada depois de
+    chamada, caso raro) sai da lista, mesmo que continue sendo,
+    tecnicamente, o evento mais recente em ``eventos_chamada`` (uma
+    tabela só de LOG, nunca reescrita). Sem esse filtro, o painel
+    público continuaria destacando para sempre a última senha chamada
+    mesmo depois dela já ter sido atendida e finalizada — só troca de
+    destaque quando uma NOVA chamada acontece. Se, depois do filtro,
+    nenhuma senha do lote mais recente ainda estiver em atendimento,
+    a função retorna ``None`` (não recua para um lote mais antigo — um
+    destaque antigo seria tão ou mais confuso quanto nenhum destaque),
+    e o painel exibe a mensagem de espera (ver static/js/painel.js e
+    static/js/painel_empresa.js).
     """
     condicao_empresa = "WHERE s.empresa_id = ?" if empresa_id else ""
     parametros_empresa = [empresa_id] if empresa_id else []
 
     with get_connection() as conexao:
-        # Passo 1: descobre o evento (e o lote) mais recente.
+        # Passo 1: descobre o evento (e o lote) mais recente, SEM filtrar
+        # por status ainda — precisamos saber qual foi a ÚLTIMA operação
+        # de chamada realizada, independente de já ter sido finalizada,
+        # para não "ressuscitar" um lote mais antigo no passo 2.
         ultimo = conexao.execute(
             f"""
             SELECT e.id, e.lote_chamada
@@ -1868,16 +1886,17 @@ def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
         if ultimo is None:
             return None
 
-        # Passo 2: busca TODOS os eventos daquele lote (1 ou vários). Para
-        # eventos antigos sem lote_chamada, cai de volta a buscar só pelo
-        # próprio id (equivalente ao comportamento anterior a esta função
-        # existir).
+        # Passo 2: busca os eventos daquele lote (1 ou vários) cuja senha
+        # AINDA esteja em atendimento ('Chamada') — exclui as que já
+        # foram finalizadas (ver docstring acima). Para eventos antigos
+        # sem lote_chamada, cai de volta a buscar só pelo próprio id
+        # (equivalente ao comportamento anterior a esta função existir).
         if ultimo["lote_chamada"]:
-            condicao_lote = "WHERE e.lote_chamada = ?"
-            parametros_lote = [ultimo["lote_chamada"]]
+            condicao_lote = "WHERE e.lote_chamada = ? AND s.status = ?"
+            parametros_lote = [ultimo["lote_chamada"], StatusSenha.CHAMADA]
         else:
-            condicao_lote = "WHERE e.id = ?"
-            parametros_lote = [ultimo["id"]]
+            condicao_lote = "WHERE e.id = ? AND s.status = ?"
+            parametros_lote = [ultimo["id"], StatusSenha.CHAMADA]
 
         if empresa_id:
             condicao_lote += " AND s.empresa_id = ?"

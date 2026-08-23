@@ -2229,3 +2229,16 @@
 2026-08-23 13:10:34 | INFO     | SIGS | Senha emitida: número 006 (id=45, empresa='Imprimir Currículos') — já registrada como realizada, sem fila.
 2026-08-23 13:10:42 | ERROR    | SIGS | Falha ao imprimir senha 006 na impressora 'Microsoft Print to PDF': StartDoc failed
 2026-08-23 13:11:08 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 13:20:34 | INFO     | SIGS | Logout realizado: 'chave-empresa-1-c20cba14892bc19f'.
+2026-08-23 14:17:13 | INFO     | SIGS | Senha emitida: número 011 (id=46, empresa='COMIGO')
+2026-08-23 14:17:15 | ERROR    | SIGS | Falha ao imprimir senha 011 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 14:18:23 | INFO     | SIGS | Conta de recrutador provisionada automaticamente para 'Atendente' (empresa id=1) via chave de acesso.
+2026-08-23 14:18:23 | INFO     | SIGS | Mesa 1 (empresa id=1) atribuída automaticamente a 'Atendente'.
+2026-08-23 14:18:23 | INFO     | SIGS | Login realizado: 'chave-empresa-1-b2a1d4f4e1dbd923' (perfil recrutador, guichê 1).
+2026-08-23 14:21:42 | INFO     | SIGS | Senha 011 chamada no guichê 'Mesa 01 — COMIGO' por 'Atendente'.
+2026-08-23 14:22:46 | INFO     | SIGS | Senha id=46 finalizada.
+2026-08-23 15:50:06 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 15:50:46 | INFO     | SIGS | Senha emitida: número 012 (id=47, empresa='COMIGO')
+2026-08-23 15:50:48 | ERROR    | SIGS | Falha ao imprimir senha 012 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 15:51:40 | INFO     | SIGS | Senha 012 chamada no guichê 'Mesa 01 — COMIGO' por 'Atendente'.
+2026-08-23 15:51:46 | INFO     | SIGS | Senha id=47 finalizada.

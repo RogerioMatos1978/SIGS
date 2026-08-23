@@ -1228,6 +1228,43 @@ seguintes pontos de atrito:
   preenchida antes do cancelamento: o botão "Cancelar" só é oferecido
   na Fila de Espera, que só lista senhas ainda com status 'Emitida').
 
+### 12.19 Evolução recente do sistema (v2.16.0)
+
+- **Painéis públicos não devem mais destacar uma senha já
+  finalizada**: antes, depois que o recrutador clicava em "Finalizar
+  Atendimento" (sem chamar mais nenhuma senha em seguida), o painel
+  público (`/painel`, `/painel/empresa/<id>`) continuava mostrando
+  aquela mesma senha em destaque "para sempre" — porque
+  `database.obter_chamada_atual` só olhava para o evento mais recente
+  em `eventos_chamada` (um LOG que nunca é reescrito), sem checar se a
+  senha correspondente já tinha sido atendida. Agora a função só
+  considera senhas com status ainda 'Chamada' (em atendimento); se
+  todas as senhas do lote mais recente já estiverem 'Finalizada', o
+  destaque desaparece — sem "recuar" para um lote mais antigo (um
+  destaque velho seria tão confuso quanto nenhum). Isso também
+  funciona corretamente no meio de uma chamada em lote ("Chamar
+  Selecionadas" — ver seção 12.17): se 1 de 3 senhas do lote já foi
+  finalizada, o destaque passa a mostrar só as 2 que continuam em
+  atendimento.
+
+- **Nova mensagem de espera "Aguardando emissão de senha"**: tanto a
+  caixa de destaque quanto a lista "Últimas Senhas Emitidas" dos
+  painéis públicos passam a mostrar essa mensagem sempre que não há
+  nenhuma senha pendente (aguardando ou em atendimento) no momento —
+  seja porque nenhuma senha foi emitida ainda, seja porque todas as
+  emitidas já foram atendidas. Antes, a caixa de destaque usava o
+  texto "Aguardando primeira chamada" só para o caso de nunca ter
+  havido nenhuma chamada; agora os dois cenários (nunca chamou / já
+  finalizou tudo) mostram a mesma mensagem, já que não há diferença
+  prática entre eles do ponto de vista de quem olha o painel.
+
+- Implementado em `database.py` (`obter_chamada_atual` — filtro
+  `s.status = 'Chamada'` no passo 2 da busca) e
+  `static/js/painel.js`/`painel_empresa.js` (textos de espera). A
+  tela principal do recrutador/atendente (`index.html`, caixa "Última
+  Senha Chamada") reaproveita a mesma rota/lógica de status, então se
+  beneficia automaticamente da mesma correção.
+
 ---
 
 ## 13. Referências e projetos utilizados como case de sucesso

@@ -61,12 +61,19 @@ async function atualizarPainel() {
  * Atualiza a senha em destaque no painel. Quando o id do evento de
  * chamada muda em relação ao último anunciado, dispara a animação visual
  * e o bip sonoro — mesmo que o número da senha seja o mesmo (repetição).
+ *
+ * ``chamada`` vem ``null`` tanto quando NENHUMA chamada foi realizada
+ * ainda quanto quando a última já foi totalmente finalizada (ver
+ * database.obter_chamada_atual — uma senha 'Finalizada' some do
+ * destaque, sem esperar por uma nova chamada) — nos dois casos a
+ * mensagem de espera é a mesma, já que da perspectiva de quem olha o
+ * painel não há diferença prática entre as duas situações.
  */
 function atualizarChamadaAtual(chamada) {
     if (!chamada) {
         elementoNumeroAtual.textContent = "---";
         elementoEmpresaAtual.textContent = "";
-        elementoGuicheAtual.textContent = "Aguardando primeira chamada";
+        elementoGuicheAtual.textContent = "Aguardando emissão de senha";
         return;
     }
 
@@ -135,12 +142,18 @@ function extrairMesa(guiche) {
     return guiche.split("—")[0].trim();
 }
 
-/** Atualiza a lista das últimas senhas emitidas exibida no painel. */
+/**
+ * Atualiza a lista das últimas senhas emitidas exibida no painel — só
+ * as que ainda estão aguardando ou em atendimento (ver
+ * database.listar_ultimas_emitidas, que já exclui Finalizada/Cancelada).
+ * Vazia = nenhuma senha pendente no momento (nunca emitida, ou todas já
+ * atendidas) — mesma mensagem de espera nos dois casos.
+ */
 function atualizarListaEmitidas(lista) {
     elementoListaEmitidas.innerHTML = "";
 
     if (!lista || lista.length === 0) {
-        elementoListaEmitidas.innerHTML = "<li>Nenhuma senha emitida ainda.</li>";
+        elementoListaEmitidas.innerHTML = "<li>Aguardando emissão de senha.</li>";
         return;
     }
 
