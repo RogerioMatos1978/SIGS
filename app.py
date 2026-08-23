@@ -1232,7 +1232,11 @@ def api_cancelar(senha_id: int):
         return resposta_erro("Você não tem permissão para gerenciar esta senha.", 403)
     if database.cancelar_senha(senha_id):
         return resposta_sucesso({"mensagem": "Senha cancelada."})
-    return resposta_erro("Senha não encontrada.", 404)
+    return resposta_erro(
+        "Não foi possível cancelar: a senha não existe ou já foi chamada/atendida "
+        "(só é possível cancelar senhas ainda aguardando na fila).",
+        404,
+    )
 
 
 @app.route("/api/senha/<int:senha_id>/reimprimir", methods=["POST"])

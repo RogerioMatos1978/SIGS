@@ -1605,6 +1605,26 @@ def chamar_varias(
                     )
                 senhas_validadas.append(senha)
 
+            # Todas as senhas do lote precisam ser da MESMA empresa — mesmo
+            # quando ``empresa_id`` não foi informado (perfil "atendente",
+            # que opera a fila GERAL, compartilhada entre todas as
+            # empresas — ver PerfilUsuario.ATENDENTE). Corrigido na revisão
+            # geral do sistema: sem essa checagem, um atendente podia
+            # selecionar senhas de empresas DIFERENTES na mesma operação
+            # "Chamar Selecionadas", gerando um lote misto — mas o
+            # restante do sistema (obter_chamada_atual, static/js/painel.js)
+            # assume que um lote pertence a UMA única empresa (só existe UM
+            # campo "empresa" de nível raiz por lote), então o painel geral
+            # acabava rotulando a sequência inteira com o nome de apenas a
+            # primeira empresa, mesmo quando as demais senhas chamadas
+            # eram de outra.
+            empresas_do_lote = {senha.empresa_id for senha in senhas_validadas}
+            if len(empresas_do_lote) > 1:
+                raise ValueError(
+                    "As senhas selecionadas são de empresas diferentes — "
+                    "chame senhas de uma empresa por vez."
+                )
+
             lote = _gerar_lote_chamada()
             data_hora = _agora_iso()
             chamadas = []
@@ -1886,17 +1906,32 @@ def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
         if ultimo is None:
             return None
 
-        # Passo 2: busca os eventos daquele lote (1 ou vários) cuja senha
-        # AINDA esteja em atendimento ('Chamada') — exclui as que já
-        # foram finalizadas (ver docstring acima). Para eventos antigos
-        # sem lote_chamada, cai de volta a buscar só pelo próprio id
+        # Passo 2: busca TODOS os eventos daquele lote (1 ou vários),
+        # SEM filtrar por status ainda — precisamos do lote completo,
+        # na ordem original, para que os campos de nível raiz (id,
+        # numero, guiche...) fiquem estáveis mesmo que uma das senhas do
+        # lote seja finalizada individualmente enquanto as demais
+        # continuam em atendimento. Para eventos antigos sem
+        # lote_chamada, cai de volta a buscar só pelo próprio id
         # (equivalente ao comportamento anterior a esta função existir).
+        #
+        # IMPORTANTE (bug corrigido na revisão geral do sistema): antes,
+        # esse filtro por status já vinha aplicado aqui no SQL, e o
+        # "primeiro" evento (usado nos campos de nível raiz) era
+        # recalculado a cada chamada desta função a partir da lista JÁ
+        # filtrada. Num lote com várias senhas, quando a PRIMEIRA delas
+        # era finalizada antes das demais, o "primeiro" evento restante
+        # passava a ser outro (id diferente) mesmo sem nenhuma chamada
+        # nova ter ocorrido — e como o painel usa justamente esse "id"
+        # para decidir se toca o bipe/anima a tela (ver
+        # static/js/painel.js), isso disparava um re-anúncio falso no
+        # meio do atendimento normal do lote.
         if ultimo["lote_chamada"]:
-            condicao_lote = "WHERE e.lote_chamada = ? AND s.status = ?"
-            parametros_lote = [ultimo["lote_chamada"], StatusSenha.CHAMADA]
+            condicao_lote = "WHERE e.lote_chamada = ?"
+            parametros_lote = [ultimo["lote_chamada"]]
         else:
-            condicao_lote = "WHERE e.id = ? AND s.status = ?"
-            parametros_lote = [ultimo["id"], StatusSenha.CHAMADA]
+            condicao_lote = "WHERE e.id = ?"
+            parametros_lote = [ultimo["id"]]
 
         if empresa_id:
             condicao_lote += " AND s.empresa_id = ?"
@@ -1904,7 +1939,7 @@ def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
 
         linhas = conexao.execute(
             f"""
-            SELECT e.*, s.empresa AS empresa
+            SELECT e.*, s.empresa AS empresa, s.status AS status_senha
             FROM eventos_chamada e
             JOIN senhas s ON s.id = e.senha_id
             {condicao_lote}
@@ -1916,15 +1951,34 @@ def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
     if not linhas:
         return None
 
-    eventos = [ChamadaEvento.from_row(linha).to_dict() for linha in linhas]
-    primeiro = eventos[0]
+    todos_eventos_lote = [ChamadaEvento.from_row(linha).to_dict() for linha in linhas]
+    # Guarda o status de cada senha (não faz parte de ChamadaEvento) só
+    # para filtrar a lista de exibição logo abaixo.
+    status_por_linha = [linha["status_senha"] for linha in linhas]
+
+    # Campos de nível raiz sempre espelham o PRIMEIRO evento do LOTE
+    # COMPLETO (estável independente de finalizações parciais) — mantém
+    # compatibilidade com quem só lia um evento único antes de existir o
+    # conceito de lote (ex.: comparar "id" para detectar mudança e
+    # disparar bip/animação continua funcionando, já que o "id" do
+    # primeiro evento só muda quando um NOVO lote é chamado).
+    primeiro = todos_eventos_lote[0]
+
+    # Lista exibida no painel: só as senhas do lote AINDA em atendimento
+    # ('Chamada') — uma senha já 'Finalizada' (ou cancelada depois de
+    # chamada, caso raro) some da lista visível, mesmo continuando no
+    # log. Se nenhuma senha do lote mais recente ainda estiver em
+    # atendimento, não há nada para destacar (ver docstring da função).
+    eventos_ativos = [
+        evento
+        for evento, status in zip(todos_eventos_lote, status_por_linha)
+        if status == StatusSenha.CHAMADA
+    ]
+
+    if not eventos_ativos:
+        return None
 
     return {
-        # Campos no nível raiz espelhando o PRIMEIRO evento do lote —
-        # mantém compatibilidade com quem só lia um evento único antes de
-        # existir o conceito de lote (ex.: comparar "id" para detectar
-        # mudança e disparar bip/animação continua funcionando, já que o
-        # "id" do primeiro evento do lote muda a cada novo lote).
         "id": primeiro["id"],
         "lote_chamada": primeiro["lote_chamada"],
         "senha_id": primeiro["senha_id"],
@@ -1933,10 +1987,10 @@ def obter_chamada_atual(empresa_id: Optional[int] = None) -> Optional[Dict]:
         "usuario": primeiro["usuario"],
         "data_hora": primeiro["data_hora"],
         "empresa": primeiro["empresa"],
-        # Lista com TODAS as senhas do lote (1 ou mais) — usada pelo
+        # Lista com as senhas do lote AINDA em atendimento — usada pelo
         # painel público para montar a "sequência chamada" (ver
         # static/js/painel.js e static/js/painel_empresa.js).
-        "senhas": eventos,
+        "senhas": eventos_ativos,
     }
 
 
@@ -2069,11 +2123,24 @@ def finalizar_senha(senha_id: int) -> bool:
 
 
 def cancelar_senha(senha_id: int) -> bool:
-    """Marca uma senha como 'Cancelada' (não será chamada)."""
+    """
+    Marca uma senha como 'Cancelada' (não será chamada).
+
+    Só é permitido cancelar uma senha que ainda esteja com status
+    'Emitida' (aguardando na fila) — corrigido na revisão geral do
+    sistema: antes, esta função cancelava uma senha em QUALQUER status,
+    inclusive uma que já tivesse sido chamada. Cancelar uma senha já
+    chamada criava uma inconsistência entre os números do Painel Geral:
+    ela saía de "Total de Senhas Emitidas" (resumo_feirao exclui
+    Canceladas — ver ``obter_resumo_feirao``), mas continuava contando
+    em "Total de Atendimentos Realizados"
+    (``contar_chamadas_realizadas_periodo`` só olha se ``hora_chamada``
+    foi preenchida, sem checar o status atual da senha).
+    """
     with get_connection() as conexao:
         cursor = conexao.execute(
-            "UPDATE senhas SET status = ? WHERE id = ?",
-            (StatusSenha.CANCELADA, senha_id),
+            "UPDATE senhas SET status = ? WHERE id = ? AND status = ?",
+            (StatusSenha.CANCELADA, senha_id, StatusSenha.EMITIDA),
         )
         conexao.commit()
         alterou = cursor.rowcount > 0
@@ -2276,15 +2343,29 @@ def contar_chamadas_realizadas_periodo(
            fabricar um evento de chamada artificial (o que poluiria o
            relatório de exportação "Chamadas Realizadas", que é um log
            real de anúncios feitos em guichês/mesas).
+
+    IMPORTANTE (filtro de período usa a data de EMISSÃO, não a de
+    chamada — corrigido na revisão geral do sistema): o período
+    (``inicio``/``fim``) filtra por ``date(data_hora)`` — a mesma coluna
+    usada por TODAS as demais consultas de Relatórios
+    (``listar_senhas_periodo``, ``listar_contagem_por_empresa``,
+    ``tempo_medio_atendimento``) — em vez de ``date(hora_chamada)`` como
+    antes. Com o filtro na coluna de chamada, uma senha emitida perto da
+    virada do dia e só chamada no dia seguinte contava em "Atendidas" num
+    dia diferente de "Emitidas", quebrando o invariante básico de um
+    relatório de período (atendidas nunca maior que emitidas NAQUELE
+    período) e confundindo quem lê o resumo. ``hora_chamada IS NOT NULL``
+    continua sendo o filtro de "foi de fato atendida" — só a coluna usada
+    para decidir SE a senha pertence ao período pedido mudou.
     """
     condicoes = ["hora_chamada IS NOT NULL"]
     parametros: List = []
 
     if inicio:
-        condicoes.append("date(hora_chamada) >= date(?)")
+        condicoes.append("date(data_hora) >= date(?)")
         parametros.append(inicio)
     if fim:
-        condicoes.append("date(hora_chamada) <= date(?)")
+        condicoes.append("date(data_hora) <= date(?)")
         parametros.append(fim)
     if empresa_id:
         condicoes.append("empresa_id = ?")

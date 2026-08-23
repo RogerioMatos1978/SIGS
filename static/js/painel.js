@@ -25,6 +25,15 @@ const TEMPO_ATUALIZACAO_MS = (window.SIGS_CONFIG && window.SIGS_CONFIG.tempoAtua
 // apenas quando necessário.
 let ultimoEventoAnunciadoId = null;
 
+// Evita chamadas de rede SOBREPOSTAS: se o polling anterior ainda não
+// respondeu quando o próximo setInterval dispara (rede lenta/instável),
+// a rodada nova é pulada em vez de deixar duas respostas "em voo" ao
+// mesmo tempo — sem essa proteção, a resposta mais ANTIGA podia chegar
+// DEPOIS da mais nova (fora de ordem) e fazer o painel "voltar no
+// tempo", inclusive reanunciando (bipe/animação) uma chamada já
+// superada por engano.
+let atualizandoPainel = false;
+
 // Rótulos amigáveis para o status de cada senha no histórico.
 const ROTULOS_STATUS = {
     Emitida: "Aguardando",
@@ -38,6 +47,10 @@ const ROTULOS_STATUS = {
  * emitidas, data/hora do servidor) e atualiza a interface.
  */
 async function atualizarPainel() {
+    if (atualizandoPainel) {
+        return;
+    }
+    atualizandoPainel = true;
     try {
         const resposta = await fetch("/api/painel/status");
         const dados = await resposta.json();
@@ -54,6 +67,8 @@ async function atualizarPainel() {
         atualizarListaEmitidas(dados.ultimas_emitidas);
     } catch (erro) {
         console.error("Falha de comunicação com o servidor:", erro);
+    } finally {
+        atualizandoPainel = false;
     }
 }
 

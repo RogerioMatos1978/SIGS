@@ -2253,3 +2253,7 @@
 2026-08-23 16:07:15 | INFO     | SIGS | Login realizado: 'chave-empresa-5-a0952b68e7312046' (perfil recrutador, guichê 1).
 2026-08-23 16:08:46 | ERROR    | SIGS | Não há senhas aguardando chamada.
 2026-08-23 16:29:52 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 16:56:30 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 16:58:25 | INFO     | SIGS | Cor da empresa id=3 definida manualmente para #D7A8BE.
+2026-08-23 17:10:46 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-23 17:25:44 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db

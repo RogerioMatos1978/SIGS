@@ -112,8 +112,18 @@ function renderizarResumoEmpresas(porEmpresa) {
     });
 }
 
+// Evita que cliques repetidos em "Atualizar Resumo" (ex.: usuário
+// impaciente clicando várias vezes) disparem requisições sobrepostas
+// cujas respostas podem chegar fora de ordem e deixar na tela o
+// resultado de um filtro de período já trocado pelo usuário.
+let atualizandoResumo = false;
+
 /** Busca e exibe o resumo estatístico do período selecionado. */
 async function atualizarResumo() {
+    if (atualizandoResumo) {
+        return;
+    }
+    atualizandoResumo = true;
     try {
         const resposta = await fetch(`/api/relatorios/resumo?${montarParametros(false)}`);
         const dados = await resposta.json();
@@ -129,6 +139,8 @@ async function atualizarResumo() {
     } catch (erro) {
         console.error(erro);
         alert(`Erro ao atualizar resumo: ${erro.message}`);
+    } finally {
+        atualizandoResumo = false;
     }
 }
 

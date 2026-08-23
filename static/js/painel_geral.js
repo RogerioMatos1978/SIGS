@@ -39,8 +39,18 @@ const elementoFeiraoTempoMedio = document.getElementById("feirao-tempo-medio");
 
 const TEMPO_ATUALIZACAO_MS = (window.SIGS_CONFIG && window.SIGS_CONFIG.tempoAtualizacaoMs) || 2000;
 
+// Evita chamadas de rede SOBREPOSTAS (mesmo motivo de painel.js): se o
+// polling anterior ainda não respondeu quando o próximo setInterval
+// dispara, a rodada nova é pulada em vez de arriscar uma resposta
+// antiga chegar depois da mais nova e mostrar números desatualizados.
+let atualizandoPainelGeral = false;
+
 /** Consulta o resumo geral e atualiza a interface. */
 async function atualizarPainelGeral() {
+    if (atualizandoPainelGeral) {
+        return;
+    }
+    atualizandoPainelGeral = true;
     try {
         const resposta = await fetch("/api/painel/geral/status");
         const dados = await resposta.json();
@@ -58,6 +68,8 @@ async function atualizarPainelGeral() {
         atualizarResumoFeirao(dados.resumo_feirao);
     } catch (erro) {
         console.error("Falha de comunicação com o servidor:", erro);
+    } finally {
+        atualizandoPainelGeral = false;
     }
 }
 

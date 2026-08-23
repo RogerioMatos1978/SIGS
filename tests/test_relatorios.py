@@ -77,6 +77,39 @@ def test_contar_chamadas_realizadas_respeita_filtro_de_empresa(banco_teste):
     assert database.contar_chamadas_realizadas_periodo(empresa_id=empresa_b.id) == 0
 
 
+def test_contar_chamadas_realizadas_usa_data_de_emissao_no_filtro_periodo(banco_teste):
+    """
+    Regressão (revisão geral do sistema): o filtro de período de
+    ``contar_chamadas_realizadas_periodo`` usava ``date(hora_chamada)``,
+    diferente de TODAS as demais consultas de Relatórios (que usam
+    ``date(data_hora)``, a data de EMISSÃO). Uma senha emitida perto da
+    virada do dia e só chamada no dia seguinte contava em "Atendidas" de
+    um dia diferente de "Emitidas", quebrando o invariante básico do
+    resumo (atendidas nunca maior que emitidas NAQUELE período). Agora
+    as duas colunas usam a mesma data de referência (emissão).
+    """
+    empresa = database.criar_empresa("Empresa Alfa")
+    senha = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    database.chamar_proxima(guiche="Guichê 01", usuario="Atendente")
+
+    # Simula: emitida em 10/01, mas só chamada em 11/01 (virada do dia).
+    with database.get_connection() as conexao:
+        conexao.execute(
+            "UPDATE senhas SET data_hora = ?, hora_chamada = ? WHERE id = ?",
+            ("2026-01-10 23:58:00", "2026-01-11 00:02:00", senha.id),
+        )
+        conexao.commit()
+
+    # No período do dia de EMISSÃO (10/01), a senha conta como atendida
+    # — mesmo critério de data usado por "Emitidas" nesse mesmo período.
+    assert database.contar_chamadas_realizadas_periodo(inicio="2026-01-10", fim="2026-01-10") == 1
+    assert len(database.listar_senhas_periodo(inicio="2026-01-10", fim="2026-01-10")) == 1
+
+    # No período do dia da CHAMADA (11/01), a senha NÃO deveria aparecer
+    # como "emitida" nem "atendida" — ela pertence ao dia anterior.
+    assert database.contar_chamadas_realizadas_periodo(inicio="2026-01-11", fim="2026-01-11") == 0
+
+
 def test_listar_contagem_por_empresa_inclui_coluna_atendidas(banco_teste):
     """
     A coluna "Senhas Atendidas" da tabela "Senhas por Empresa" (tela de

@@ -27,6 +27,12 @@ const EMPRESA_ID = window.SIGS_CONFIG && window.SIGS_CONFIG.empresaId;
 // apenas quando necessário.
 let ultimoEventoAnunciadoId = null;
 
+// Evita chamadas de rede SOBREPOSTAS (mesmo motivo de painel.js): se o
+// polling anterior ainda não respondeu quando o próximo setInterval
+// dispara, a rodada nova é pulada em vez de arriscar uma resposta
+// antiga chegar fora de ordem e reanunciar uma chamada já superada.
+let atualizandoPainel = false;
+
 // Rótulos amigáveis para o status de cada senha no histórico.
 const ROTULOS_STATUS = {
     Emitida: "Aguardando",
@@ -40,6 +46,10 @@ const ROTULOS_STATUS = {
  * últimas emitidas, data/hora do servidor) e atualiza a interface.
  */
 async function atualizarPainel() {
+    if (atualizandoPainel) {
+        return;
+    }
+    atualizandoPainel = true;
     try {
         const resposta = await fetch(`/api/painel/empresa/${EMPRESA_ID}/status`);
         const dados = await resposta.json();
@@ -56,6 +66,8 @@ async function atualizarPainel() {
         atualizarListaEmitidas(dados.ultimas_emitidas);
     } catch (erro) {
         console.error("Falha de comunicação com o servidor:", erro);
+    } finally {
+        atualizandoPainel = false;
     }
 }
 

@@ -12,6 +12,17 @@
 :root {
     --cor-principal: #003C71;      /* Azul institucional SENAI (padrão) */
     --cor-principal-clara: #1F5FA8;
+    /* Fundo SÓLIDO de botões/barras com texto branco por cima
+       (.botao-primario, .botao-secundario, .barra-usuario, .rodape-sigs,
+       botões de identidade visual da empresa). Separadas de
+       --cor-principal/--cor-principal-clara porque no tema escuro os
+       valores que funcionam bem como COR DE TEXTO sobre fundo escuro
+       (mais claros, para bom contraste) NÃO têm contraste suficiente
+       com texto BRANCO por cima quando usados como preenchimento sólido
+       — ver valores diferentes no bloco html[data-tema="escuro"]. No
+       tema claro seguem exatamente iguais a --cor-principal/-clara. */
+    --cor-botao-principal: var(--cor-principal);
+    --cor-botao-secundario: var(--cor-principal-clara);
     --cor-secundaria: #F4A300;     /* Amarelo de destaque/alerta */
     --cor-fundo: #F2F5F9;
     --cor-fundo-gradiente-fim: #E4ECF6; /* 2º stop do gradiente de fundo (ver body) */
@@ -74,6 +85,11 @@
 html[data-tema="escuro"] {
     --cor-principal: #2F81F7;
     --cor-principal-clara: #58A6FF;
+    /* Valores distintos de --cor-principal/-clara: mais escuros para
+       manter contraste AA (>= 4.5:1) com texto branco quando usados
+       como preenchimento sólido (ver comentário em :root acima). */
+    --cor-botao-principal: #1F6FEB;
+    --cor-botao-secundario: #0969DA;
     --cor-fundo: #0D1117;
     --cor-fundo-gradiente-fim: #010409;
     --cor-texto: #E6EDF3;
@@ -349,11 +365,11 @@ input:focus, select:focus {
 }
 
 .botao-primario {
-    background: var(--cor-principal);
+    background: var(--cor-botao-principal);
 }
 
 .botao-secundario {
-    background: var(--cor-principal-clara);
+    background: var(--cor-botao-secundario);
 }
 
 .botao-terciario {
@@ -520,6 +536,41 @@ input:focus, select:focus {
 
 .mensagem-status.sucesso { color: var(--cor-sucesso); }
 .mensagem-status.erro { color: var(--cor-erro); }
+
+/* Mensagens "flash" do Flask (get_flashed_messages), exibidas no topo de
+   QUALQUER página após um redirecionamento (ex.: erro de login, sucesso
+   ao salvar em Configurações) — ver templates/layout.html. Antes desta
+   regra, o wrapper .flash-mensagens não tinha CSS nenhum e as mensagens
+   apareciam como texto solto colado no topo da página, sem nenhum
+   destaque visual (bug corrigido na revisão geral do sistema). Reaproveita
+   o mesmo estilo de "faixa colorida" das notificações (.notificacao). */
+.flash-mensagens {
+    max-width: 1200px;
+    margin: 16px auto 0;
+    padding: 0 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.flash-mensagens .mensagem-status {
+    background: var(--cor-superficie);
+    border-left: 6px solid var(--cor-cinza-borda);
+    border-radius: var(--raio-borda);
+    box-shadow: var(--sombra-padrao);
+    padding: 12px 16px;
+    min-height: 0;
+}
+
+.flash-mensagens .mensagem-status.sucesso {
+    border-left-color: var(--cor-sucesso);
+    background: var(--cor-sucesso-fundo);
+}
+
+.flash-mensagens .mensagem-status.erro {
+    border-left-color: var(--cor-erro);
+    background: var(--cor-erro-fundo);
+}
 
 /* =============================================================
    Painel público (tela cheia / TV)
@@ -790,7 +841,7 @@ input:focus, select:focus {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    background: var(--cor-principal);
+    background: var(--cor-botao-principal);
     color: var(--cor-branco);
     padding: 10px 16px;
 }
@@ -1176,7 +1227,7 @@ input:focus, select:focus {
 #empresas-corpo tr .btn-upload-logo,
 #empresas-corpo tr .btn-renomear-empresa,
 #empresas-corpo tr .btn-abrir-painel-empresa {
-    background: var(--cor-empresa, var(--cor-principal-clara));
+    background: var(--cor-empresa, var(--cor-botao-secundario));
 }
 
 /* Botões de compartilhar via WhatsApp: cor de marca reconhecível,
@@ -1263,7 +1314,7 @@ input:focus, select:focus {
     right: 0;
     bottom: 0;
     z-index: 500;
-    background: var(--cor-principal);
+    background: var(--cor-botao-principal);
     color: rgba(255, 255, 255, 0.85);
     text-align: center;
     font-size: 0.85rem;

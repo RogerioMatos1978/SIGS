@@ -193,6 +193,93 @@ def test_obter_chamada_atual_isolamento_entre_empresas_com_lotes_simultaneos(ban
     assert {e["numero"] for e in atual_geral["senhas"]} == {beta_s1.numero, beta_s2.numero, beta_s3.numero}
 
 
+def test_chamar_varias_rejeita_lote_com_empresas_diferentes_sem_empresa_id(banco_teste):
+    """
+    Regressão (revisão geral do sistema): o perfil "atendente" opera a
+    fila GERAL, compartilhada entre todas as empresas, e por isso chama
+    ``chamar_varias`` sem ``empresa_id`` (nenhum filtro por empresa).
+    Antes, isso permitia selecionar e chamar juntas senhas de empresas
+    DIFERENTES num único lote — mas ``obter_chamada_atual``/painel só
+    têm um campo "empresa" por lote, então a sequência exibida acabava
+    rotulada só com o nome da primeira empresa, mesmo tendo senhas de
+    outra(s) misturadas. Agora a operação inteira é rejeitada.
+    """
+    alfa = database.criar_empresa("Alfa")
+    beta = database.criar_empresa("Beta")
+    senha_alfa = database.criar_senha(empresa_id=alfa.id, empresa=alfa.nome)
+    senha_beta = database.criar_senha(empresa_id=beta.id, empresa=beta.nome)
+
+    with pytest.raises(ValueError):
+        database.chamar_varias(
+            senha_ids=[senha_alfa.id, senha_beta.id], guiche="Guichê 01", usuario="Atendente"
+        )
+
+    # Tudo ou nada: nenhuma das duas foi alterada.
+    assert database.obter_senha_por_id(senha_alfa.id).status == StatusSenha.EMITIDA
+    assert database.obter_senha_por_id(senha_beta.id).status == StatusSenha.EMITIDA
+
+
+def test_chamar_varias_permite_mesma_empresa_sem_empresa_id(banco_teste):
+    """O mesmo cenário acima, mas com as duas senhas da MESMA empresa,
+    continua permitido normalmente (não é uma regra "sempre uma por
+    vez", só "não misturar empresas")."""
+    alfa = database.criar_empresa("Alfa")
+    s1 = database.criar_senha(empresa_id=alfa.id, empresa=alfa.nome)
+    s2 = database.criar_senha(empresa_id=alfa.id, empresa=alfa.nome)
+
+    resultado = database.chamar_varias(senha_ids=[s1.id, s2.id], guiche="Guichê 01", usuario="Atendente")
+    assert len(resultado["chamadas"]) == 2
+
+
+def test_obter_chamada_atual_estavel_apos_finalizacao_parcial_do_lote(banco_teste):
+    """
+    Regressão (revisão geral do sistema): antes, os campos de nível raiz
+    de ``obter_chamada_atual`` (id/numero/...) eram recalculados a
+    partir da lista JÁ filtrada por status 'Chamada'. Num lote de várias
+    senhas, finalizar a PRIMEIRA delas enquanto as demais continuavam em
+    atendimento fazia o "primeiro evento restante" mudar de id sem
+    nenhuma chamada nova ter ocorrido — e o painel usa justamente esse
+    id para decidir se toca o bipe/anima a tela, causando um
+    reanúncio falso. Agora o id de nível raiz reflete sempre o PRIMEIRO
+    evento do lote completo, estável entre finalizações parciais.
+    """
+    empresa = database.criar_empresa("Empresa Alfa")
+    s1 = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    s2 = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    s3 = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+
+    database.chamar_varias(senha_ids=[s1.id, s2.id, s3.id], guiche="Mesa 01", usuario="Recepção")
+
+    antes = database.obter_chamada_atual(empresa_id=empresa.id)
+    assert antes["numero"] == s1.numero
+    assert len(antes["senhas"]) == 3
+
+    # Finaliza a PRIMEIRA senha do lote — s2 e s3 continuam 'Chamada'.
+    database.finalizar_senha(s1.id)
+
+    depois = database.obter_chamada_atual(empresa_id=empresa.id)
+    # O id/numero de nível raiz NÃO mudou, mesmo s1 tendo saído da lista
+    # de senhas ainda em atendimento — nenhuma chamada nova aconteceu.
+    assert depois["id"] == antes["id"]
+    assert depois["numero"] == antes["numero"]
+    # A lista exibida no painel agora só traz as duas ainda em atendimento.
+    assert len(depois["senhas"]) == 2
+    assert {e["numero"] for e in depois["senhas"]} == {s2.numero, s3.numero}
+
+
+def test_obter_chamada_atual_retorna_none_quando_lote_inteiro_finalizado(banco_teste):
+    """Se TODAS as senhas do lote mais recente já foram finalizadas, o
+    painel deve voltar à mensagem de espera (None), não continuar
+    mostrando uma senha antiga já atendida."""
+    empresa = database.criar_empresa("Empresa Alfa")
+    senha = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+
+    database.chamar_proxima(guiche="Mesa 01", usuario="Recepção", empresa_id=empresa.id)
+    database.finalizar_senha(senha.id)
+
+    assert database.obter_chamada_atual(empresa_id=empresa.id) is None
+
+
 def _login_recrutador(cliente, empresa):
     """
     Loga como recrutador da empresa informada via o fluxo real de acesso

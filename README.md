@@ -1387,6 +1387,86 @@ seguintes pontos de atrito:
   também voltou a ser um botão padrão do sistema, não mais colorido
   com a cor da empresa).
 
+### 12.23 Revisão sênior geral do sistema (v2.20.0)
+
+Revisão pedida explicitamente pelo usuário ("revise todo o sistema,
+corrija os bugs, corrija o CSS, corrija todos os Relatórios, Resumos e
+Painéis"), cobrindo bugs de negócio, contraste/CSS e consistência entre
+Relatórios/Painéis. Correções aplicadas:
+
+- **Contraste do tema escuro em botões sólidos (CSS)** — `--cor-principal`
+  e `--cor-principal-clara`, no tema escuro, tinham um conflito de "dois
+  papéis": funcionavam bem como cor de TEXTO sobre o fundo escuro
+  (`#2F81F7`/`#58A6FF`, alto contraste), mas como fundo SÓLIDO de botão
+  com texto branco por cima (`.botao-primario`, `.botao-secundario`,
+  `.barra-usuario`, `.rodape-sigs`, botões de identidade visual da
+  empresa) o contraste ficava abaixo do recomendado pelo WCAG AA
+  (calculado: branco sobre `#2F81F7` = 3,75:1; branco sobre `#58A6FF` =
+  2,53:1 — o mínimo recomendado é 4,5:1). Criadas duas variáveis novas,
+  só para esse papel de preenchimento sólido — `--cor-botao-principal`
+  (`#1F6FEB` no escuro, 4,63:1 com texto branco) e
+  `--cor-botao-secundario` (`#0969DA`, 5,19:1) —, sem alterar em nada o
+  tema claro (valores idênticos a `--cor-principal`/`-clara`) nem o papel
+  de texto/borda das variáveis originais.
+- **Mensagens "flash" do Flask sem estilo nenhum (CSS)** — o wrapper
+  `.flash-mensagens` (topo de qualquer página após um redirecionamento,
+  ex.: erro de login) não tinha NENHUMA regra CSS: as mensagens
+  apareciam como texto solto colado no topo da página. Adicionado um
+  estilo de "faixa colorida" (mesmo espírito de `.notificacao`), com
+  fundo sutil verde/vermelho conforme sucesso/erro.
+- **Reanúncio falso no painel público após finalização parcial de um
+  lote (bug de negócio, `database.obter_chamada_atual`)** — quando o
+  recrutador chama VÁRIAS senhas de uma vez ("Chamar Selecionadas") e
+  finaliza a PRIMEIRA delas enquanto as demais continuam em atendimento,
+  o "id" usado pelo painel para decidir se toca o bipe/anima a tela
+  mudava mesmo sem nenhuma chamada nova ter ocorrido — disparando um
+  reanúncio indevido no meio do atendimento normal do lote. Corrigido:
+  os campos de nível raiz (id/número/...) agora sempre espelham o
+  PRIMEIRO evento do LOTE COMPLETO (estável), independente de quantas
+  senhas do lote já tenham sido finalizadas individualmente.
+- **Cancelamento de senha sem checar o status (bug de negócio,
+  `database.cancelar_senha`)** — a função cancelava uma senha em
+  QUALQUER status, inclusive uma que já tivesse sido chamada. Isso
+  criava uma inconsistência no Painel Geral: a senha saía de "Total de
+  Senhas Emitidas" (que exclui Canceladas) mas continuava contando em
+  "Total de Atendimentos Realizados" (baseado em `hora_chamada` ter
+  sido preenchida). Corrigido: só é permitido cancelar uma senha ainda
+  com status `'Emitida'` (aguardando na fila).
+- **Lote de chamada misturando empresas diferentes (bug de negócio,
+  `database.chamar_varias`)** — o perfil "atendente" opera a fila
+  GERAL, compartilhada entre todas as empresas, e chama
+  `chamar_varias` sem `empresa_id`. Sem checagem, isso permitia
+  selecionar e chamar juntas, num único lote, senhas de empresas
+  DIFERENTES — mas o painel só tem um campo "empresa" por lote, então a
+  sequência exibida ficava rotulada só com o nome da primeira empresa.
+  Corrigido: a operação inteira é rejeitada se as senhas selecionadas
+  pertencerem a mais de uma empresa.
+- **Inconsistência de data no "Resumo do Período" dos Relatórios
+  (`database.contar_chamadas_realizadas_periodo`)** — o filtro de
+  período usava `date(hora_chamada)` (data da CHAMADA), diferente de
+  TODAS as demais consultas de Relatórios, que usam `date(data_hora)`
+  (data de EMISSÃO). Uma senha emitida perto da virada do dia e só
+  chamada no dia seguinte contava em "Atendidas" de um dia diferente de
+  "Emitidas", quebrando o invariante básico do resumo (atendidas nunca
+  maior que emitidas naquele período). Corrigido para usar a mesma
+  coluna de data (emissão) que o restante do relatório.
+- **Proteção contra requisições de polling sobrepostas (JS)** —
+  `painel.js`, `painel_empresa.js`, `painel_geral.js` (atualização
+  automática dos painéis públicos) e `relatorios.js` (botão "Atualizar
+  Resumo") não tinham nenhuma proteção contra chamadas de rede
+  sobrepostas: numa rede lenta/instável, uma resposta mais ANTIGA podia
+  chegar DEPOIS de uma mais nova (fora de ordem), fazendo a tela
+  "voltar no tempo" — inclusive reanunciando (bipe/animação) uma
+  chamada já superada. Adicionado um guarda simples (flag booleana) que
+  pula a rodada de polling seguinte enquanto a anterior ainda não
+  respondeu.
+
+Cobertura de testes: 11 testes novos (`tests/test_chamar_varias.py`,
+`tests/test_relatorios.py`, `tests/test_cancelamento.py` — novo
+arquivo), cobrindo cada correção de negócio acima; suíte completa
+(133 testes) e smoke tests manuais (CSS servido e estabilidade do
+painel após finalização parcial de lote) confirmados após a correção.
+
 ---
 
 ## 13. Referências e projetos utilizados como case de sucesso
