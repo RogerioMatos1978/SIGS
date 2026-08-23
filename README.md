@@ -67,6 +67,61 @@ manutenção e evolução futura.
 > desenvolvimento e testes, mas a impressão física só funciona no Windows,
 > pois depende de `pywin32`.
 
+### 2.1 Especificação do computador servidor
+
+O SIGS é leve (SQLite embarcado, sem serviço externo), mas o computador
+que roda o servidor (`wsgi.py`) é o ÚNICO ponto de onde todos os
+dispositivos do feirão dependem — recrutadores, pontos de emissão e o
+painel de TV. Especificação recomendada para um feirão de porte médio
+(até ~24 empresas com recrutador próprio + 6 pontos de emissão + 1
+painel de TV, todos na mesma rede local):
+
+| Item | Mínimo | Recomendado |
+|---|---|---|
+| Processador | Dual-core 2 GHz+ | Quad-core (Intel i5/Ryzen 5 ou superior) |
+| Memória RAM | 4 GB | 8–16 GB |
+| Armazenamento | SSD 128 GB | SSD 256 GB+ (evite HD mecânico) |
+| Sistema operacional | Windows 10 | Windows 10/11 Pro, sempre atualizado |
+| Rede | Ethernet cabeada | Ethernet cabeada (nunca Wi-Fi no servidor) |
+| Energia | — | Nobreak (UPS) |
+
+Pontos que importam mais que o número de núcleos/GHz em si:
+
+- **SSD é o item mais importante da lista.** O SQLite grava a cada
+  senha emitida/chamada/finalizada; num HD mecânico, escritas
+  concorrentes de várias empresas ficam sensivelmente mais lentas. Um
+  SSD comum (SATA) já resolve — não é preciso NVMe para esta escala.
+- **O SERVIDOR deve ficar em cabo de rede, nunca no Wi-Fi**, mesmo que
+  o AP Ruckus esteja por perto. Os ~31 dispositivos clientes (24
+  recrutadores + 6 emissão + painel de TV) usam o Wi-Fi normalmente; o
+  servidor sendo o único ponto do qual todos dependem, não deve
+  herdar a instabilidade/latência variável do Wi-Fi. Se o painel de TV
+  também puder ser cabeado (normalmente é um equipamento fixo), melhor
+  ainda — é a tela mais visível de qualquer travada.
+- **Isolamento de clientes (Client/AP Isolation) no Ruckus precisa
+  estar DESLIGADO** para a rede/VLAN usada pelo feirão — muitos APs
+  ativam isso por padrão em redes de convidados, o que bloqueia
+  silenciosamente qualquer dispositivo de alcançar o IP do servidor
+  mesmo estando conectado normalmente ao Wi-Fi (sintoma: navegador fica
+  "carregando" para sempre, sem erro claro).
+- **IP fixo (ou reserva de DHCP) para o computador servidor**, configurado
+  no próprio roteador/controladora Ruckus — evita que o endereço
+  `http://<IP>:5000` mude entre uma execução e outra, o que quebraria
+  favoritos/atalhos salvos nos dispositivos clientes.
+- **Desative suspensão/hibernação** do Windows nesse computador
+  (Painel de Controle > Opções de Energia > "Nunca" para desligar tela e
+  disco), e evite reinícios automáticos de atualização do Windows
+  durante o horário do evento.
+- **Inicialização automática do servidor**: configure uma Tarefa
+  Agendada do Windows (Agendador de Tarefas) para rodar `wsgi.py`
+  automaticamente ao ligar o computador — reduz o risco de o sistema
+  ficar fora do ar após uma queda de energia/reinício sem ninguém por
+  perto para religar manualmente (ver comentário em `wsgi.py`).
+- Threads do waitress já vêm dimensionadas para esta escala
+  (`threads=64` em `wsgi.py`, ver seção 12.25) — não é necessário
+  hardware potente para sustentar isso, é sobretudo E/S de rede e
+  disco, não processamento pesado.
+
 ---
 
 ## 3. Instalação
