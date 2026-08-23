@@ -2146,3 +2146,26 @@
 2026-08-22 19:27:11 | INFO     | SIGS | Logout realizado: 'emissor'.
 2026-08-22 19:27:31 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
 2026-08-22 19:28:20 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 09:46:12 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 09:46:50 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-23 09:49:08 | INFO     | SIGS | Login realizado: 'emissor' (perfil emissor, guichê None).
+2026-08-23 09:49:15 | INFO     | SIGS | Senha emitida: número 001 (id=30, empresa='COMIGO')
+2026-08-23 09:49:20 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
+2026-08-23 09:50:40 | INFO     | SIGS | Senha emitida: número 002 (id=31, empresa='COMIGO')
+2026-08-23 09:50:42 | ERROR    | SIGS | Falha ao imprimir senha 002 na impressora 'Microsoft Print to PDF': StartDoc failed
+2026-08-23 09:50:52 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-23 09:51:01 | INFO     | SIGS | Senha emitida: número 003 (id=32, empresa='COMIGO')
+2026-08-23 09:51:05 | INFO     | SIGS | Ticket impresso com sucesso: senha 003 na impressora 'Microsoft Print to PDF'.
+2026-08-23 09:51:35 | INFO     | SIGS | Senha emitida: número 004 (id=33, empresa='COMIGO')
+2026-08-23 09:51:40 | INFO     | SIGS | Ticket impresso com sucesso: senha 004 na impressora 'Microsoft Print to PDF'.
+2026-08-23 09:52:15 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-23 09:52:26 | INFO     | SIGS | Configurações atualizadas: ['nome_evento', 'nome_impressora', 'qtd_senhas_exibidas', 'tempo_atualizacao_ms', 'qtd_guiches', 'qtd_guiches_por_empresa', 'cor_principal', 'frase_menu']
+2026-08-23 09:52:45 | INFO     | SIGS | Senha emitida: número 005 (id=34, empresa='COMIGO')
+2026-08-23 09:52:51 | INFO     | SIGS | Ticket impresso com sucesso: senha 005 na impressora 'Microsoft Print to PDF'.
+2026-08-23 09:57:47 | INFO     | SIGS | Senha emitida: número 003 (id=35, empresa='Imprimir Currículos') — já registrada como realizada, sem fila.
+2026-08-23 09:57:51 | INFO     | SIGS | Ticket impresso com sucesso: senha 003 na impressora 'Microsoft Print to PDF'.
+2026-08-23 10:11:02 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 10:12:26 | INFO     | SIGS | Senha emitida: número 001 (id=36, empresa='IEL')
+2026-08-23 10:12:30 | INFO     | SIGS | Ticket impresso com sucesso: senha 001 na impressora 'Microsoft Print to PDF'.
+2026-08-23 10:12:47 | INFO     | SIGS | Senha emitida: número 002 (id=37, empresa='IEL')
+2026-08-23 10:12:53 | INFO     | SIGS | Ticket impresso com sucesso: senha 002 na impressora 'Microsoft Print to PDF'.

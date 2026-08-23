@@ -6,12 +6,16 @@
     o detalhe por empresa. Sem controles de chamada (apenas leitura) e
     sem exigência de login — ver /api/painel/geral/status.
 
-    Propositalmente NÃO mostra senhas "Finalizada" nem "Cancelada" (nem
-    o total, nem por empresa) — mesmo critério aplicado a todos os
-    painéis públicos (ver também database.listar_ultimas_emitidas,
-    usada por painel.html/painel_empresa.html): um painel de tela cheia
-    deve refletir a situação ATUAL da fila, não o histórico de
-    atendimentos já encerrados ou cancelados.
+    Os cards "em andamento" e a tabela "Por Empresa" propositalmente NÃO
+    mostram senhas "Finalizada" nem "Cancelada" — mesmo critério
+    aplicado a todos os painéis públicos (ver também
+    database.listar_ultimas_emitidas, usada por
+    painel.html/painel_empresa.html): devem refletir a situação ATUAL
+    da fila, não o histórico de atendimentos já encerrados ou
+    cancelados. A seção "Resumo do Feirão" logo abaixo é a exceção
+    proposital: mostra o TOTAL acumulado do evento inteiro (inclusive
+    finalizadas), já que ali o objetivo é o resultado geral do feirão,
+    não a fila do momento.
 -->
 {% extends "layout.html" %}
 
@@ -45,6 +49,28 @@
             <div class="painel-resumo-item painel-resumo-item-total">
                 <span id="resumo-total" class="painel-resumo-valor">0</span>
                 <span class="painel-resumo-label">Total em Andamento</span>
+            </div>
+        </section>
+
+        <!-- Resumo do Feirão: totais de TODO o evento (sem filtro de
+             período — este painel não tem seletor de data), distintos
+             dos cards "em andamento" acima. Inclui as senhas já
+             finalizadas/canceladas nos totais (diferente dos cards e da
+             tabela "Por Empresa" abaixo, que mostram só o que está em
+             andamento de propósito) — ver app.py:api_painel_geral_status. -->
+        <h2 class="painel-resumo-feirao-titulo">Resumo do Feirão</h2>
+        <section class="painel-resumo-grade painel-resumo-feirao" id="painel-resumo-feirao">
+            <div class="painel-resumo-item">
+                <span id="feirao-total-emitidas" class="painel-resumo-valor">0</span>
+                <span class="painel-resumo-label">Total de Senhas Emitidas</span>
+            </div>
+            <div class="painel-resumo-item">
+                <span id="feirao-total-atendidas" class="painel-resumo-valor">0</span>
+                <span class="painel-resumo-label">Total de Atendimentos Realizados</span>
+            </div>
+            <div class="painel-resumo-item painel-resumo-item-total">
+                <span id="feirao-tempo-medio" class="painel-resumo-valor">00:00</span>
+                <span class="painel-resumo-label">Tempo Médio de Atendimento</span>
             </div>
         </section>
 

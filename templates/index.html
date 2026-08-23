@@ -194,6 +194,35 @@
             {% endif %}
         </section>
 
+        {% if usuario_logado.perfil == 'emissor' %}
+        <section class="card card-ultimas-por-empresa">
+            <h2>Última Senha por Empresa</h2>
+            <!-- Mostra, para CADA empresa ativa, a última senha emitida —
+                 qualquer que seja o status atual (inclui as opções fixas
+                 "Criar Currículos"/"Imprimir Currículos", que nascem
+                 direto 'Finalizada'). Serve para o Emissor conferir
+                 rapidamente até onde a numeração de cada empresa já
+                 chegou, sem precisar abrir o Painel Geral. Atualiza
+                 sozinho no mesmo polling da Fila de Espera logo abaixo
+                 (ver database.listar_ultima_senha_por_empresa/
+                 app.py:api_fila) — tanto ao emitir uma nova senha quanto
+                 ao cadastrar uma nova empresa. -->
+            <table class="tabela-fila tabela-ultimas-por-empresa">
+                <thead>
+                    <tr>
+                        <th>Empresa</th>
+                        <th>Última Senha</th>
+                        <th>Nome</th>
+                        <th>Emitida em</th>
+                    </tr>
+                </thead>
+                <tbody id="ultimas-por-empresa-corpo">
+                    <tr><td colspan="4">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </section>
+        {% endif %}
+
         <section class="card card-fila">
             <h2>Fila de Espera (<span id="fila-total">0</span>)</h2>
             <!-- Total de HOJE, em qualquer status (inclui Finalizada/Cancelada

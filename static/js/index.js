@@ -25,6 +25,7 @@ const elementoFilaPaginaInfo = document.getElementById("fila-pagina-info");
 const elementoFilaBotaoAnterior = document.getElementById("btn-fila-anterior");
 const elementoFilaBotaoProxima = document.getElementById("btn-fila-proxima");
 const elementoTotalEmitidasHoje = document.getElementById("total-emitidas-hoje");
+const elementoUltimasPorEmpresaCorpo = document.getElementById("ultimas-por-empresa-corpo");
 const elementoNotificacoes = document.getElementById("area-notificacoes");
 const elementoModalImpressao = document.getElementById("modal-impressao");
 const elementoModalEmpresaSelect = document.getElementById("modal-empresa-select");
@@ -526,6 +527,8 @@ function renderizarFila(dados) {
         elementoTotalEmitidasHoje.textContent = dados.total_emitidas_hoje ?? 0;
     }
 
+    renderizarUltimasPorEmpresa(dados.ultimas_por_empresa);
+
     if (elementoFilaPaginaInfo) {
         const totalPaginas = dados.total_paginas || 1;
         const paginaAtual = dados.pagina_atual || 1;
@@ -593,6 +596,49 @@ function renderizarFila(dados) {
         linha.appendChild(celulaAcoes);
 
         elementoFilaCorpo.appendChild(linha);
+    });
+}
+
+/**
+ * Renderiza o card "Última Senha por Empresa" (só existe no HTML para o
+ * perfil Emissor — ver templates/index.html), mostrando para cada
+ * empresa ativa a última senha emitida, qualquer que seja o status
+ * atual (ver database.listar_ultima_senha_por_empresa). Chamada a
+ * cada ciclo de ``atualizarFila``, então se atualiza sozinha tanto ao
+ * emitir uma nova senha quanto ao cadastrar uma nova empresa.
+ */
+function renderizarUltimasPorEmpresa(lista) {
+    if (!elementoUltimasPorEmpresaCorpo) {
+        return;
+    }
+
+    if (!lista || lista.length === 0) {
+        elementoUltimasPorEmpresaCorpo.innerHTML = "<tr><td colspan=\"4\">Nenhuma empresa cadastrada.</td></tr>";
+        return;
+    }
+
+    elementoUltimasPorEmpresaCorpo.innerHTML = "";
+    lista.forEach((item) => {
+        const linha = document.createElement("tr");
+
+        const celulaEmpresa = document.createElement("td");
+        celulaEmpresa.textContent = item.empresa_fixa ? `🔒 ${item.empresa_nome}` : item.empresa_nome;
+
+        const celulaNumero = document.createElement("td");
+        celulaNumero.textContent = item.numero ? String(item.numero).padStart(3, "0") : "—";
+
+        const celulaNome = document.createElement("td");
+        celulaNome.textContent = item.nome_pessoa || "—";
+
+        const celulaData = document.createElement("td");
+        celulaData.textContent = item.data_hora || "—";
+
+        linha.appendChild(celulaEmpresa);
+        linha.appendChild(celulaNumero);
+        linha.appendChild(celulaNome);
+        linha.appendChild(celulaData);
+
+        elementoUltimasPorEmpresaCorpo.appendChild(linha);
     });
 }
 

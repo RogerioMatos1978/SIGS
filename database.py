@@ -2898,6 +2898,68 @@ def listar_empresas(somente_ativas: bool = False) -> List[Dict]:
     return [Empresa.from_row(linha).to_dict() for linha in linhas]
 
 
+def listar_ultima_senha_por_empresa(somente_ativas: bool = True) -> List[Dict]:
+    """
+    Retorna, para CADA empresa cadastrada, os dados da última senha
+    emitida para ela (número, nome da pessoa, data/hora e status) — ou
+    ``None`` nesses campos, se a empresa ainda não recebeu nenhuma
+    senha. Usado pelo card "Última Senha por Empresa" da tela principal
+    do perfil Emissor (ver app.py:api_fila/templates/index.html),
+    exibido ACIMA da Fila de Espera para dar uma visão rápida do
+    andamento de cada empresa sem precisar abrir o Painel Geral.
+
+    Diferente da Fila de Espera (que só lista senhas com status
+    'Emitida'), aqui a última senha aparece qualquer que seja o status
+    atual — inclusive senhas já chamadas/finalizadas, e as das duas
+    opções fixas ("Criar Currículos"/"Imprimir Currículos", que nascem
+    direto 'Finalizada') — o objetivo é mostrar "até onde a numeração
+    de cada empresa já chegou", não o estado da fila.
+
+    A subconsulta correlacionada busca o id da senha mais recente
+    (``MAX(id)``, equivalente a mais recente já que ``id`` é
+    autoincremental) de cada empresa; o ``LEFT JOIN`` garante que
+    empresas sem nenhuma senha ainda apareçam na lista mesmo assim.
+
+    ``somente_ativas=True`` (padrão) esconde empresas desativadas — não
+    faz sentido mostrar "última senha" de uma empresa que não está mais
+    recebendo candidatos.
+    """
+    condicao = "WHERE e.ativa = 1" if somente_ativas else ""
+
+    with get_connection() as conexao:
+        linhas = conexao.execute(
+            f"""
+            SELECT
+                e.id AS empresa_id,
+                e.nome AS empresa_nome,
+                e.fixa AS empresa_fixa,
+                s.numero AS senha_numero,
+                s.nome_pessoa AS senha_nome_pessoa,
+                s.data_hora AS senha_data_hora,
+                s.status AS senha_status
+            FROM empresas e
+            LEFT JOIN senhas s ON s.id = (
+                SELECT id FROM senhas WHERE empresa_id = e.id ORDER BY id DESC LIMIT 1
+            )
+            {condicao}
+            ORDER BY e.fixa DESC, e.nome ASC
+            """
+        ).fetchall()
+
+    return [
+        {
+            "empresa_id": linha["empresa_id"],
+            "empresa_nome": linha["empresa_nome"],
+            "empresa_fixa": bool(linha["empresa_fixa"]),
+            "numero": linha["senha_numero"],
+            "nome_pessoa": linha["senha_nome_pessoa"],
+            "data_hora": linha["senha_data_hora"],
+            "status": linha["senha_status"],
+        }
+        for linha in linhas
+    ]
+
+
 def obter_empresa_por_id(empresa_id: int) -> Optional[Empresa]:
     """Busca uma empresa pelo id. Usado para validar (existência e status
     ativo) a empresa escolhida no momento da emissão de uma senha."""

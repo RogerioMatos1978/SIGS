@@ -1030,6 +1030,44 @@ seguintes pontos de atrito:
   tela principal, sem precisar de uma rota nova) e é renderizado por
   `static/js/index.js`.
 
+### 12.13 Evolução recente do sistema (v2.11.0)
+
+- **Painel Geral ganhou a seção "Resumo do Feirão"** (ver seção 4.6):
+  até aqui, apesar do subtítulo da tela já dizer "Painel Geral — Resumo
+  do Feirão", o conteúdo mostrado era só a fila em andamento
+  (Aguardando/Em Atendimento/Total) — nenhum total ACUMULADO do evento
+  inteiro. Agora, logo abaixo desses cards, uma nova seção "Resumo do
+  Feirão" mostra: Total de Senhas Emitidas, Total de Atendimentos
+  Realizados e Tempo Médio de Atendimento — todos calculados sobre TODO
+  o histórico (sem filtro de período, já que este painel não tem
+  seletor de data), incluindo as senhas já finalizadas/canceladas e as
+  duas opções fixas ("Criar Currículos"/"Imprimir Currículos"). Isso é
+  uma exceção proposital ao critério "esconde Finalizada/Cancelada" que
+  vale para os cards "em andamento" e a tabela "Por Empresa" logo
+  acima — ali o objetivo continua sendo mostrar só a fila do momento;
+  aqui, o resultado geral acumulado. Implementado em
+  `app.py:api_painel_geral_status` (novo campo `resumo_feirao`, usando
+  `database.contar_chamadas_realizadas_periodo` e
+  `database.tempo_medio_atendimento` sem período) e renderizado por
+  `static/js/painel_geral.js`.
+
+- **Novo card "Última Senha por Empresa" na tela do Emissor** (ver
+  seção 4.5), exibido logo ACIMA da Fila de Espera: lista, para cada
+  empresa ativa, o número da última senha emitida (e o nome da pessoa,
+  se informado) — qualquer que seja o status atual, inclusive das duas
+  opções fixas (que nascem já 'Finalizada'). Diferente da Fila de
+  Espera (só mostra o que está aguardando), o objetivo aqui é dar ao
+  Emissor uma visão rápida de "até onde a numeração de cada empresa já
+  chegou", sem precisar abrir o Painel Geral ou os Relatórios. O card
+  se atualiza sozinho no mesmo ciclo de polling da Fila de Espera logo
+  abaixo — tanto ao emitir uma nova senha quanto ao cadastrar uma nova
+  empresa (a consulta busca a lista de empresas "ao vivo" a cada
+  requisição, sem cache). Implementado em
+  `database.listar_ultima_senha_por_empresa` (um `LEFT JOIN`
+  correlacionado, para que empresas sem nenhuma senha ainda também
+  apareçam na lista), exposto em `app.py:api_fila` (campo
+  `ultimas_por_empresa`) e renderizado por `static/js/index.js`.
+
 ---
 
 ## 13. Referências e projetos utilizados como case de sucesso

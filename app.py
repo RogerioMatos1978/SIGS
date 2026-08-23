@@ -1038,6 +1038,15 @@ def api_fila():
     isso nunca entram em ``total_aguardando`` nem nos painéis públicos.
     Serve de confirmação visível para o perfil Emissor (que não tem
     acesso a Relatórios) de que a emissão foi mesmo contabilizada.
+
+    ``ultimas_por_empresa`` (ver ``database.listar_ultima_senha_por_empresa``)
+    traz a última senha emitida de CADA empresa ativa — exibido no card
+    "Última Senha por Empresa" da tela do Emissor, acima da Fila de
+    Espera. Como a tela já consulta este endpoint em polling (e também
+    logo após emitir/reimprimir uma senha — ver index.js), o card se
+    atualiza sozinho tanto quando uma nova senha é emitida quanto
+    quando uma nova empresa é cadastrada (sem precisar de outro
+    endpoint/gatilho separado).
     """
     try:
         usuario_sessao = auth.usuario_logado()
@@ -1071,6 +1080,7 @@ def api_fila():
         )
 
         total_emitidas_hoje = database.contar_emitidas_hoje(empresa_id=empresa_id_filtro)
+        ultimas_por_empresa = database.listar_ultima_senha_por_empresa()
 
         return resposta_sucesso(
             {
@@ -1081,6 +1091,7 @@ def api_fila():
                 "total_paginas": total_paginas,
                 "por_pagina": FILA_ITENS_POR_PAGINA,
                 "total_emitidas_hoje": total_emitidas_hoje,
+                "ultimas_por_empresa": ultimas_por_empresa,
             }
         )
     except Exception as erro:  # pragma: no cover
@@ -1252,14 +1263,34 @@ def api_painel_geral_status():
     Endpoint consultado periodicamente pelo painel-resumo público
     (``/painel/geral``). Retorna o resumo agregado de senhas por status
     (total geral e detalhado por empresa) — ver
-    ``database.resumo_geral_senhas``.
+    ``database.resumo_geral_senhas`` — além do bloco ``resumo_feirao``:
+    totais gerais de TODO o evento (sem filtro de período, já que este
+    painel não tem seletor de data), exibidos na seção "Resumo do
+    Feirão" da tela (ver templates/painel_geral.html):
+
+        - ``total_emitidas``: todas as senhas emitidas, em qualquer
+          status (mesmo valor de ``resumo.total_emitidas``, repetido
+          aqui por conveniência do frontend).
+        - ``total_atendidas``: quantas senhas foram efetivamente
+          atendidas (``database.contar_chamadas_realizadas_periodo``,
+          sem período = todo o histórico) — já inclui as duas opções
+          fixas ("Criar Currículos"/"Imprimir Currículos", ver seção
+          12.11 do README).
+        - ``tempo_medio``: tempo médio entre emissão e primeira chamada
+          (``database.tempo_medio_atendimento``, sem período).
     """
     try:
         agora = datetime.now()
+        resumo = database.resumo_geral_senhas()
 
         return resposta_sucesso(
             {
-                "resumo": database.resumo_geral_senhas(),
+                "resumo": resumo,
+                "resumo_feirao": {
+                    "total_emitidas": resumo["total_emitidas"],
+                    "total_atendidas": database.contar_chamadas_realizadas_periodo(),
+                    "tempo_medio": database.tempo_medio_atendimento(),
+                },
                 "data": agora.strftime("%d/%m/%Y"),
                 "hora": agora.strftime("%H:%M:%S"),
             }

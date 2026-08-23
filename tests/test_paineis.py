@@ -90,3 +90,38 @@ def test_resumo_geral_continua_calculando_atendidas_e_canceladas(banco_teste):
     resumo = database.resumo_geral_senhas()
     assert resumo["total_atendidas"] == 1
     assert resumo["total_canceladas"] == 1
+
+
+def test_api_painel_geral_status_expoe_resumo_do_feirao(banco_teste):
+    """
+    A seção "Resumo do Feirão" da tela pública /painel/geral (ver
+    templates/painel_geral.html) é a exceção proposital ao critério
+    "esconde Finalizada/Cancelada": ela mostra o TOTAL acumulado do
+    evento inteiro. Este teste confirma, via HTTP (rota pública, sem
+    login — ver app.py:api_painel_geral_status), que o campo
+    ``resumo_feirao`` inclui as senhas já finalizadas nos totais.
+
+    A rota usa o mesmo módulo ``database`` (mesmo objeto em
+    ``sys.modules``) já isolado pela fixture ``banco_teste``, então não
+    é preciso nenhum monkeypatch adicional aqui.
+    """
+    import app as app_modulo
+
+    empresa = database.criar_empresa("Empresa Alfa")
+    aguardando = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    finalizada = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    database.chamar_proxima(guiche="01", usuario="Teste", empresa_id=empresa.id)
+    database.finalizar_senha(finalizada.id)
+
+    cliente = app_modulo.app.test_client()
+    resposta = cliente.get("/api/painel/geral/status")
+    corpo = resposta.get_json()
+
+    assert resposta.status_code == 200
+    assert corpo["sucesso"] is True
+    # As duas senhas (aguardando/chamada e finalizada) contam no total
+    # geral de emitidas do resumo do feirão, mesmo a finalizada não
+    # aparecendo nos cards "em andamento" (dados.resumo).
+    assert corpo["resumo_feirao"]["total_emitidas"] == 2
+    assert "total_atendidas" in corpo["resumo_feirao"]
+    assert "tempo_medio_formatado" in corpo["resumo_feirao"]["tempo_medio"]

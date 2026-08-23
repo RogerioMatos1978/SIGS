@@ -7,12 +7,15 @@
  * por empresa. Sem chamada/bip/animação — é um painel de leitura, não de
  * anúncio de senha.
  *
- * Propositalmente NÃO exibe "Atendidas" (Finalizada) nem "Canceladas" —
- * mesmo critério aplicado a todos os painéis públicos (ver
- * templates/painel_geral.html e database.listar_ultimas_emitidas). O
- * backend (database.resumo_geral_senhas) continua calculando esses
- * números normalmente (usados em outros lugares, como relatórios); esta
- * tela apenas não os lê/renderiza.
+ * Os cards de topo ("Aguardando"/"Em Atendimento"/"Total em Andamento")
+ * e a tabela "Por Empresa" propositalmente NÃO exibem "Atendidas"
+ * (Finalizada) nem "Canceladas" — mesmo critério aplicado a todos os
+ * painéis públicos (ver templates/painel_geral.html e
+ * database.listar_ultimas_emitidas): refletem só a situação ATUAL da
+ * fila. Já a seção "Resumo do Feirão" (``atualizarResumoFeirao``,
+ * abaixo) mostra o TOTAL geral do evento — inclui as senhas já
+ * finalizadas, de propósito, pois ali o objetivo é o resultado
+ * acumulado, não a fila do momento.
  */
 
 "use strict";
@@ -23,6 +26,9 @@ const elementoAguardando = document.getElementById("resumo-aguardando");
 const elementoEmAtendimento = document.getElementById("resumo-em-atendimento");
 const elementoTotal = document.getElementById("resumo-total");
 const elementoEmpresasCorpo = document.getElementById("painel-resumo-empresas-corpo");
+const elementoFeiraoTotalEmitidas = document.getElementById("feirao-total-emitidas");
+const elementoFeiraoTotalAtendidas = document.getElementById("feirao-total-atendidas");
+const elementoFeiraoTempoMedio = document.getElementById("feirao-tempo-medio");
 
 const TEMPO_ATUALIZACAO_MS = (window.SIGS_CONFIG && window.SIGS_CONFIG.tempoAtualizacaoMs) || 2000;
 
@@ -42,6 +48,7 @@ async function atualizarPainelGeral() {
 
         atualizarTotais(dados.resumo);
         atualizarTabelaEmpresas(dados.resumo.por_empresa);
+        atualizarResumoFeirao(dados.resumo_feirao);
     } catch (erro) {
         console.error("Falha de comunicação com o servidor:", erro);
     }
@@ -88,6 +95,22 @@ function atualizarTabelaEmpresas(porEmpresa) {
         });
         elementoEmpresasCorpo.appendChild(tr);
     });
+}
+
+/**
+ * Atualiza a seção "Resumo do Feirão" — totais de TODO o evento (sem
+ * filtro de período), diferente dos cards "em andamento" acima: aqui
+ * entram também as senhas já finalizadas/canceladas, já que o objetivo
+ * é mostrar o resultado geral do feirão, não a fila do momento (ver
+ * app.py:api_painel_geral_status).
+ */
+function atualizarResumoFeirao(resumoFeirao) {
+    if (!resumoFeirao) {
+        return;
+    }
+    elementoFeiraoTotalEmitidas.textContent = resumoFeirao.total_emitidas;
+    elementoFeiraoTotalAtendidas.textContent = resumoFeirao.total_atendidas;
+    elementoFeiraoTempoMedio.textContent = resumoFeirao.tempo_medio.tempo_medio_formatado;
 }
 
 /** Atualiza o relógio local a cada segundo, entre as chamadas ao servidor. */

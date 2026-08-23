@@ -151,6 +151,14 @@ input:focus, select:focus {
     font-size: 1rem;
 }
 
+.card-ultimas-por-empresa {
+    margin-bottom: 18px;
+}
+
+.tabela-ultimas-por-empresa {
+    margin-top: 6px;
+}
+
 @media (max-width: 600px) {
     .campo-busca-tabela {
         max-width: 100%;
@@ -576,6 +584,18 @@ input:focus, select:focus {
     letter-spacing: 0.5px;
     text-transform: uppercase;
     opacity: 0.85;
+}
+
+.painel-resumo-feirao-titulo {
+    margin: 18px 0 4px;
+    font-size: 1.1rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.painel-resumo-feirao {
+    margin-bottom: 18px;
 }
 
 .painel-resumo-tabela-wrap {
