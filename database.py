@@ -2401,11 +2401,20 @@ def listar_contagem_por_empresa(
     ``total`` da mesma linha, e imune à inflação por repetição de
     chamada, pelo mesmo motivo já documentado naquela função.
 
+    ``total`` (coluna "Senhas Emitidas" da tela de Relatórios) EXCLUI
+    as senhas Canceladas — corrigido na revisão geral do sistema, mesmo
+    critério já aplicado ao "Total de Senhas Emitidas" do Painel Geral
+    (``resumo_feirao``) e ao resumo desta mesma tela
+    (``app.py:api_relatorios_resumo``): sem essa exclusão, a soma da
+    coluna "Senhas Emitidas" desta tabela por empresa não batia com o
+    total exibido no card "Senhas Emitidas" logo acima, sempre que
+    havia alguma senha cancelada no período.
+
     ``empresa_id``, quando informado, restringe o resultado a UMA única
     empresa (usado pelo relatório do recrutador, que só vê a própria).
     """
-    condicoes = []
-    parametros: List = []
+    condicoes = ["status != ?"]
+    parametros: List = [StatusSenha.CANCELADA]
 
     if inicio:
         condicoes.append("date(data_hora) >= date(?)")
@@ -2417,7 +2426,7 @@ def listar_contagem_por_empresa(
         condicoes.append("empresa_id = ?")
         parametros.append(empresa_id)
 
-    where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
+    where = f"WHERE {' AND '.join(condicoes)}"
 
     with get_connection() as conexao:
         linhas = conexao.execute(

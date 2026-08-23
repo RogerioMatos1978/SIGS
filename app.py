@@ -1666,17 +1666,31 @@ def api_relatorios_resumo():
     "senhas emitidas". Ver a docstring daquela função para o motivo de
     não usarmos apenas ``len(listar_chamadas_periodo(...))`` aqui
     (repetições de chamada inflavam essa contagem).
+
+    ``total_emitidas`` EXCLUI as senhas Canceladas (mesmo critério já
+    aplicado ao "Total de Senhas Emitidas" do Painel Geral — ver
+    ``api_painel_geral_status``/``resumo_feirao``: uma senha cancelada
+    não reflete uma emissão "válida" para fins deste indicador).
+    Corrigido na revisão geral do sistema: antes, esta tela contava
+    TODAS as senhas do período, cancelada ou não, só usando
+    ``len(listar_senhas_periodo(...))`` puro — ``listar_senhas_periodo``
+    continua retornando a lista COMPLETA (com as canceladas incluídas,
+    de propósito) porque também alimenta a exportação em CSV/Excel/PDF,
+    onde uma senha cancelada precisa continuar aparecendo na lista (com
+    o status "Cancelada" na coluna correspondente) para fins de
+    auditoria — só o total exibido no resumo é que precisa excluí-las.
     """
     try:
         inicio, fim, empresa_id = _parametros_periodo()
         emitidas = database.listar_senhas_periodo(inicio, fim, empresa_id=empresa_id)
+        total_emitidas = sum(1 for item in emitidas if item.get("status") != StatusSenha.CANCELADA)
         total_chamadas = database.contar_chamadas_realizadas_periodo(inicio, fim, empresa_id=empresa_id)
         tempo_medio = database.tempo_medio_atendimento(inicio, fim, empresa_id=empresa_id)
         por_empresa = database.listar_contagem_por_empresa(inicio, fim, empresa_id=empresa_id)
 
         return resposta_sucesso(
             {
-                "total_emitidas": len(emitidas),
+                "total_emitidas": total_emitidas,
                 "total_chamadas": total_chamadas,
                 "tempo_medio": tempo_medio,
                 "por_empresa": por_empresa,

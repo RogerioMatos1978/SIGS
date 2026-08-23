@@ -151,3 +151,56 @@ def test_listar_contagem_por_empresa_conta_opcoes_fixas_como_atendidas(banco_tes
 
     assert item["total"] == 2
     assert item["atendidas"] == 2
+
+
+def test_listar_contagem_por_empresa_exclui_canceladas_do_total(banco_teste):
+    """
+    Regressão (revisão geral do sistema): a coluna "Senhas Emitidas" da
+    tabela "Senhas por Empresa" (tela de Relatórios) contava TODAS as
+    senhas do período, inclusive as Canceladas — diferente do "Total de
+    Senhas Emitidas" do Painel Geral, que já excluía Canceladas desde a
+    v2.15.0. Isso fazia a soma da coluna por empresa não bater com o
+    card de resumo sempre que havia cancelamentos no período. Agora as
+    duas contagens usam o mesmo critério (Canceladas fora do total).
+    """
+    empresa = database.criar_empresa("Empresa Alfa")
+    database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)  # continua emitida
+    cancelada = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    database.cancelar_senha(cancelada.id)
+
+    contagem = database.listar_contagem_por_empresa()
+    item = next(i for i in contagem if i["empresa"] == "Empresa Alfa")
+
+    # 2 senhas criadas, mas só 1 conta como "emitida" (a cancelada sai).
+    assert item["total"] == 1
+
+
+def test_resumo_relatorios_total_emitidas_exclui_canceladas_via_http(banco_teste):
+    """
+    Teste de ponta a ponta: o card "Senhas Emitidas" do resumo (rota
+    ``/api/relatorios/resumo``) e a soma da coluna "Senhas Emitidas" da
+    tabela "Senhas por Empresa" (mesma resposta) precisam bater — os
+    dois excluindo Canceladas.
+    """
+    import auth
+    import app as app_modulo
+
+    database.criar_usuario("Admin Teste", "admin_teste", auth.gerar_hash_senha("SenhaForte123"), perfil="admin")
+    empresa = database.criar_empresa("Empresa Alfa")
+    database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    cancelada = database.criar_senha(empresa_id=empresa.id, empresa=empresa.nome)
+    database.cancelar_senha(cancelada.id)
+
+    cliente = app_modulo.app.test_client()
+    cliente.post("/login", data={"login": "admin_teste", "senha": "SenhaForte123"})
+
+    resposta = cliente.get("/api/relatorios/resumo")
+    corpo = resposta.get_json()
+
+    assert corpo["sucesso"] is True
+    assert corpo["total_emitidas"] == 2
+    soma_por_empresa = sum(item["total"] for item in corpo["por_empresa"])
+    assert soma_por_empresa == corpo["total_emitidas"]
+
+    cliente.post("/logout")

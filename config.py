@@ -68,7 +68,7 @@ SECRET_KEY_FILE = BASE_DIR / "secret.key"
 # número a cada entrega/alteração relevante do sistema — é a forma mais
 # simples de confirmar, olhando a tela, se uma atualização de fato foi
 # aplicada no computador em uso.
-SIGS_VERSAO = "2.20.0"
+SIGS_VERSAO = "2.20.1"
 
 # ---------------------------------------------------------------------------
 # Nome da tabela de configurações e valores padrão

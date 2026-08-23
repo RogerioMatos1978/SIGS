@@ -1467,6 +1467,29 @@ arquivo), cobrindo cada correção de negócio acima; suíte completa
 (133 testes) e smoke tests manuais (CSS servido e estabilidade do
 painel após finalização parcial de lote) confirmados após a correção.
 
+### 12.24 "Senhas Emitidas" da tela de Relatórios ainda contava Canceladas (v2.20.1)
+
+Ajuste de continuidade da revisão sênior acima, apontado pelo usuário
+depois de ver a tela em uso: o card "Senhas Emitidas" do "Resumo do
+Período" (tela de Relatórios) e a coluna "Senhas Emitidas" da tabela
+"Senhas por Empresa", na mesma tela, ainda contavam TODAS as senhas do
+período — inclusive as Canceladas. O mesmo critério já tinha sido
+aplicado ao "Total de Senhas Emitidas" do Painel Geral desde a
+v2.15.0 (`resumo_feirao.total_emitidas`), mas não tinha chegado a esta
+tela.
+
+Corrigido em dois pontos:
+- `app.py:api_relatorios_resumo` — o total do card agora exclui
+  Canceladas, contando a partir da lista completa retornada por
+  `database.listar_senhas_periodo` (que continua trazendo TODAS as
+  senhas, cancelada ou não — ela também alimenta a exportação em
+  CSV/Excel/PDF, onde uma senha cancelada precisa continuar aparecendo
+  na lista para fins de auditoria; só o total do resumo muda).
+- `database.listar_contagem_por_empresa` — a coluna "total" (rotulada
+  "Senhas Emitidas" na tabela por empresa) agora também exclui
+  Canceladas diretamente na consulta SQL, para que a soma dessa coluna
+  volte a bater com o card de resumo logo acima.
+
 ---
 
 ## 13. Referências e projetos utilizados como case de sucesso
