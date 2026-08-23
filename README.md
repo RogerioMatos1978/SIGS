@@ -122,6 +122,44 @@ Pontos que importam mais que o número de núcleos/GHz em si:
   hardware potente para sustentar isso, é sobretudo E/S de rede e
   disco, não processamento pesado.
 
+### 2.2 Por que SQLite (e quando trocar de banco)
+
+O SIGS usa SQLite de propósito: banco em um único arquivo, sem serviço
+externo para instalar/configurar/manter — o que mantém a instalação
+simples num computador de balcão/totem (basta copiar a pasta e rodar).
+Com os ajustes da seção 12.25 (WAL, locks por empresa, PRAGMAs de
+performance), um teste simulando as 31 conexões simultâneas do cenário
+de 24 empresas + 6 pontos de emissão + 1 painel de TV respondeu tudo em
+~0,15s, sem erro — bem longe do limite prático do SQLite para um
+feirão de um dia numa rede local.
+
+**Quando um banco cliente-servidor passaria a valer a pena:**
+
+- Rodar o SIGS em mais de um servidor ao mesmo tempo (balanceamento de
+  carga) — SQLite é de arquivo único, não foi feito para ser escrito
+  por processos em máquinas diferentes.
+- Volume de escrita muito maior e sustentado (centenas de escritas por
+  segundo constantes, não picos de clique humano).
+- Consultar os dados de fora do próprio sistema em paralelo (um BI, um
+  dashboard de outra equipe) enquanto o SIGS está em uso pesado.
+- Centralizar o histórico de vários feirões/eventos diferentes num
+  único banco compartilhado, acessado por vários sistemas.
+
+Se algum desses cenários se tornar real, a ordem de preferência seria:
+
+| Banco | Por quê |
+|---|---|
+| **PostgreSQL** | Melhor opção técnica gratuita: MVCC de verdade (leitor nunca trava escritor), maduro, ótimo suporte a concorrência, roda bem em Windows. Primeira escolha. |
+| **SQL Server Express** | Só compensa se a instituição já tiver infraestrutura/equipe de TI usando SQL Server em outros sistemas — aproveitaria conhecimento já existente. Edição gratuita tem limite de 10 GB por banco, irrelevante nessa escala. |
+| **MySQL/MariaDB** | Alternativa válida, um pouco menos rica em recursos que o Postgres, mas perfeitamente capaz para esse volume. |
+
+Importante: essa não seria uma troca trivial de configuração. O
+`database.py` usa SQL específico do SQLite (`date()`, `printf()`,
+`PRAGMA`, `sqlite3.Row`), então migrar de verdade significa reescrever
+a camada de banco inteira, não só apontar para outro host. Recomendação
+atual: manter o SQLite — a complexidade extra de um banco
+cliente-servidor não traria benefício real na escala de uso de hoje.
+
 ---
 
 ## 3. Instalação
