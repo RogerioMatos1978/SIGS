@@ -14,14 +14,81 @@
     --cor-principal-clara: #1F5FA8;
     --cor-secundaria: #F4A300;     /* Amarelo de destaque/alerta */
     --cor-fundo: #F2F5F9;
+    --cor-fundo-gradiente-fim: #E4ECF6; /* 2º stop do gradiente de fundo (ver body) */
     --cor-texto: #1B1F23;
-    --cor-branco: #FFFFFF;
+    --cor-texto-secundario: #5A6572;    /* legendas, subtítulos, texto discreto */
+    --cor-texto-label: #33414F;         /* rótulos de campos de formulário */
+    --cor-branco: #FFFFFF;              /* branco "de verdade" — texto sobre cor
+                                            sólida (botões, painel público) e o
+                                            fundo do logo no painel de TV; NUNCA
+                                            varia com o tema, ao contrário de
+                                            --cor-superficie logo abaixo */
+    --cor-superficie: #FFFFFF;          /* fundo de cards/containers — este SIM
+                                            escurece no tema escuro (ver bloco
+                                            html[data-tema="escuro"]) */
     --cor-cinza-borda: #D8E0EA;
     --cor-sucesso: #2E7D32;
     --cor-erro: #C62828;
+    /* Fundos translúcidos usados por badges/mensagens de status (ver
+       .status-badge-ativo/.status-badge-inativo/.badge-fixa) e pelo anel de
+       foco dos campos — em variável para poder escurecer/reforçar o alpha
+       no tema escuro sem precisar caçar cada rgba() espalhado pelo arquivo. */
+    --cor-sucesso-fundo: rgba(46, 125, 50, 0.15);
+    --cor-erro-fundo: rgba(198, 40, 40, 0.15);
+    --cor-erro-borda-suave: rgba(198, 40, 40, 0.3);
+    --cor-principal-fundo: rgba(31, 95, 168, 0.15);
+    --cor-foco-anel: rgba(31, 95, 168, 0.2);
     --sombra-padrao: 0 4px 14px rgba(0, 0, 0, 0.12);
     --raio-borda: 14px;
     --transicao-padrao: all 0.25s ease-in-out;
+}
+
+/* -------------------- Tema escuro -------------------- */
+/* Ativado via atributo "data-tema=escuro" no <html> (ver
+   static/js/tema.js e o botão .botao-tema em templates/layout.html),
+   persistido em localStorage e aplicado o mais cedo possível (script
+   inline no <head> de layout.html, antes do CSS ser processado) para
+   não piscar em tema claro por uma fração de segundo a cada
+   carregamento de página.
+
+   Paleta baseada no tema escuro oficial do GitHub (Primer design
+   system — pesquisado via GitHub/web: canvas.default #0D1117,
+   canvas.overlay #161B22, border.default #30363D, fg.default #E6EDF3,
+   fg.muted #8B949E, accent.emphasis #2F81F7, success.fg #3FB950,
+   danger.fg #F85149) — um dos esquemas de tema escuro mais usados e
+   testados do mundo, adaptado aqui mantendo o azul institucional e o
+   amarelo de destaque do SENAI como acentos (não trocados por um azul
+   genérico de "app dark mode").
+
+   Importante: --cor-branco NÃO é redefinida aqui de propósito — ela
+   continua sempre #FFFFFF (texto sobre botões coloridos, fundo do
+   logo no painel de TV). Só --cor-superficie (fundo de cards) escurece.
+
+   O painel público de TV (.painel — ver painel.html/painel_empresa.html/
+   painel_geral.html) fica de fora deste tema por design: já tem sua
+   própria identidade visual fixa e sempre escura (gradiente
+   --cor-principal → #001F3D), pensada para ficar sempre igual numa TV
+   compartilhada, independente da preferência de tema de quem estiver
+   logado no navegador que a controla — por isso essas três telas nunca
+   recebem o atributo "data-tema" (ver a exclusão em layout.html). */
+html[data-tema="escuro"] {
+    --cor-principal: #2F81F7;
+    --cor-principal-clara: #58A6FF;
+    --cor-fundo: #0D1117;
+    --cor-fundo-gradiente-fim: #010409;
+    --cor-texto: #E6EDF3;
+    --cor-texto-secundario: #8B949E;
+    --cor-texto-label: #ADBAC7;
+    --cor-superficie: #161B22;
+    --cor-cinza-borda: #30363D;
+    --cor-sucesso: #3FB950;
+    --cor-erro: #F85149;
+    --cor-sucesso-fundo: rgba(63, 185, 80, 0.18);
+    --cor-erro-fundo: rgba(248, 81, 73, 0.18);
+    --cor-erro-borda-suave: rgba(248, 81, 73, 0.35);
+    --cor-principal-fundo: rgba(47, 129, 247, 0.2);
+    --cor-foco-anel: rgba(88, 166, 255, 0.3);
+    --sombra-padrao: 0 4px 14px rgba(0, 0, 0, 0.55);
 }
 
 * {
@@ -31,7 +98,7 @@
 body {
     margin: 0;
     font-family: "Segoe UI", Arial, Helvetica, sans-serif;
-    background: linear-gradient(180deg, var(--cor-fundo) 0%, #E4ECF6 100%);
+    background: linear-gradient(180deg, var(--cor-fundo) 0%, var(--cor-fundo-gradiente-fim) 100%);
     color: var(--cor-texto);
 }
 
@@ -51,7 +118,7 @@ body {
     display: flex;
     align-items: center;
     gap: 16px;
-    background: var(--cor-branco);
+    background: var(--cor-superficie);
     border-radius: var(--raio-borda);
     box-shadow: var(--sombra-padrao);
     padding: 16px 20px;
@@ -72,7 +139,7 @@ body {
 
 .titulo-evento p {
     margin: 4px 0 0;
-    color: #5A6572;
+    color: var(--cor-texto-secundario);
     font-size: 1rem;
 }
 
@@ -140,7 +207,7 @@ body {
 
 /* -------------------- Cards -------------------- */
 .card {
-    background: var(--cor-branco);
+    background: var(--cor-superficie);
     border-radius: var(--raio-borda);
     box-shadow: var(--sombra-padrao);
     padding: 18px 20px;
@@ -166,7 +233,7 @@ body {
     flex-direction: column;
     gap: 6px;
     font-weight: 600;
-    color: #33414F;
+    color: var(--cor-texto-label);
     flex: 1;
     min-width: 220px;
 }
@@ -177,13 +244,15 @@ input, select {
     border-radius: 10px;
     font-size: 1rem;
     font-family: inherit;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
     transition: var(--transicao-padrao);
 }
 
 input:focus, select:focus {
     outline: none;
     border-color: var(--cor-principal-clara);
-    box-shadow: 0 0 0 3px rgba(31, 95, 168, 0.2);
+    box-shadow: 0 0 0 3px var(--cor-foco-anel);
 }
 
 /* Campo de busca simples exibido acima das tabelas de Usuários e
@@ -198,12 +267,12 @@ input:focus, select:focus {
 
 .resumo-emitidas-hoje {
     font-size: 0.9rem;
-    color: #5A6572;
+    color: var(--cor-texto-secundario);
     margin: -6px 0 14px;
 }
 
 .resumo-emitidas-hoje strong {
-    color: #003C71;
+    color: var(--cor-principal);
     font-size: 1rem;
 }
 
@@ -236,7 +305,7 @@ input:focus, select:focus {
 
 .senha-info {
     font-size: 1.2rem;
-    color: #5A6572;
+    color: var(--cor-texto-secundario);
     margin-top: 8px;
 }
 
@@ -372,7 +441,7 @@ input:focus, select:focus {
 
 .paginacao-fila span {
     font-size: 0.9rem;
-    color: #5A6572;
+    color: var(--cor-texto-secundario);
 }
 
 /* -------------------- Notificações (toasts) -------------------- */
@@ -387,7 +456,7 @@ input:focus, select:focus {
 }
 
 .notificacao {
-    background: var(--cor-branco);
+    background: var(--cor-superficie);
     border-left: 6px solid var(--cor-principal);
     border-radius: 10px;
     box-shadow: var(--sombra-padrao);
@@ -427,7 +496,7 @@ input:focus, select:focus {
 }
 
 .resumo-label {
-    color: #5A6572;
+    color: var(--cor-texto-secundario);
     font-weight: 600;
 }
 
@@ -749,6 +818,55 @@ input:focus, select:focus {
     flex-wrap: wrap;
 }
 
+/* -------------------- Botão de troca de tema (claro/escuro) -------------------- */
+/* Ícone-botão simples (sol/lua, ver static/js/tema.js), sem depender de
+   nenhuma biblioteca de ícones. Duas variantes de fundo, conforme onde
+   o botão aparece (ver templates/layout.html):
+     .botao-tema            — dentro de .barra-usuario (fundo azul
+                               sólido já existente), círculo translúcido
+                               branco no mesmo espírito de
+                               .barra-usuario-perfil/.barra-usuario-guiche.
+     .botao-tema--flutuante — páginas públicas de autenticação (login,
+                               acesso das empresas), que não têm
+                               .barra-usuario; fica fixo no canto
+                               superior direito, com o mesmo visual de
+                               "card" (fundo --cor-superficie + sombra)
+                               usado no restante do sistema. */
+.botao-tema {
+    background: rgba(255, 255, 255, 0.18);
+    border: none;
+    border-radius: 999px;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cor-branco);
+    transition: var(--transicao-padrao);
+}
+
+.botao-tema:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.botao-tema--flutuante {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 600;
+    width: 42px;
+    height: 42px;
+    font-size: 1.3rem;
+    background: var(--cor-superficie);
+    color: var(--cor-principal);
+    box-shadow: var(--sombra-padrao);
+}
+
 .barra-usuario-acoes a {
     color: var(--cor-branco);
     text-decoration: none;
@@ -810,7 +928,7 @@ input:focus, select:focus {
 }
 
 .subtitulo-auth {
-    color: #5A6572;
+    color: var(--cor-texto-secundario);
     margin-bottom: 20px;
     font-size: 0.95rem;
 }
@@ -821,13 +939,59 @@ input:focus, select:focus {
 
 .auth-rodape {
     margin-top: 20px;
-    color: #5A6572;
+    color: var(--cor-texto-secundario);
 }
 
 .auth-rodape a {
     color: var(--cor-principal-clara);
     font-weight: 700;
     text-decoration: none;
+}
+
+/* Modificador restrito à tela de login (ver templates/login.html):
+   coloca o card de login e o painel de acesso das empresas LADO A LADO,
+   em vez do card único centralizado usado pelas demais telas de
+   autenticação (empresa_login.html/empresas_publico.html, que
+   continuam só com .pagina-auth). "align-items: flex-start" permite os
+   dois cards terem alturas diferentes sem esticar o mais curto — mesmo
+   padrão de .conteudo-principal--tela-principal (index.html). Volta a
+   empilhar em coluna única em telas estreitas (ver media query mais
+   abaixo). */
+.pagina-auth--com-empresas {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 24px;
+}
+
+.pagina-auth--com-empresas .card-auth {
+    flex: 0 1 420px;
+}
+
+.card-empresas-lateral {
+    flex: 1 1 420px;
+    max-width: 480px;
+}
+
+.titulo-empresas-lateral {
+    margin: 0 0 4px;
+    color: var(--cor-principal);
+    font-size: 1.3rem;
+}
+
+.card-empresas-lateral .grade-cards-empresa {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+@media (max-width: 950px) {
+    .pagina-auth--com-empresas {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .card-empresas-lateral {
+        max-width: 420px;
+    }
 }
 
 /* -------------------- Página pública de acesso das empresas -------------------- */
@@ -906,7 +1070,7 @@ input:focus, select:focus {
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #5A6572;
+    color: var(--cor-texto-secundario);
     font-weight: 700;
 }
 
@@ -924,12 +1088,12 @@ input:focus, select:focus {
 }
 
 .status-badge-ativo {
-    background: rgba(46, 125, 50, 0.15);
+    background: var(--cor-sucesso-fundo);
     color: var(--cor-sucesso);
 }
 
 .status-badge-inativo {
-    background: rgba(198, 40, 40, 0.15);
+    background: var(--cor-erro-fundo);
     color: var(--cor-erro);
 }
 
@@ -942,7 +1106,7 @@ input:focus, select:focus {
     border-radius: 999px;
     font-size: 0.85rem;
     font-weight: 700;
-    background: rgba(31, 95, 168, 0.15);
+    background: var(--cor-principal-fundo);
     color: var(--cor-principal);
 }
 
@@ -950,6 +1114,17 @@ input:focus, select:focus {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+/* .botao-acao-pequeno já tem margin-right (necessário fora de um
+   container flex — ver a coluna "Ações" da Fila de Espera, montada via
+   JS em index.js, sem .acoes-usuario ao redor). Dentro de
+   .acoes-usuario o espaçamento já vem do "gap" acima, então some a
+   margem para não somar as duas coisas (bug visual: botões ficavam
+   com o dobro do respiro à direita em relação ao espaço entre linhas
+   quando quebravam — ver templates/empresas.html/usuarios.html). */
+.acoes-usuario .botao-acao-pequeno {
+    margin-right: 0;
 }
 
 .select-perfil, .select-empresa-recrutador {
@@ -987,11 +1162,28 @@ input:focus, select:focus {
    empresas.html) em vez da cor padrão do sistema. "Desativar"/"Ativar"
    (.botao-alerta / .botao-primario da coluna Ações) ficam de fora
    propositalmente, mantendo o vermelho de alerta sempre reconhecível. */
+/* Só estes TRÊS botões (os que dizem respeito à identidade da própria
+   empresa: abrir o painel dela, trocar a logo, renomear) usam a cor
+   cadastrada para a empresa (--cor-empresa, inline em cada <tr> — ver
+   templates/empresas.html) — os demais botões da linha (WhatsApp,
+   Reiniciar Contador) são ações genéricas do sistema, sem relação com
+   a identidade visual da empresa, e por isso ficam com a cor padrão
+   (ver .botao-whatsapp/.botao-secundario abaixo). Corrigido na v2.19.0:
+   antes, o seletor pegava TODO link dentro de .acoes-usuario por
+   engano (incluindo os dois botões de WhatsApp), deixando praticamente
+   todos os botões da linha com a mesma cor e sem hierarquia visual
+   nenhuma. */
 #empresas-corpo tr .btn-upload-logo,
 #empresas-corpo tr .btn-renomear-empresa,
-#empresas-corpo tr .btn-reiniciar-contador-empresa,
-#empresas-corpo tr .acoes-usuario > a.botao {
+#empresas-corpo tr .btn-abrir-painel-empresa {
     background: var(--cor-empresa, var(--cor-principal-clara));
+}
+
+/* Botões de compartilhar via WhatsApp: cor de marca reconhecível,
+   separando visualmente "compartilhar" das demais ações da linha
+   (edição/administração), em vez de tudo no mesmo azul. */
+.botao-whatsapp {
+    background: #25D366;
 }
 
 /* Coluna "Próxima Senha" (contador de numeração POR EMPRESA, ver
@@ -1009,7 +1201,7 @@ input:focus, select:focus {
 
 .card-zona-perigo h2 {
     color: var(--cor-erro);
-    border-bottom-color: rgba(198, 40, 40, 0.3);
+    border-bottom-color: var(--cor-erro-borda-suave);
 }
 
 /* =============================================================
@@ -1032,7 +1224,7 @@ input:focus, select:focus {
 }
 
 .modal-caixa {
-    background: var(--cor-branco);
+    background: var(--cor-superficie);
     border-radius: var(--raio-borda);
     box-shadow: var(--sombra-padrao);
     padding: 18px;
@@ -1079,6 +1271,22 @@ input:focus, select:focus {
     letter-spacing: 0.3px;
     padding: 8px 12px;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.12);
+}
+
+/* Tabela "Empresas Cadastradas" (ver templates/empresas.html): a mais
+   densa do sistema — 8 colunas, várias com múltiplos botões cada
+   (Identidade Visual, Emissão de Senhas, Chave de Acesso, Ações) — e
+   por isso a única que precisa de rolagem horizontal própria SEMPRE
+   ligada, não só abaixo de 700px como as demais tabelas (ver regra
+   genérica na seção Responsividade logo abaixo). Sem isso, em telas de
+   laptop comuns a tabela ficava espremida/quebrando botões de forma
+   feia em vez de simplesmente rolar dentro do próprio card. */
+.card-tabela-empresas {
+    overflow-x: auto;
+}
+
+.card-tabela-empresas .tabela-fila {
+    min-width: 1100px;
 }
 
 /* -------------------- Responsividade -------------------- */
@@ -1216,6 +1424,20 @@ input:focus, select:focus {
     .botao-sair {
         padding: 5px 10px;
         font-size: 0.8rem;
+    }
+
+    .botao-tema {
+        width: 28px;
+        height: 28px;
+        font-size: 0.95rem;
+    }
+
+    .botao-tema--flutuante {
+        top: 10px;
+        right: 10px;
+        width: 36px;
+        height: 36px;
+        font-size: 1.1rem;
     }
 
     .barra-mensagem {

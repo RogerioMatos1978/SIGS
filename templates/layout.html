@@ -8,11 +8,36 @@
     cabecalho, rodape, folha de estilos e variaveis de cor consistentes
     em todo o sistema.
 -->
+{% set pagina_com_tema = request.endpoint not in ['painel', 'painel_empresa', 'painel_geral'] %}
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block titulo %}SIGS - Sistema Integrado de Gerenciamento de Senhas{% endblock %}</title>
+
+    {% if pagina_com_tema %}
+    <!-- Aplica o tema salvo (claro/escuro — ver .botao-tema mais abaixo e
+         static/js/tema.js) ANTES do CSS ser processado, para não piscar
+         em tema claro por uma fração de segundo a cada carregamento de
+         página. Script inline e síncrono de propósito — um <script src>
+         externo só rodaria depois de baixado, tarde demais para evitar o
+         flash. Fora das três telas do painel público de TV (painel,
+         painel_empresa, painel_geral): elas têm identidade visual
+         própria, sempre escura, que não deve reagir a esta preferência
+         (ver bloco html[data-tema="escuro"] em style.css). -->
+    <script>
+        (function () {
+            try {
+                if (localStorage.getItem("sigs_tema") === "escuro") {
+                    document.documentElement.setAttribute("data-tema", "escuro");
+                }
+            } catch (erro) {
+                // localStorage pode estar bloqueado (ex.: navegação privada
+                // restrita) — mantém o tema claro padrão nesse caso.
+            }
+        })();
+    </script>
+    {% endif %}
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
@@ -93,6 +118,9 @@
                      menu administrativo. -->
                 <a href="{{ url_for('relatorios_tela') }}">Relatórios</a>
             {% endif %}
+            {% if pagina_com_tema %}
+            <button type="button" class="botao-tema" aria-label="Mudar para tema escuro" title="Mudar para tema escuro">🌙</button>
+            {% endif %}
             <form method="POST" action="{{ url_for('logout_tela') }}" class="form-logout">
                 <button type="submit" class="botao botao-terciario botao-sair">Sair</button>
             </form>
@@ -104,6 +132,12 @@
          (dentro do mesmo bloco condicional do menu, logo acima). -->
     <div class="barra-mensagem">{{ config.frase_menu }}</div>
     {% endif %}
+    {% elif pagina_com_tema %}
+    <!-- Sem sessão logada, não existe .barra-usuario para hospedar o
+         botão de tema (ver acima) — nas páginas públicas de
+         autenticação (login, acesso das empresas), ele aparece
+         flutuando no canto superior direito. -->
+    <button type="button" class="botao-tema botao-tema--flutuante" aria-label="Mudar para tema escuro" title="Mudar para tema escuro">🌙</button>
     {% endif %}
 
     {% block conteudo %}{% endblock %}
@@ -115,6 +149,17 @@
     <footer class="rodape-sigs">
         SIGS &copy; {{ config.nome_evento if config else 'SENAI' }} &middot; v{{ sigs_versao }}
     </footer>
+    {% endif %}
+
+    {% if pagina_com_tema %}
+    <!-- Fora do bloco "scripts" de propósito: cada página define seu
+         próprio {% raw %}{% block scripts %}{% endraw %} com o JS
+         específico dela (index.js, relatorios.js, etc.), o que
+         SUBSTITUI (não soma a) qualquer conteúdo que estivesse aqui
+         dentro do bloco — colocando tema.js fora dele, toda página
+         elegível ganha o botão funcionando sem precisar declará-lo
+         individualmente. -->
+    <script src="{{ url_for('static', filename='js/tema.js') }}"></script>
     {% endif %}
 
     {% block scripts %}{% endblock %}

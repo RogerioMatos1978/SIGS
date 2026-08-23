@@ -45,7 +45,12 @@
             </form>
         </section>
 
-        <section class="card">
+        <!-- card-tabela-empresas: rolagem horizontal PRÓPRIA sempre ligada
+             (não só no celular, como as demais tabelas do sistema — ver
+             style.css) porque esta é a tabela mais densa do SIGS (8
+             colunas, várias com múltiplos botões cada) e facilmente
+             ultrapassa a largura da página em qualquer resolução. -->
+        <section class="card card-tabela-empresas">
             <h2>Empresas Cadastradas</h2>
             <input type="text" id="busca-empresas" class="campo-busca-tabela"
                    placeholder="🔎 Buscar por nome da empresa...">
@@ -155,7 +160,7 @@
                         </td>
                         <td>{{ empresa.data_criacao }}</td>
                         <td class="acoes-usuario">
-                            <a class="botao botao-secundario botao-acao-pequeno"
+                            <a class="botao botao-secundario botao-acao-pequeno btn-abrir-painel-empresa"
                                href="{{ url_for('painel_empresa', empresa_id=empresa.id) }}" target="_blank">
                                 🖥️ Abrir Painel
                             </a>
@@ -163,8 +168,12 @@
                                  WhatsApp (wa.me abre o app/web do WhatsApp com o texto já
                                  preenchido, bastando escolher o contato). Usa
                                  _external=True para gerar a URL completa (com domínio),
-                                 já que o link será aberto fora deste navegador/sessão. -->
-                            <a class="botao botao-secundario botao-acao-pequeno"
+                                 já que o link será aberto fora deste navegador/sessão.
+                                 Cor de marca do WhatsApp (.botao-whatsapp — ver
+                                 style.css), separando visualmente as duas ações de
+                                 "compartilhar" das demais ações de gerenciamento da
+                                 linha. -->
+                            <a class="botao botao-whatsapp botao-acao-pequeno"
                                href="https://wa.me/?text={{ ('Painel de Chamadas — ' + empresa.nome + ': ' + url_for('painel_empresa', empresa_id=empresa.id, _external=True)) | urlencode }}"
                                target="_blank" rel="noopener">
                                 📲 WhatsApp (Painel)
@@ -176,7 +185,7 @@
                                  que compartilha o link do painel de EXIBIÇÃO. Omitido
                                  para as opções fixas do sistema, que não têm recrutador
                                  nem chave utilizável (ver celula-chave-empresa acima). -->
-                            <a class="botao botao-secundario botao-acao-pequeno"
+                            <a class="botao botao-whatsapp botao-acao-pequeno"
                                href="https://wa.me/?text={{ ('Acesso ao sistema de senhas — ' + empresa.nome + ': entre em ' + url_for('empresa_login_tela', empresa_id=empresa.id, _external=True) + ' e use a chave ' + (empresa.chave_acesso or '')) | urlencode }}"
                                target="_blank" rel="noopener">
                                 🔑 WhatsApp (Acesso)

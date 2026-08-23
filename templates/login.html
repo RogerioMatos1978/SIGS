@@ -10,7 +10,13 @@
 {% block titulo %}SIGS - Login{% endblock %}
 
 {% block conteudo %}
-<div class="pagina pagina-auth">
+<!-- .pagina-auth--com-empresas: modificador restrito a ESTA tela (ver
+     static/css/style.css) que vira o layout de "card único centralizado"
+     em duas colunas lado a lado — login à esquerda, painel de empresas à
+     direita — sem afetar empresa_login.html/empresas_publico.html, que
+     continuam usando .pagina-auth no layout de card único de sempre. Em
+     telas estreitas, as duas colunas voltam a empilhar verticalmente. -->
+<div class="pagina pagina-auth pagina-auth--com-empresas">
     <div class="card card-auth">
         <img class="logo-auth" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo SENAI">
         <h1>SIGS</h1>
@@ -34,14 +40,35 @@
         </form>
 
         <p class="auth-rodape">
-            É recrutador de uma empresa do feirão?
-            <a href="{{ url_for('empresas_entrar_tela') }}">Entre por aqui</a>,
-            sem precisar de login e senha.
-        </p>
-        <p class="auth-rodape">
             Não possui uma conta? Procure um administrador do sistema
             para criar seu acesso.
         </p>
+    </div>
+
+    <!-- Painel de acesso das empresas, ao lado do login (ver
+         app.py:login_tela/_listar_empresas_publicas). Mesmo destino de
+         cada card (/empresas/<id>/entrar) da tela cheia
+         empresas_publico.html — só reduzido para caber ao lado do
+         formulário. -->
+    <div class="card card-auth card-empresas-lateral">
+        <h2 class="titulo-empresas-lateral">Acesso das Empresas</h2>
+        <p class="subtitulo-auth">
+            É recrutador de uma empresa do feirão? Toque no card da sua
+            empresa para entrar, sem precisar de login e senha.
+        </p>
+
+        <div class="grade-cards-empresa">
+            {% for empresa in empresas %}
+            <a class="card-empresa-publico" href="{{ url_for('empresa_login_tela', empresa_id=empresa.id) }}">
+                <img class="card-empresa-publico-logo"
+                     src="{% if empresa.logo_path %}{{ url_for('static', filename=empresa.logo_path) }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}"
+                     alt="Logo {{ empresa.nome }}">
+                <span class="card-empresa-publico-nome">{{ empresa.nome }}</span>
+            </a>
+            {% else %}
+            <p>Nenhuma empresa cadastrada no momento.</p>
+            {% endfor %}
+        </div>
     </div>
 </div>
 {% endblock %}

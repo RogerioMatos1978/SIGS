@@ -1265,6 +1265,128 @@ seguintes pontos de atrito:
   Senha Chamada") reaproveita a mesma rota/lógica de status, então se
   beneficia automaticamente da mesma correção.
 
+### 12.20 Evolução recente do sistema (v2.17.0)
+
+- **`/login` ganhou um painel com as empresas cadastradas ao lado do
+  formulário**: antes, um recrutador que caísse na tela de login
+  tradicional (usuário/senha) só descobria o acesso por chave da sua
+  empresa através de um link de texto ("Entre por aqui") levando à
+  tela cheia `/empresas/entrar`. Agora a própria tela de login já
+  mostra, ao lado do formulário, os mesmos cards de empresa dessa tela
+  (logo + nome), cada um linkando direto para
+  `/empresas/<id>/entrar` — sem precisar navegar para outra página. Em
+  telas estreitas (celular), o painel empilha abaixo do formulário de
+  login em vez de ficar ao lado.
+
+- Segue as mesmas regras de sempre para o que pode aparecer nessa
+  listagem pública: só empresas ATIVAS, nunca as duas opções fixas do
+  sistema ("Criar Currículos"/"Imprimir Currículos" — não são
+  participantes reais do feirão e não têm recrutador), e a
+  `chave_acesso` de 8 dígitos de cada empresa nunca é enviada ao HTML
+  (removida antes de chegar ao template). Sem nenhuma empresa
+  cadastrada, aparece o aviso "Nenhuma empresa cadastrada no momento."
+
+- Implementado extraindo a lógica de listagem/filtro, que já existia
+  duplicada em `empresas_entrar_tela`, para uma função compartilhada
+  `_listar_empresas_publicas()` em `app.py`, reaproveitada tanto por
+  `login_tela` quanto por `empresas_entrar_tela` (que continua
+  existindo normalmente, como a versão em tela cheia). Layout novo
+  restrito a `templates/login.html` via a classe modificadora
+  `.pagina-auth--com-empresas` (ver `static/css/style.css`), sem afetar
+  `empresa_login.html`/`empresas_publico.html`, que continuam com o
+  card único centralizado de sempre.
+
+### 12.21 Evolução recente do sistema (v2.18.0)
+
+- **Tema escuro em todo o sistema, com botão de troca**: adicionado um
+  botão (ícone ☀️/🌙) que alterna entre tema claro e escuro, disponível
+  em toda tela do sistema — dentro da `barra-usuario` para quem está
+  logado, e flutuando no canto superior direito nas páginas públicas de
+  autenticação (`/login`, `/empresas/entrar`, `/empresas/<id>/entrar`).
+  A escolha é salva em `localStorage` (`sigs_tema`) e persiste entre
+  visitas; aplicada por um pequeno script inline no `<head>` de
+  `layout.html`, ANTES do CSS ser processado, para não piscar em tema
+  claro por uma fração de segundo a cada carregamento de página.
+
+- **Paleta pesquisada no GitHub**: a cor escura segue o tema oficial
+  do GitHub (Primer design system) — `canvas.default #0D1117`,
+  `canvas.overlay #161B22`, `border.default #30363D`,
+  `fg.default #E6EDF3`, `fg.muted #8B949E`, `accent.emphasis #2F81F7`,
+  `success.fg #3FB950`, `danger.fg #F85149` — um dos esquemas de tema
+  escuro mais usados e testados do mundo, adaptado mantendo o azul
+  institucional e o amarelo de destaque do SENAI como identidade visual
+  (não substituídos por um azul genérico de "app dark mode").
+
+- **O painel público de TV fica de fora do tema, de propósito**: as
+  três telas do painel de exibição pública (`/painel`,
+  `/painel/empresa/<id>`, `/painel/geral`) NUNCA recebem o botão, o
+  script inline nem `tema.js` — nem mesmo se um administrador logado
+  (com preferência de tema escuro salva) navegar até lá. Esse painel já
+  tem identidade visual própria e permanentemente escura (gradiente
+  `--cor-principal` → `#001F3D`), pensada para ficar sempre igual numa
+  tela compartilhada (TV/monitor do evento), independente da
+  preferência de quem estiver controlando o navegador — trocar de tema
+  ali faria a cor mudar para quem está vendo a TV sem ligação nenhuma
+  com a preferência de ninguém em especial.
+
+- Implementado via variáveis CSS existentes (`static/css/style.css`):
+  introduzida `--cor-superficie` (fundo de cards — a única que
+  realmente escurece; `--cor-branco` continua sempre branco de
+  verdade, usada por texto sobre botões coloridos e o fundo do logo no
+  painel de TV) e mais algumas variáveis novas para cores antes
+  "soltas" no arquivo (`--cor-texto-secundario`, `--cor-texto-label`,
+  fundos translúcidos de badges/mensagens de status), todas
+  sobrescritas em bloco por `html[data-tema="escuro"]`. Com isso, o
+  tema inteiro reage a UM único atributo no `<html>`, sem precisar
+  duplicar regra por regra da folha de estilos. `templates/layout.html`
+  ganhou a variável Jinja `pagina_com_tema` (`request.endpoint not in
+  ['painel', 'painel_empresa', 'painel_geral']`), usada nos três pontos
+  do recurso (script inline, `tema.js`, botão) para garantir a exclusão
+  do painel de TV de forma consistente.
+
+### 12.22 Evolução recente do sistema (v2.19.0)
+
+- **Correção e organização dos botões/grade de "Empresas Cadastradas"
+  (Administrador)**: a tabela de empresas é a mais densa do sistema (8
+  colunas, várias com múltiplos botões cada) e tinha três problemas
+  reais:
+
+    1. **Espaçamento duplicado** — o container flex `.acoes-usuario`
+       já espaça os botões com `gap: 8px`, mas cada botão também tinha
+       `margin-right: 6px` próprio (necessário em OUTRO contexto, a
+       coluna "Ações" da Fila de Espera, montada via JS sem esse
+       container flex ao redor) — as duas coisas somadas deixavam o
+       respiro horizontal entre botões maior que o vertical quando a
+       linha quebrava, um desalinhamento visual perceptível. Corrigido
+       zerando a margem só dentro de `.acoes-usuario`.
+    2. **Cor da empresa vazando para os botões errados** — o comentário
+       do código sempre disse que só "Abrir Painel", "Logo" e
+       "Renomear" deveriam usar a cor cadastrada da empresa
+       (`--cor-empresa`), mas o seletor CSS real pegava QUALQUER link
+       dentro de `.acoes-usuario`, incluindo por engano os dois botões
+       de "Compartilhar via WhatsApp" — na prática, quase todos os
+       botões da linha ficavam da mesma cor (a cor clara padrão, para
+       empresas sem cor própria definida), sem nenhuma hierarquia
+       visual. Corrigido restringindo o seletor aos três botões
+       corretos (o link "Abrir Painel" ganhou uma classe própria,
+       `btn-abrir-painel-empresa`, para isso).
+    3. **Sem rolagem própria em telas de desktop comuns** — as tabelas
+       do sistema só ganhavam `overflow-x: auto` abaixo de 700px; nesta
+       tabela específica, mesmo em laptops normais, o conteúdo (8
+       colunas bem cheias) facilmente ultrapassava a largura da página,
+       forçando quebras de linha feias dentro das células em vez de
+       simplesmente rolar. Corrigido com uma classe própria
+       (`.card-tabela-empresas`) que liga a rolagem horizontal sempre,
+       com `min-width: 1100px` na tabela.
+
+  Também aproveitado para dar aos dois botões de "Compartilhar via
+  WhatsApp" a cor de marca do WhatsApp (`.botao-whatsapp`, `#25D366`),
+  em vez de reutilizar a cor institucional/da empresa — agora dá para
+  reconhecer de relance quais botões da linha são "compartilhar" e
+  quais são "gerenciar" (Renomear, Reiniciar Contador — este último
+  também voltou a ser um botão padrão do sistema, não mais colorido
+  com a cor da empresa).
+
 ---
 
 ## 13. Referências e projetos utilizados como case de sucesso

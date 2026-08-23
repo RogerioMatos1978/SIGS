@@ -2242,3 +2242,14 @@
 2026-08-23 15:50:48 | ERROR    | SIGS | Falha ao imprimir senha 012 na impressora 'Microsoft Print to PDF': StartDoc failed
 2026-08-23 15:51:40 | INFO     | SIGS | Senha 012 chamada no guichê 'Mesa 01 — COMIGO' por 'Atendente'.
 2026-08-23 15:51:46 | INFO     | SIGS | Senha id=47 finalizada.
+2026-08-23 15:52:33 | INFO     | SIGS | Logout realizado: 'rogeriomatos'.
+2026-08-23 16:00:57 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db
+2026-08-23 16:04:41 | INFO     | SIGS | Logout realizado: 'emissor'.
+2026-08-23 16:04:58 | INFO     | SIGS | Login realizado: 'rogeriomatos' (perfil admin, guichê None).
+2026-08-23 16:05:33 | INFO     | SIGS | Empresa 'INPASA' cadastrada (id=5).
+2026-08-23 16:06:51 | INFO     | SIGS | Logo da empresa id=5 atualizado (cor extraída automaticamente: #C3CAD6).
+2026-08-23 16:07:15 | INFO     | SIGS | Conta de recrutador provisionada automaticamente para 'Inpasa' (empresa id=5) via chave de acesso.
+2026-08-23 16:07:15 | INFO     | SIGS | Mesa 1 (empresa id=5) atribuída automaticamente a 'Inpasa'.
+2026-08-23 16:07:15 | INFO     | SIGS | Login realizado: 'chave-empresa-5-a0952b68e7312046' (perfil recrutador, guichê 1).
+2026-08-23 16:08:46 | ERROR    | SIGS | Não há senhas aguardando chamada.
+2026-08-23 16:29:52 | INFO     | SIGS | Banco de dados inicializado em: C:\Users\rs_ma\Documents\GitDesk\SIGS\database\senhas.db

@@ -420,6 +420,27 @@ def relatorios_tela():
 # navegador crie sua própria conta no sistema.
 # ---------------------------------------------------------------------------
 
+def _listar_empresas_publicas() -> list:
+    """
+    Lista as empresas que podem aparecer em telas PÚBLICAS (sem login):
+    só as ATIVAS e que não sejam uma das duas opções fixas do sistema
+    ("Criar Currículos"/"Imprimir Currículos" — ver
+    ``database.NOMES_EMPRESAS_FIXAS``, que não têm recrutador nem login
+    por chave). Remove sempre ``chave_acesso`` de cada empresa antes de
+    devolver: esse dado nunca deve chegar ao HTML/JS de uma página
+    pública, mesmo que o template atual não o exiba.
+
+    Compartilhada por ``login_tela`` (painel de acesso das empresas ao
+    lado do formulário de login) e ``empresas_entrar_tela`` (a mesma
+    lista, em tela cheia) — evita duplicar o filtro em dois lugares.
+    """
+    return [
+        {chave: valor for chave, valor in empresa.items() if chave != "chave_acesso"}
+        for empresa in database.listar_empresas(somente_ativas=True)
+        if not empresa.get("fixa")
+    ]
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login_tela():
     """
@@ -427,6 +448,12 @@ def login_tela():
     autenticação prévia. No POST, valida as credenciais e, em caso de
     sucesso, atribui automaticamente o próximo guichê disponível ao
     usuário (ver auth.iniciar_sessao).
+
+    Também exibe, ao lado do formulário, um painel com as empresas
+    cadastradas (``_listar_empresas_publicas``) e um link de acesso
+    direto para o login de cada uma (``/empresas/<id>/entrar``) — evita
+    que o recrutador precise navegar até ``/empresas/entrar`` só para
+    encontrar sua empresa.
     """
     if auth.usuario_logado():
         return redirect(url_for("index"))
@@ -463,6 +490,7 @@ def login_tela():
         erro=erro,
         login_informado=login_informado,
         config=config_manager.obter_todas(),
+        empresas=_listar_empresas_publicas(),
     )
 
 
@@ -492,22 +520,21 @@ def empresas_entrar_tela():
     aqui: elas não são empresas reais participantes do feirão, não têm
     recrutador, e um login por chave para elas nunca faria sentido (ver
     também ``empresa_login_tela``, que bloqueia o acesso direto pela URL).
+
+    Essa mesma tela cheia continua existindo (link "Entre por aqui" em
+    ``login.html``) para quem prefere/precisa dela — ex.: no layout
+    empilhado de telas estreitas (celular), onde o painel ao lado do
+    login vira uma segunda seção mais para baixo na página. A lista de
+    empresas em si vem de ``_listar_empresas_publicas``, compartilhada
+    com ``login_tela``.
     """
     if auth.usuario_logado():
         return redirect(url_for("index"))
 
-    # Remove "chave_acesso" de cada empresa antes de repassar ao template:
-    # esta página é pública, então o dado nunca deve chegar ao HTML/JS do
-    # navegador, mesmo que o template atual não o exiba.
-    empresas = [
-        {chave: valor for chave, valor in empresa.items() if chave != "chave_acesso"}
-        for empresa in database.listar_empresas(somente_ativas=True)
-        if not empresa.get("fixa")
-    ]
     return render_template(
         "empresas_publico.html",
         config=config_manager.obter_todas(),
-        empresas=empresas,
+        empresas=_listar_empresas_publicas(),
     )
 
 
