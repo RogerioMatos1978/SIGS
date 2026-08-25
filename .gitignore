@@ -1,0 +1,41 @@
+# -*- coding: utf-8 -*-
+# .gitignore
+# ==========
+# Adicionado em auditoria de segurança (ver relatório): impede que
+# segredos, dados de produção e artefatos locais voltem a ser
+# versionados. Arquivos já rastreados antes deste commit precisam ser
+# removidos do índice separadamente (git rm --cached) — ver histórico
+# do commit que introduziu este arquivo.
+
+# --- Segredos ---
+# Chave secreta de assinatura de sessão do Flask (config.obter_secret_key).
+# Quem tiver este arquivo forja cookies de sessão de qualquer usuário,
+# inclusive admin, sem precisar de login/senha.
+secret.key
+
+# --- Banco de dados de produção ---
+# Contém hashes de senha, a chave de acesso das empresas e dados
+# pessoais de candidatos. Nunca deve ser versionado.
+database/*.db
+database/*.db-shm
+database/*.db-wal
+
+# --- Logs ---
+# Pode registrar tentativas de login, nomes de usuário e outros detalhes
+# operacionais sensíveis.
+sigs.log
+*.log
+
+# --- Artefatos de execução Python ---
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Ambiente virtual e IDE ---
+.venv/
+venv/
+.idea/
+
+# --- Sistema operacional ---
+.DS_Store
+Thumbs.db
