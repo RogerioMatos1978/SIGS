@@ -516,6 +516,141 @@ input:focus, select:focus {
     font-weight: 600;
 }
 
+/* Atalhos de período (Hoje/7 dias/30 dias/Este mês/Todo o período — ver
+   templates/relatorios.html) acima dos campos de data: botões pequenos
+   em linha, com quebra automática em telas estreitas. */
+.grade-botoes-preset-periodo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+/* -------------------- Dashboard Analítico (BI) — tela de Relatórios -------------------- */
+/* Grade responsiva dos cartões de gráfico: 2 colunas em telas largas,
+   1 coluna em telas estreitas. ".grafico-card--largo" ocupa as duas
+   colunas (usado pelos gráficos que precisam de mais espaço horizontal:
+   tendência por dia, comparação por empresa, ranking de tempo médio). */
+.grade-dashboard {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.grafico-card {
+    background: var(--cor-fundo);
+    border-radius: var(--raio-borda);
+    padding: 14px 16px;
+}
+
+.grafico-card--largo {
+    grid-column: 1 / -1;
+}
+
+.grafico-card h3 {
+    margin: 0 0 2px;
+    font-size: 1.05rem;
+    color: var(--cor-principal);
+}
+
+.grafico-subtitulo {
+    margin: 0 0 10px;
+    font-size: 0.85rem;
+    color: var(--cor-texto-secundario);
+}
+
+.grafico-container {
+    width: 100%;
+}
+
+.grafico-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.grafico-vazio {
+    color: var(--cor-texto-secundario);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 30px 0;
+    margin: 0;
+}
+
+/* Texto desenhado DENTRO do SVG (eixos, valores) — ver
+   static/js/dashboard-charts.js, que aplica estas classes via
+   setAttribute("class", ...) nos elementos <text> gerados. */
+.grafico-rotulo-eixo {
+    font-size: 10px;
+    fill: var(--cor-texto-secundario);
+}
+
+.grafico-rotulo-valor {
+    font-size: 11px;
+    font-weight: 700;
+    fill: var(--cor-texto);
+}
+
+.grafico-rosca-total {
+    font-size: 26px;
+    font-weight: 800;
+    fill: var(--cor-principal);
+}
+
+.grafico-rosca-legenda-central {
+    font-size: 10px;
+    fill: var(--cor-texto-secundario);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.grafico-rosca-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.grafico-rosca-wrapper .grafico-svg {
+    width: 160px;
+    flex: 0 0 auto;
+}
+
+.grafico-legenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-top: 10px;
+    justify-content: center;
+}
+
+.grafico-legenda-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    color: var(--cor-texto-secundario);
+}
+
+.grafico-legenda-item i {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+@media (max-width: 900px) {
+    .grade-dashboard {
+        grid-template-columns: 1fr;
+    }
+
+    .grafico-card--largo {
+        grid-column: auto;
+    }
+}
+
 /* -------------------- Formulário de configurações -------------------- */
 .card-formulario {
     display: flex;
@@ -1337,7 +1472,50 @@ input:focus, select:focus {
 }
 
 .card-tabela-empresas .tabela-fila {
-    min-width: 1100px;
+    min-width: 1250px;
+}
+
+/* Célula/linha de cada coluna da tabela um pouco mais compacta que o
+   padrão (10px 8px), já que esta tabela tem muitas colunas e cada
+   milímetro de sobra ajuda a caber mais conteúdo antes de precisar
+   rolar horizontalmente. */
+.card-tabela-empresas .tabela-fila th,
+.card-tabela-empresas .tabela-fila td {
+    padding: 8px 6px;
+}
+
+/* -------------------- Página Empresas: mais largura, padding quase 0 -------------------- */
+/* Esta tela tem a tabela mais densa do sistema (8 colunas, várias com
+   múltiplos botões) — usar toda a largura disponível da janela (em vez
+   do teto de 1200px do .pagina padrão) e um padding que encolhe quase
+   a zero em telas estreitas dá bem mais respiro para os botões da
+   coluna "Ações" sem depender só da rolagem horizontal do card. */
+.pagina-empresas {
+    max-width: 1800px;
+    padding: clamp(4px, 1.5vw, 20px) clamp(4px, 2vw, 24px);
+    padding-bottom: 72px;
+}
+
+/* Coluna "Ações" da tabela Empresas: em vez de empilhar os até 6
+   botões (Abrir Painel, WhatsApp x2, Renomear, Reiniciar Contador,
+   Desativar) em uma única coluna vertical — o que deixava a linha
+   absurdamente alta e um monte de espaço vazio ao lado —, distribui em
+   grade de 2 colunas, ocupando a largura disponível da célula de forma
+   muito mais equilibrada. Restrito a #empresas-corpo (não afeta a
+   coluna "Ações" de usuarios.html, que só tem 2 botões e já cabe bem
+   em flex). */
+#empresas-corpo td.acoes-usuario {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+    gap: 6px;
+    align-content: start;
+}
+
+#empresas-corpo td.acoes-usuario .botao-acao-pequeno {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    margin-right: 0;
 }
 
 /* -------------------- Responsividade -------------------- */

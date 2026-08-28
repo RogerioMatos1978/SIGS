@@ -24,6 +24,17 @@
 
         <section class="card card-formulario">
             <h2>Filtro por Período</h2>
+            <!-- Atalhos de período: preenchem Início/Fim e já disparam a
+                 atualização, sem precisar abrir o seletor de data duas
+                 vezes — cobre os recortes mais pedidos no dia a dia do
+                 feirão (ver static/js/relatorios.js:aplicarPresetPeriodo). -->
+            <div class="grade-botoes grade-botoes-preset-periodo">
+                <button type="button" class="botao botao-secundario botao-acao-pequeno btn-preset-periodo" data-preset="hoje">Hoje</button>
+                <button type="button" class="botao botao-secundario botao-acao-pequeno btn-preset-periodo" data-preset="7dias">Últimos 7 dias</button>
+                <button type="button" class="botao botao-secundario botao-acao-pequeno btn-preset-periodo" data-preset="30dias">Últimos 30 dias</button>
+                <button type="button" class="botao botao-secundario botao-acao-pequeno btn-preset-periodo" data-preset="mes">Este mês</button>
+                <button type="button" class="botao botao-secundario botao-acao-pequeno btn-preset-periodo" data-preset="tudo">Todo o período</button>
+            </div>
             <div class="campos-identificacao">
                 <label>
                     Data Início
@@ -34,7 +45,7 @@
                     <input type="date" id="filtro-fim">
                 </label>
                 <label>
-                    Tipo de Relatório
+                    Tipo de Relatório (exportação)
                     <select id="filtro-tipo">
                         <option value="emitidas">Senhas Emitidas</option>
                         <option value="chamadas">Chamadas Realizadas</option>
@@ -54,7 +65,7 @@
                 Exibindo somente os dados da sua empresa{% if empresa_recrutador %} ({{ empresa_recrutador.nome }}){% endif %}.
             </p>
             {% endif %}
-            <button id="btn-atualizar-resumo" class="botao botao-primario">🔎 Atualizar Resumo</button>
+            <button id="btn-atualizar-resumo" class="botao botao-primario">🔎 Atualizar Resumo e Dashboard</button>
         </section>
 
         <section class="card card-resumo">
@@ -69,14 +80,70 @@
                     <span class="resumo-label">Chamadas Realizadas</span>
                 </div>
                 <div class="resumo-item">
+                    <span class="resumo-valor" id="resumo-taxa-atendimento">0%</span>
+                    <span class="resumo-label">Taxa de Atendimento</span>
+                </div>
+                <div class="resumo-item">
                     <span class="resumo-valor" id="resumo-tempo-medio">00:00</span>
                     <span class="resumo-label">Tempo Médio de Atendimento</span>
+                </div>
+                <div class="resumo-item">
+                    <span class="resumo-valor" id="resumo-canceladas">0</span>
+                    <span class="resumo-label">Senhas Canceladas</span>
+                </div>
+                <div class="resumo-item" title="Retrato do momento atual — não segue o filtro de período acima.">
+                    <span class="resumo-valor" id="resumo-fila-agora">0</span>
+                    <span class="resumo-label">Na Fila Agora</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== Dashboard Analítico (BI) ==================== -->
+        <!-- Visão analítica dos mesmos dados do "Resumo do Período" acima,
+             em gráficos (ver static/js/dashboard-charts.js — SVG puro,
+             sem biblioteca externa/CDN) para responder de forma visual
+             perguntas como "quando é o horário de pico?", "qual empresa
+             atende mais rápido?" e "a fila está andando ou empacando?".
+             Os mesmos filtros de período/empresa do card acima também
+             controlam esta seção (ver
+             static/js/relatorios.js:atualizarResumo). -->
+        <section class="card card-dashboard-analitico">
+            <h2>📊 Dashboard Analítico</h2>
+            <div class="grade-dashboard">
+                <div class="grafico-card grafico-card--largo">
+                    <h3>Emissões por Dia</h3>
+                    <p class="grafico-subtitulo">Emitidas, atendidas e canceladas — tendência ao longo do período.</p>
+                    <div class="grafico-container" id="grafico-por-dia"></div>
+                </div>
+
+                <div class="grafico-card">
+                    <h3>Distribuição por Status</h3>
+                    <p class="grafico-subtitulo">Onde as senhas do período estão agora.</p>
+                    <div class="grafico-container" id="grafico-por-status"></div>
+                </div>
+
+                <div class="grafico-card">
+                    <h3>Movimento por Hora do Dia</h3>
+                    <p class="grafico-subtitulo">Horários de maior procura — ajuda a dimensionar guichês/mesas.</p>
+                    <div class="grafico-container" id="grafico-por-hora"></div>
+                </div>
+
+                <div class="grafico-card grafico-card--largo">
+                    <h3>Senhas por Empresa</h3>
+                    <p class="grafico-subtitulo">Emitidas x atendidas, empresa a empresa.</p>
+                    <div class="grafico-container" id="grafico-por-empresa"></div>
+                </div>
+
+                <div class="grafico-card grafico-card--largo">
+                    <h3>Tempo Médio de Atendimento por Empresa</h3>
+                    <p class="grafico-subtitulo">Tempo entre a emissão e a primeira chamada — quanto menor, melhor.</p>
+                    <div class="grafico-container" id="grafico-tempo-por-empresa"></div>
                 </div>
             </div>
         </section>
 
         <section class="card card-resumo-empresas">
-            <h2>Senhas por Empresa</h2>
+            <h2>Senhas por Empresa (tabela)</h2>
             <table class="tabela-fila">
                 <thead>
                     <tr>
@@ -115,5 +182,6 @@
         ehRecrutador: {{ 'true' if eh_recrutador else 'false' }}
     };
 </script>
+<script src="{{ url_for('static', filename='js/dashboard-charts.js') }}"></script>
 <script src="{{ url_for('static', filename='js/relatorios.js') }}"></script>
 {% endblock %}

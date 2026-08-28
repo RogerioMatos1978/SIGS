@@ -18,6 +18,19 @@ const elementoResumoEmitidas = document.getElementById("resumo-emitidas");
 const elementoResumoChamadas = document.getElementById("resumo-chamadas");
 const elementoResumoTempoMedio = document.getElementById("resumo-tempo-medio");
 const elementoResumoEmpresasCorpo = document.getElementById("resumo-empresas-corpo");
+const elementoResumoTaxaAtendimento = document.getElementById("resumo-taxa-atendimento");
+const elementoResumoCanceladas = document.getElementById("resumo-canceladas");
+const elementoResumoFilaAgora = document.getElementById("resumo-fila-agora");
+
+// Cores dos gráficos do Dashboard Analítico (ver dashboard-charts.js) —
+// sempre `var(--cor-...)` (nunca um hex fixo), para acompanhar o tema
+// claro/escuro automaticamente (ver static/js/tema.js).
+const CORES_STATUS = {
+    Emitida: "var(--cor-secundaria)",
+    Chamada: "var(--cor-principal-clara)",
+    Finalizada: "var(--cor-sucesso)",
+    Cancelada: "var(--cor-erro)",
+};
 
 /** Monta a querystring com os filtros de período, tipo e empresa atualmente selecionados. */
 function montarParametros(incluirTipo = true) {
@@ -112,6 +125,92 @@ function renderizarResumoEmpresas(porEmpresa) {
     });
 }
 
+/** Formata uma data "YYYY-MM-DD" (ver database.listar_emissoes_por_dia)
+ * como "dd/mm", rótulo compacto para o eixo X do gráfico de tendência. */
+function formatarDataCurta(dataIso) {
+    const partes = String(dataIso).split("-");
+    return partes.length === 3 ? `${partes[2]}/${partes[1]}` : dataIso;
+}
+
+/** Formata segundos como "MM:SS" — mesmo padrão usado pelo card de
+ * Tempo Médio de Atendimento do Resumo do Período. */
+function formatarSegundosComoMinutos(segundos) {
+    const total = Math.round(segundos || 0);
+    const minutos = Math.floor(total / 60);
+    const restante = total % 60;
+    return `${String(minutos).padStart(2, "0")}:${String(restante).padStart(2, "0")}`;
+}
+
+/**
+ * Desenha os 5 gráficos do Dashboard Analítico a partir da MESMA
+ * resposta já usada pelos cards/tabela do Resumo do Período (ver
+ * app.py:api_relatorios_resumo) — um único fetch alimenta a tela
+ * inteira, evitando requisições extras e garantindo que os números do
+ * dashboard batam exatamente com os cards acima dele.
+ */
+function renderizarDashboardAnalitico(dados) {
+    const porDia = dados.por_dia || [];
+    renderizarGraficoLinha(
+        document.getElementById("grafico-por-dia"),
+        porDia.map((item) => formatarDataCurta(item.dia)),
+        [
+            { nome: "Emitidas", cor: "var(--cor-principal)", valores: porDia.map((item) => item.emitidas) },
+            { nome: "Atendidas", cor: "var(--cor-sucesso)", valores: porDia.map((item) => item.atendidas) },
+            { nome: "Canceladas", cor: "var(--cor-erro)", valores: porDia.map((item) => item.canceladas) },
+        ],
+        { mensagemVazio: "Nenhuma senha emitida no período selecionado." }
+    );
+
+    const porStatus = dados.por_status || [];
+    renderizarGraficoRosca(
+        document.getElementById("grafico-por-status"),
+        porStatus.map((item) => ({
+            rotulo: item.status,
+            valor: item.total,
+            cor: CORES_STATUS[item.status] || "var(--cor-principal)",
+        })),
+        { mensagemVazio: "Nenhuma senha no período selecionado." }
+    );
+
+    const porHora = dados.por_hora || [];
+    renderizarGraficoBarras(
+        document.getElementById("grafico-por-hora"),
+        porHora.map((item) => ({ rotulo: `${item.hora}h`, valor: item.total })),
+        { cor: "var(--cor-principal)", mensagemVazio: "Nenhuma emissão no período selecionado." }
+    );
+
+    const porEmpresa = dados.por_empresa || [];
+    renderizarGraficoBarrasComparativas(
+        document.getElementById("grafico-por-empresa"),
+        porEmpresa.map((item) => ({
+            rotulo: item.empresa,
+            valorPrincipal: item.total,
+            valorSecundario: item.atendidas ?? 0,
+        })),
+        {
+            corPrincipal: "var(--cor-cinza-borda)",
+            corSecundaria: "var(--cor-principal)",
+            margemRotulo: 160,
+            mensagemVazio: "Nenhuma senha emitida no período selecionado.",
+        }
+    );
+
+    const tempoPorEmpresa = dados.tempo_medio_por_empresa || [];
+    renderizarGraficoBarrasHorizontais(
+        document.getElementById("grafico-tempo-por-empresa"),
+        tempoPorEmpresa.map((item) => ({
+            rotulo: item.empresa,
+            valor: item.tempo_medio_segundos,
+            valorFormatado: formatarSegundosComoMinutos(item.tempo_medio_segundos),
+        })),
+        {
+            cor: "var(--cor-secundaria)",
+            margemRotulo: 160,
+            mensagemVazio: "Nenhuma chamada registrada no período selecionado.",
+        }
+    );
+}
+
 // Evita que cliques repetidos em "Atualizar Resumo" (ex.: usuário
 // impaciente clicando várias vezes) disparem requisições sobrepostas
 // cujas respostas podem chegar fora de ordem e deixar na tela o
@@ -135,7 +234,17 @@ async function atualizarResumo() {
         elementoResumoEmitidas.textContent = dados.total_emitidas;
         elementoResumoChamadas.textContent = dados.total_chamadas;
         elementoResumoTempoMedio.textContent = dados.tempo_medio.tempo_medio_formatado;
+        if (elementoResumoTaxaAtendimento) {
+            elementoResumoTaxaAtendimento.textContent = `${dados.taxa_atendimento ?? 0}%`;
+        }
+        if (elementoResumoCanceladas) {
+            elementoResumoCanceladas.textContent = dados.total_canceladas ?? 0;
+        }
+        if (elementoResumoFilaAgora) {
+            elementoResumoFilaAgora.textContent = dados.fila_aguardando_agora ?? 0;
+        }
         renderizarResumoEmpresas(dados.por_empresa);
+        renderizarDashboardAnalitico(dados);
     } catch (erro) {
         console.error(erro);
         alert(`Erro ao atualizar resumo: ${erro.message}`);
@@ -154,6 +263,52 @@ function baixarRelatorio(formato) {
     window.open(url, "_blank");
 }
 
+/** Formata um objeto Date como "YYYY-MM-DD" (formato aceito por <input type="date">), em horário LOCAL (nunca UTC, para não "vazar" um dia por fuso). */
+function formatarDataParaInput(data) {
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, "0");
+    const dia = String(data.getDate()).padStart(2, "0");
+    return `${ano}-${mes}-${dia}`;
+}
+
+/**
+ * Preenche Início/Fim a partir de um atalho de período (ver botões
+ * ".btn-preset-periodo" em relatorios.html) e já dispara a atualização —
+ * cobre os recortes de data mais comuns sem exigir abrir o seletor de
+ * calendário duas vezes (ver pesquisa de boas práticas de dashboard: uso
+ * de filtros rápidos/presets para acelerar a exploração dos dados).
+ */
+function aplicarPresetPeriodo(preset) {
+    const hoje = new Date();
+    let inicio = new Date(hoje);
+    let fim = new Date(hoje);
+
+    switch (preset) {
+        case "hoje":
+            break;
+        case "7dias":
+            inicio.setDate(inicio.getDate() - 6);
+            break;
+        case "30dias":
+            inicio.setDate(inicio.getDate() - 29);
+            break;
+        case "mes":
+            inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            break;
+        case "tudo":
+            campoInicio.value = "";
+            campoFim.value = "";
+            atualizarResumo();
+            return;
+        default:
+            return;
+    }
+
+    campoInicio.value = formatarDataParaInput(inicio);
+    campoFim.value = formatarDataParaInput(fim);
+    atualizarResumo();
+}
+
 const EH_RECRUTADOR = Boolean(window.SIGS_CONFIG && window.SIGS_CONFIG.ehRecrutador);
 
 function inicializar() {
@@ -161,6 +316,10 @@ function inicializar() {
     document.getElementById("btn-download-csv").addEventListener("click", () => baixarRelatorio("csv"));
     document.getElementById("btn-download-excel").addEventListener("click", () => baixarRelatorio("excel"));
     document.getElementById("btn-download-pdf").addEventListener("click", () => baixarRelatorio("pdf"));
+
+    document.querySelectorAll(".btn-preset-periodo").forEach((botao) => {
+        botao.addEventListener("click", () => aplicarPresetPeriodo(botao.dataset.preset));
+    });
 
     // Recrutador não tem permissão para /api/admin/empresas (403) e o
     // campo "Empresa" nem é renderizado no HTML para esse perfil (ver

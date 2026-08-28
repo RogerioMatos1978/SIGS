@@ -1698,16 +1698,63 @@ def api_relatorios_resumo():
         inicio, fim, empresa_id = _parametros_periodo()
         emitidas = database.listar_senhas_periodo(inicio, fim, empresa_id=empresa_id)
         total_emitidas = sum(1 for item in emitidas if item.get("status") != StatusSenha.CANCELADA)
+        # "canceladas" já está disponível na mesma lista buscada acima (que
+        # inclui todos os status de propósito, ver docstring de
+        # listar_senhas_periodo) — soma local em vez de mais uma consulta.
+        total_canceladas = sum(1 for item in emitidas if item.get("status") == StatusSenha.CANCELADA)
         total_chamadas = database.contar_chamadas_realizadas_periodo(inicio, fim, empresa_id=empresa_id)
         tempo_medio = database.tempo_medio_atendimento(inicio, fim, empresa_id=empresa_id)
         por_empresa = database.listar_contagem_por_empresa(inicio, fim, empresa_id=empresa_id)
+
+        # -------------------------------------------------------------
+        # Dashboard Analítico (BI): séries/quebras adicionais para os
+        # gráficos da tela de Relatórios (ver static/js/relatorios.js).
+        # Todas respeitam o MESMO período/empresa já resolvido acima por
+        # _parametros_periodo (inclusive o recorte forçado à própria
+        # empresa para um recrutador), então os números batem com os
+        # cards e a tabela "Senhas por Empresa" já existentes.
+        # -------------------------------------------------------------
+        por_dia = database.listar_emissoes_por_dia(inicio, fim, empresa_id=empresa_id)
+        por_hora = database.listar_emissoes_por_hora(inicio, fim, empresa_id=empresa_id)
+        por_status = database.resumo_status_periodo(inicio, fim, empresa_id=empresa_id)
+
+        # tempo_medio_atendimento_por_empresa não aceita empresa_id (é um
+        # RANKING entre empresas — ver docstring): para um recrutador,
+        # filtra a lista já calculada pelo nome da própria empresa
+        # (guardado na sessão em auth.iniciar_sessao), em vez de mudar a
+        # consulta SQL — mais simples e mantém a função só com uma
+        # responsabilidade (calcular o ranking geral).
+        usuario_sessao = auth.usuario_logado() or {}
+        tempo_medio_por_empresa = database.tempo_medio_atendimento_por_empresa(inicio, fim)
+        if usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR:
+            nome_empresa_recrutador = usuario_sessao.get("empresa_nome")
+            tempo_medio_por_empresa = [
+                item for item in tempo_medio_por_empresa if item["empresa"] == nome_empresa_recrutador
+            ]
+
+        taxa_atendimento = round((total_chamadas / total_emitidas * 100), 1) if total_emitidas else 0.0
+
+        # Diferente de todo o resto desta resposta (que olha para o
+        # PERÍODO filtrado), este é um retrato do AGORA — quantas senhas
+        # estão na fila neste exato momento, filtrado só por empresa (o
+        # período não faz sentido aqui: uma senha "aguardando" é sempre
+        # do presente). Exibido como card à parte no Dashboard Analítico,
+        # deixando claro no rótulo que não segue o filtro de data.
+        fila_aguardando_agora = database.contar_aguardando(empresa_id=empresa_id)
 
         return resposta_sucesso(
             {
                 "total_emitidas": total_emitidas,
                 "total_chamadas": total_chamadas,
+                "total_canceladas": total_canceladas,
+                "taxa_atendimento": taxa_atendimento,
+                "fila_aguardando_agora": fila_aguardando_agora,
                 "tempo_medio": tempo_medio,
                 "por_empresa": por_empresa,
+                "por_dia": por_dia,
+                "por_hora": por_hora,
+                "por_status": por_status,
+                "tempo_medio_por_empresa": tempo_medio_por_empresa,
             }
         )
     except Exception as erro:  # pragma: no cover

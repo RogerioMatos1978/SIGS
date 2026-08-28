@@ -2659,6 +2659,252 @@ def tempo_medio_atendimento(
 
 
 # ---------------------------------------------------------------------------
+# Dashboard Analítico (BI) — tela de Relatórios
+# ---------------------------------------------------------------------------
+#
+# As quatro funções abaixo alimentam o "Dashboard Analítico" da tela de
+# Relatórios (ver app.py:api_relatorios_resumo, que já as combina com
+# listar_contagem_por_empresa/tempo_medio_atendimento existentes na mesma
+# resposta) — cada uma monta UMA série/quebra específica consumida por um
+# gráfico diferente no navegador (ver static/js/relatorios.js). Todas
+# reaproveitam o mesmo padrão de filtro por período (``date(data_hora)``)
+# e empresa (``empresa_id``) já usado pelas demais consultas de
+# Relatórios, para que os números batam entre si nas telas.
+
+def listar_emissoes_por_dia(
+    inicio: Optional[str] = None,
+    fim: Optional[str] = None,
+    empresa_id: Optional[int] = None,
+) -> List[Dict]:
+    """
+    Agrupa as senhas do período por DIA de emissão (``date(data_hora)``),
+    retornando, para cada dia, quantas foram emitidas (excluindo
+    Canceladas, mesmo critério de ``listar_contagem_por_empresa``),
+    quantas foram atendidas (``hora_chamada IS NOT NULL``) e quantas
+    foram canceladas — alimenta o gráfico de tendência "Emissões por
+    Dia" do Dashboard Analítico (linha ao longo do tempo, o tipo de
+    gráfico mais indicado para esse tipo de série).
+
+    Dias sem NENHUMA senha simplesmente não aparecem na lista (o
+    front-end decide se preenche os buracos com zero ou não) — diferente
+    de ``listar_emissoes_por_hora`` abaixo, aqui não faz sentido
+    "preencher" dias fora do período consultado.
+    """
+    condicoes = []
+    parametros: List = []
+
+    if inicio:
+        condicoes.append("date(data_hora) >= date(?)")
+        parametros.append(inicio)
+    if fim:
+        condicoes.append("date(data_hora) <= date(?)")
+        parametros.append(fim)
+    if empresa_id:
+        condicoes.append("empresa_id = ?")
+        parametros.append(empresa_id)
+
+    where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
+
+    with get_connection() as conexao:
+        linhas = conexao.execute(
+            f"""
+            SELECT
+                date(data_hora) AS dia,
+                SUM(CASE WHEN status != ? THEN 1 ELSE 0 END) AS emitidas,
+                SUM(CASE WHEN hora_chamada IS NOT NULL THEN 1 ELSE 0 END) AS atendidas,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS canceladas
+            FROM senhas
+            {where}
+            GROUP BY date(data_hora)
+            ORDER BY dia ASC
+            """,
+            [StatusSenha.CANCELADA, StatusSenha.CANCELADA] + parametros,
+        ).fetchall()
+
+    return [
+        {
+            "dia": linha["dia"],
+            "emitidas": linha["emitidas"],
+            "atendidas": linha["atendidas"],
+            "canceladas": linha["canceladas"],
+        }
+        for linha in linhas
+    ]
+
+
+def listar_emissoes_por_hora(
+    inicio: Optional[str] = None,
+    fim: Optional[str] = None,
+    empresa_id: Optional[int] = None,
+) -> List[Dict]:
+    """
+    Agrupa as senhas do período por HORA do dia em que foram emitidas
+    (``strftime('%H', data_hora)``, 00 a 23) — alimenta o gráfico
+    "Movimento por Hora do Dia" do Dashboard Analítico, útil para
+    identificar horários de pico e ajustar a escala de atendentes/
+    guichês. Diferente de ``listar_emissoes_por_dia``, aqui SEMPRE
+    devolve as 24 horas (preenchendo com zero as que não tiveram nenhuma
+    emissão), pois o gráfico de barras por hora precisa do eixo completo
+    para não distorcer visualmente a comparação entre horários.
+
+    Exclui senhas Canceladas (mesmo critério das demais métricas de
+    "emissão" nesta tela) — o que importa aqui é o volume de gente que
+    efetivamente entrou na fila em cada horário.
+    """
+    condicoes = ["status != ?"]
+    parametros: List = [StatusSenha.CANCELADA]
+
+    if inicio:
+        condicoes.append("date(data_hora) >= date(?)")
+        parametros.append(inicio)
+    if fim:
+        condicoes.append("date(data_hora) <= date(?)")
+        parametros.append(fim)
+    if empresa_id:
+        condicoes.append("empresa_id = ?")
+        parametros.append(empresa_id)
+
+    where = " AND ".join(condicoes)
+
+    with get_connection() as conexao:
+        linhas = conexao.execute(
+            f"""
+            SELECT strftime('%H', data_hora) AS hora, COUNT(*) AS total
+            FROM senhas
+            WHERE {where}
+            GROUP BY hora
+            """,
+            parametros,
+        ).fetchall()
+
+    contagem_por_hora = {linha["hora"]: linha["total"] for linha in linhas if linha["hora"] is not None}
+    return [{"hora": f"{h:02d}", "total": contagem_por_hora.get(f"{h:02d}", 0)} for h in range(24)]
+
+
+def resumo_status_periodo(
+    inicio: Optional[str] = None,
+    fim: Optional[str] = None,
+    empresa_id: Optional[int] = None,
+) -> List[Dict]:
+    """
+    Conta as senhas do período agrupadas por STATUS atual (Emitida,
+    Chamada, Finalizada, Cancelada) — alimenta o gráfico de rosca
+    "Distribuição por Status" do Dashboard Analítico (visão de
+    parte-do-todo, diferente das demais métricas desta tela, que olham
+    só para o que já foi "concluído").
+
+    Diferente de ``resumo_geral_senhas`` (painel público, SEM filtro de
+    período/empresa — sempre o histórico completo do feirão), esta
+    função respeita o mesmo período/empresa selecionado nos filtros da
+    tela de Relatórios, para os números do dashboard baterem entre si.
+
+    Sempre devolve as QUATRO categorias, mesmo com contagem zero (mais
+    simples de desenhar a legenda do gráfico no front-end do que testar
+    "status ausente = zero").
+    """
+    condicoes = []
+    parametros: List = []
+
+    if inicio:
+        condicoes.append("date(data_hora) >= date(?)")
+        parametros.append(inicio)
+    if fim:
+        condicoes.append("date(data_hora) <= date(?)")
+        parametros.append(fim)
+    if empresa_id:
+        condicoes.append("empresa_id = ?")
+        parametros.append(empresa_id)
+
+    where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
+
+    with get_connection() as conexao:
+        linhas = conexao.execute(
+            f"SELECT status, COUNT(*) AS total FROM senhas {where} GROUP BY status",
+            parametros,
+        ).fetchall()
+
+    totais = {status: 0 for status in StatusSenha.TODOS}
+    for linha in linhas:
+        if linha["status"] in totais:
+            totais[linha["status"]] = linha["total"]
+
+    return [{"status": status, "total": totais[status]} for status in StatusSenha.TODOS]
+
+
+def tempo_medio_atendimento_por_empresa(
+    inicio: Optional[str] = None,
+    fim: Optional[str] = None,
+) -> List[Dict]:
+    """
+    Mesma lógica de ``tempo_medio_atendimento`` (tempo entre emissão e
+    PRIMEIRA chamada, ``MIN(e.data_hora)`` por senha, para não sofrer
+    inflação/distorção por repetição de chamada), mas agrupada por
+    empresa — alimenta o gráfico de barras "Tempo Médio por Empresa" do
+    Dashboard Analítico (ranking comparativo, só faz sentido para o
+    administrador ver todas de uma vez; o recrutador, que só enxerga a
+    própria empresa nesta tela, recebe uma lista de um item só).
+
+    Sem parâmetro ``empresa_id`` de propósito: é um ranking ENTRE
+    empresas, então sempre calcula para todas dentro do período — o
+    recorte por empresa do recrutador já é aplicado depois, no
+    ``app.py``, filtrando a lista retornada pelo nome da própria
+    empresa (mesmo princípio de nunca confiar em filtro feito só no
+    cliente, mas aqui o filtro server-side é por igualdade de nome após
+    o cálculo, já que a consulta agrupa por nome textual, não por id).
+    """
+    condicoes = ["s.id = e.senha_id"]
+    parametros: List = []
+
+    if inicio:
+        condicoes.append("date(s.data_hora) >= date(?)")
+        parametros.append(inicio)
+    if fim:
+        condicoes.append("date(s.data_hora) <= date(?)")
+        parametros.append(fim)
+
+    where = " AND ".join(condicoes)
+
+    with get_connection() as conexao:
+        linhas = conexao.execute(
+            f"""
+            SELECT
+                COALESCE(s.empresa, 'Não informado') AS empresa,
+                s.id AS senha_id,
+                s.data_hora AS emissao,
+                MIN(e.data_hora) AS primeira_chamada
+            FROM senhas s
+            JOIN eventos_chamada e ON {where}
+            GROUP BY s.id
+            """,
+            parametros,
+        ).fetchall()
+
+    formato = "%Y-%m-%d %H:%M:%S"
+    somas: Dict[str, float] = {}
+    contagens: Dict[str, int] = {}
+    for linha in linhas:
+        try:
+            emissao = datetime.strptime(linha["emissao"], formato)
+            chamada = datetime.strptime(linha["primeira_chamada"], formato)
+        except (TypeError, ValueError):
+            continue
+        empresa = linha["empresa"]
+        somas[empresa] = somas.get(empresa, 0.0) + (chamada - emissao).total_seconds()
+        contagens[empresa] = contagens.get(empresa, 0) + 1
+
+    resultado = [
+        {
+            "empresa": empresa,
+            "tempo_medio_segundos": round(somas[empresa] / contagens[empresa], 1),
+            "total_amostras": contagens[empresa],
+        }
+        for empresa in somas
+    ]
+    resultado.sort(key=lambda item: item["tempo_medio_segundos"], reverse=True)
+    return resultado
+
+
+# ---------------------------------------------------------------------------
 # Usuários (autenticação e autorização)
 # ---------------------------------------------------------------------------
 #
