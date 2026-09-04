@@ -263,6 +263,17 @@ function baixarRelatorio(formato) {
     window.open(url, "_blank");
 }
 
+/**
+ * Baixa o PDF "Senhas por Empresa" (ver app.py:api_relatorios_empresas_pdf)
+ * — diferente de baixarRelatorio(), este endpoint não usa o parâmetro
+ * "tipo" (não existe "emitidas x chamadas" aqui, é sempre o resumo
+ * agregado por empresa), por isso usa montarParametros(false).
+ */
+function baixarRelatorioEmpresasPdf() {
+    const url = `/api/relatorios/empresas/pdf?${montarParametros(false)}`;
+    window.open(url, "_blank");
+}
+
 /** Formata um objeto Date como "YYYY-MM-DD" (formato aceito por <input type="date">), em horário LOCAL (nunca UTC, para não "vazar" um dia por fuso). */
 function formatarDataParaInput(data) {
     const ano = data.getFullYear();
@@ -316,6 +327,7 @@ function inicializar() {
     document.getElementById("btn-download-csv").addEventListener("click", () => baixarRelatorio("csv"));
     document.getElementById("btn-download-excel").addEventListener("click", () => baixarRelatorio("excel"));
     document.getElementById("btn-download-pdf").addEventListener("click", () => baixarRelatorio("pdf"));
+    document.getElementById("btn-download-pdf-empresas").addEventListener("click", baixarRelatorioEmpresasPdf);
 
     document.querySelectorAll(".btn-preset-periodo").forEach((botao) => {
         botao.addEventListener("click", () => aplicarPresetPeriodo(botao.dataset.preset));

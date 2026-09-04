@@ -143,7 +143,15 @@
         </section>
 
         <section class="card card-resumo-empresas">
-            <h2>Senhas por Empresa (tabela)</h2>
+            <div class="cabecalho-card-com-acao">
+                <h2>Senhas por Empresa (tabela)</h2>
+                <!-- PDF com identidade do sistema (logo + nome do evento +
+                     período + quem/quando gerou — ver
+                     app.py:api_relatorios_empresas_pdf), diferente dos
+                     botões de "Exportar" mais abaixo (que exportam a lista
+                     BRUTA de senhas/chamadas, sem esse cabeçalho). -->
+                <button id="btn-download-pdf-empresas" class="botao botao-secundario botao-acao-pequeno">📄 Exportar PDF</button>
+            </div>
             <table class="tabela-fila">
                 <thead>
                     <tr>

@@ -526,6 +526,26 @@ input:focus, select:focus {
     margin-bottom: 14px;
 }
 
+/* Cabeçalho de card com um botão de ação ao lado do título (ex.:
+   "Senhas por Empresa (tabela)" + "Exportar PDF" — ver
+   templates/relatorios.html) — o <h2> perde sua margem/borda padrão
+   aqui dentro (ver ".card h2" acima) porque passam a fazer parte desta
+   linha flex, não mais do fluxo normal do card. */
+.cabecalho-card-com-acao {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.cabecalho-card-com-acao h2 {
+    margin: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
 /* -------------------- Dashboard Analítico (BI) — tela de Relatórios -------------------- */
 /* Grade responsiva dos cartões de gráfico: 2 colunas em telas largas,
    1 coluna em telas estreitas. ".grafico-card--largo" ocupa as duas

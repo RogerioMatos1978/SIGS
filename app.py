@@ -2003,6 +2003,158 @@ def api_relatorios_pdf():
         return resposta_erro(f"Erro ao gerar relatório PDF: {erro}", 500)
 
 
+@app.route("/api/relatorios/empresas/pdf")
+@auth.login_required
+@auth.admin_ou_recrutador_required
+def api_relatorios_empresas_pdf():
+    """
+    Gera e retorna, em PDF, a tabela "Senhas por Empresa" da tela de
+    Relatórios (a mesma exibida em ``resumo-empresas-corpo`` e usada
+    pelos gráficos do Dashboard Analítico — ver
+    ``database.listar_contagem_por_empresa``) — diferente de
+    ``/api/relatorios/pdf`` (que exporta a lista BRUTA de senhas ou de
+    chamadas), este é o resumo já AGREGADO por empresa.
+
+    Documento com identidade do sistema (não só uma tabela nua): logo do
+    SENAI (``config.LOGO_PADRAO`` — mesmo logo usado no cupom e no
+    cabeçalho de todas as telas), nome do evento, período consultado,
+    empresa filtrada (se houver) e quem/quando gerou o relatório —
+    informações que tornam o PDF identificável e auditável fora do
+    sistema (ex.: anexado a um e-mail, impresso para uma reunião),
+    quando descolado do contexto da tela que o gerou.
+
+    Acessível a administradores (todas as empresas, ou uma via
+    ``empresa_id``) e a recrutadores (sempre restrito à própria empresa
+    — mesmo recorte de ``_parametros_periodo`` usado pelos demais
+    relatórios).
+    """
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import cm
+        from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_RIGHT
+
+        inicio, fim, empresa_id = _parametros_periodo()
+        configuracoes = config_manager.obter_todas()
+        usuario_sessao = auth.usuario_logado() or {}
+
+        por_empresa = database.listar_contagem_por_empresa(inicio, fim, empresa_id=empresa_id)
+        total_emitidas = sum(item["total"] for item in por_empresa)
+        total_atendidas = sum(item["atendidas"] for item in por_empresa)
+
+        buffer_bytes = io.BytesIO()
+        documento = SimpleDocTemplate(
+            buffer_bytes, pagesize=A4,
+            topMargin=1.5 * cm, bottomMargin=1.5 * cm, leftMargin=1.8 * cm, rightMargin=1.8 * cm,
+        )
+        estilos = getSampleStyleSheet()
+        estilo_info = ParagraphStyle("InfoSistema", parent=estilos["Normal"], fontSize=8.5, leading=12, alignment=TA_RIGHT)
+        elementos = []
+
+        # -------------------- Cabeçalho: logo + informações do sistema --------------------
+        # Logo à esquerda, bloco de informações do sistema à direita — mesmo
+        # padrão de cabeçalho/rodapé de relatório institucional. Envolvido em
+        # try/except: um logo ausente/corrompido não pode impedir a geração
+        # do PDF (mesma tolerância já aplicada à impressão de senha — ver
+        # printer.py), só faz o cabeçalho sair sem a imagem.
+        caminho_logo = STATIC_DIR / "img" / "logo.png"
+        celula_logo = ""
+        try:
+            if caminho_logo.exists():
+                celula_logo = Image(str(caminho_logo), width=2.6 * cm, height=2.6 * cm, kind="proportional")
+        except Exception:  # pragma: no cover - logo corrompido/ilegível
+            celula_logo = ""
+
+        periodo_texto = (
+            f"{inicio} a {fim}" if inicio and fim
+            else f"até {fim}" if fim
+            else f"a partir de {inicio}" if inicio
+            else "Todo o período"
+        )
+        empresa_filtro_texto = "Todas as empresas"
+        if empresa_id:
+            empresa_filtrada = database.obter_empresa_por_id(empresa_id)
+            if empresa_filtrada:
+                empresa_filtro_texto = empresa_filtrada.nome
+        elif usuario_sessao.get("perfil") == PerfilUsuario.RECRUTADOR:
+            empresa_filtro_texto = usuario_sessao.get("empresa_nome") or "—"
+
+        info_sistema = Paragraph(
+            f"<b>{configuracoes.get('nome_evento') or 'SIGS'}</b><br/>"
+            f"Sistema Integrado de Gerenciamento de Senhas (SIGS) v{SIGS_VERSAO}<br/>"
+            f"Período: {periodo_texto}<br/>"
+            f"Empresa: {empresa_filtro_texto}<br/>"
+            f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}<br/>"
+            f"Gerado por: {usuario_sessao.get('nome_completo') or '—'}",
+            estilo_info,
+        )
+
+        tabela_cabecalho = Table([[celula_logo, info_sistema]], colWidths=[3.2 * cm, None])
+        tabela_cabecalho.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                    ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        elementos.append(tabela_cabecalho)
+        elementos.append(Spacer(1, 0.3 * cm))
+
+        linha_separadora = Table([[""]], colWidths=["100%"], rowHeights=[0.04 * cm])
+        linha_separadora.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor("#003C71"))]))
+        elementos.append(linha_separadora)
+        elementos.append(Spacer(1, 0.5 * cm))
+
+        elementos.append(Paragraph("Relatório de Senhas por Empresa", estilos["Title"]))
+        elementos.append(Spacer(1, 0.4 * cm))
+
+        # -------------------- Tabela agregada --------------------
+        dados_tabela = [["Empresa", "Senhas Emitidas", "Senhas Atendidas", "% Atendimento"]]
+        for item in por_empresa:
+            percentual = round((item["atendidas"] / item["total"] * 100), 1) if item["total"] else 0.0
+            dados_tabela.append([item["empresa"], str(item["total"]), str(item["atendidas"]), f"{percentual}%"])
+
+        percentual_total = round((total_atendidas / total_emitidas * 100), 1) if total_emitidas else 0.0
+        dados_tabela.append(["TOTAL", str(total_emitidas), str(total_atendidas), f"{percentual_total}%"])
+
+        tabela = Table(dados_tabela, repeatRows=1, colWidths=[None, 3.6 * cm, 3.6 * cm, 3.2 * cm])
+        ultima_linha = len(dados_tabela) - 1
+        tabela.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#003C71")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, ultima_linha - 1), [colors.white, colors.HexColor("#EAF1FA")]),
+                    ("BACKGROUND", (0, ultima_linha), (-1, ultima_linha), colors.HexColor("#F4A300")),
+                    ("FONTNAME", (0, ultima_linha), (-1, ultima_linha), "Helvetica-Bold"),
+                ]
+            )
+        )
+        elementos.append(tabela)
+
+        documento.build(elementos)
+        buffer_bytes.seek(0)
+
+        return send_file(
+            buffer_bytes,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name="relatorio_senhas_por_empresa.pdf",
+        )
+
+    except Exception as erro:  # pragma: no cover
+        return resposta_erro(f"Erro ao gerar relatório PDF de senhas por empresa: {erro}", 500)
+
+
 # ---------------------------------------------------------------------------
 # API - Administração de usuários (apenas administradores)
 # ---------------------------------------------------------------------------
