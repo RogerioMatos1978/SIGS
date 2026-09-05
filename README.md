@@ -11,42 +11,54 @@ com impressão direta de tickets via bibliotecas nativas do Windows
 
 ```
 SIGS/
-├── app.py                 # Rotas Flask (camada web/API)
-├── wsgi.py                  # Ponto de entrada de PRODUÇÃO (waitress, rede local)
-├── dev.py                   # Ponto de entrada de DESENVOLVIMENTO (Flask debug/reload)
-├── auth.py                  # Autenticação, sessão de login e atribuição de guichê
-├── database.py             # Acesso ao SQLite (CRUD, fila FIFO, usuários, relatórios)
-├── printer.py               # Impressão física do ticket (win32print/win32ui)
-├── models.py                # Modelos de dados (Senha, ChamadaEvento, Usuario, Empresa)
-├── config.py                # Configurações, caminhos, logger e chave de sessão
-├── criar_admin.py           # Script de linha de comando para criar/resetar o administrador
+├── app.py                    # Rotas Flask (camada web/API)
+├── wsgi.py                   # Ponto de entrada de PRODUÇÃO (waitress, rede local)
+├── dev.py                    # Ponto de entrada de DESENVOLVIMENTO (Flask debug/reload)
+├── auth.py                   # Autenticação, sessão de login, chave de acesso do recrutador
+├── database.py               # Acesso ao SQLite (CRUD, fila FIFO, usuários, relatórios, dashboard)
+├── printer.py                # Impressão física do ticket (win32print/win32ui)
+├── models.py                 # Modelos de dados (Senha, ChamadaEvento, Usuario, Empresa)
+├── config.py                 # Configurações, caminhos, logger e chave de sessão
+├── criar_admin.py            # Script de linha de comando para criar/resetar o administrador
 ├── resetar_sistema.py        # Script de linha de comando para zerar o sistema (mantém só os admins)
 ├── requirements.txt
+├── requirements-dev.txt      # Dependências extras para rodar a suíte de testes (pytest)
+├── pytest.ini
 ├── README.md
-├── secret.key                # Chave de sessão (gerada automaticamente, não versionar)
+├── .gitignore                # Mantém secret.key, database/*.db*, sigs.log e __pycache__ fora do git
+├── secret.key                # Chave de sessão (gerada automaticamente — NUNCA versionar)
 ├── static/
 │   ├── css/style.css
 │   ├── js/
-│   │   ├── index.js          # Tela principal
-│   │   ├── painel.js         # Painel público
+│   │   ├── index.js              # Tela principal (emissão/chamada/fila)
+│   │   ├── painel.js              # Painel geral de chamadas
+│   │   ├── painel_empresa.js      # Painel de uma empresa
+│   │   ├── painel_geral.js        # Painel-resumo do feirão
 │   │   ├── configuracoes.js
-│   │   ├── relatorios.js
-│   │   ├── usuarios.js       # Administração de usuários
-│   │   ├── empresas.js       # Administração de empresas do feirão
-│   │   └── bip.js            # Web Audio API (bip sonoro)
+│   │   ├── relatorios.js          # Resumo, Dashboard Analítico e exportações
+│   │   ├── dashboard-charts.js    # Gráficos SVG (sem dependência externa) do Dashboard Analítico
+│   │   ├── usuarios.js            # Administração de usuários
+│   │   ├── empresas.js            # Administração de empresas do feirão
+│   │   ├── tema.js                # Alternância de tema claro/escuro
+│   │   └── bip.js                 # Web Audio API (bip sonoro)
 │   └── img/logo.png          # Logotipo (placeholder — substituir)
 ├── templates/
 │   ├── layout.html
 │   ├── login.html
+│   ├── empresas_publico.html # Cards das empresas ativas (ponto de entrada do recrutador)
+│   ├── empresa_login.html    # Acesso de UMA empresa (nome + chave de 8 dígitos)
 │   ├── usuarios.html
 │   ├── empresas.html
 │   ├── index.html
 │   ├── painel.html
+│   ├── painel_empresa.html
+│   ├── painel_geral.html
 │   ├── configuracoes.html
-│   ├── relatorios.html
+│   ├── relatorios.html       # Resumo do período + Dashboard Analítico + exportações
 │   └── erro.html              # Página amigável de erro (404/403/500)
+├── tests/                     # Suíte pytest (banco SQLite isolado por teste — ver conftest.py)
 └── database/
-    └── senhas.db              # Criado automaticamente na 1ª execução
+    └── senhas.db              # Criado automaticamente na 1ª execução — NUNCA versionar
 ```
 
 Cada camada tem responsabilidade única: `app.py` nunca acessa o SQLite
@@ -744,6 +756,63 @@ por Empresa", com a contagem de senhas emitidas para cada empresa dentro
 do período selecionado (para o recrutador, mostra apenas a própria
 empresa).
 
+**Atalhos de período:** acima dos campos de data, botões rápidos ("Hoje",
+"Últimos 7 dias", "Últimos 30 dias", "Este mês", "Todo o período") já
+preenchem Início/Fim e atualizam a tela na hora, sem precisar abrir o
+calendário duas vezes.
+
+### 9.1 Dashboard Analítico (BI)
+
+Abaixo do resumo textual, a tela de Relatórios traz um painel analítico
+com os mesmos dados, em formato visual — pensado para responder de
+relance perguntas como "qual o horário de pico?", "qual empresa atende
+mais rápido?" e "a fila está andando ou empacando?":
+
+- **Cards de indicador**: Senhas Emitidas, Chamadas Realizadas, Taxa de
+  Atendimento (%), Tempo Médio de Atendimento, Senhas Canceladas e **Na
+  Fila Agora** — este último é um retrato do momento atual (não segue o
+  filtro de período, ao contrário dos demais).
+- **Emissões por Dia** — gráfico de linha (emitidas/atendidas/canceladas)
+  ao longo do período selecionado.
+- **Distribuição por Status** — gráfico de rosca (Emitida/Chamada/
+  Finalizada/Cancelada).
+- **Movimento por Hora do Dia** — gráfico de barras com as 24 horas do
+  dia, útil para dimensionar guichês/mesas nos horários de maior demanda.
+- **Senhas por Empresa** — gráfico de barras comparando emitidas x
+  atendidas, empresa a empresa.
+- **Tempo Médio de Atendimento por Empresa** — ranking das empresas que
+  atendem mais rápido.
+
+Os gráficos são desenhados em **SVG puro** (`static/js/dashboard-charts.js`),
+sem nenhuma biblioteca externa nem CDN — decisão deliberada, já que o
+SIGS roda em rede local sem depender de internet. As cores seguem as
+variáveis CSS do tema (`var(--cor-...)`), então os gráficos acompanham
+automaticamente a troca entre tema claro/escuro (seção 12.21), sem
+nenhum recálculo. Um recrutador vê o mesmo dashboard, sempre restrito à
+própria empresa.
+
+### 9.2 Exportação de "Senhas por Empresa" em PDF institucional
+
+Além dos três formatos de exportação da lista bruta de senhas/chamadas
+(CSV/Excel/PDF, acima), o card "Senhas por Empresa (tabela)" tem seu
+próprio botão **"📄 Exportar PDF"**, que gera um documento diferente dos
+demais: um relatório institucional com identidade do sistema, pensado
+para ser compartilhado fora da tela (anexado a um e-mail, impresso para
+uma reunião) sem perder o contexto de onde veio.
+
+O PDF (`GET /api/relatorios/empresas/pdf`) traz:
+
+- Logo do sistema (`static/img/logo.png`) no cabeçalho;
+- Nome do evento e versão do SIGS;
+- Período consultado e empresa filtrada (ou "Todas as empresas");
+- Data/hora de geração e o nome de quem gerou o relatório;
+- A tabela Empresa / Senhas Emitidas / Senhas Atendidas / % Atendimento,
+  com uma linha de TOTAL destacada ao final.
+
+Segue o mesmo controle de acesso e o mesmo recorte por empresa dos
+demais relatórios (administrador vê todas, ou uma via filtro; recrutador
+sempre restrito à própria empresa).
+
 > Importante: o uso de PDF nos relatórios gerenciais é independente da
 > impressão do ticket de senha, que nunca utiliza PDF — o ticket é
 > sempre impresso diretamente via GDI do Windows (`printer.py`).
@@ -765,10 +834,34 @@ empresa).
   dados).
 - Login obrigatório em todas as telas operacionais/administrativas
   (`auth.py`), com sessão assinada por uma chave secreta persistida em
-  `secret.key` (gerada automaticamente, nunca deve ser versionada em
-  repositórios públicos).
+  `secret.key` (gerada automaticamente por `config.obter_secret_key()`).
+  **Nunca versione `secret.key`, `database/*.db*` nem `sigs.log`** — quem
+  tiver a chave secreta consegue forjar um cookie de sessão (inclusive de
+  administrador) sem precisar de login/senha algum, e o banco/log podem
+  conter hashes de senha, a chave de acesso das empresas e dados de
+  candidatos. O `.gitignore` do projeto já cobre os três; se algum deles
+  já tiver sido commitado antes (verifique com `git ls-files | grep -E
+  "secret\.key|\.db$|sigs\.log"`), remova do rastreamento com `git rm
+  --cached` e **rotacione a chave** (apague `secret.key` — o sistema gera
+  uma nova automaticamente no próximo início, derrubando as sessões
+  ativas no processo).
 - Senhas de usuários NUNCA são armazenadas em texto puro — apenas o hash
   gerado por `werkzeug.security.generate_password_hash` (PBKDF2).
+- **Limite de tentativas de login** (`auth.py`): 5 tentativas incorretas
+  seguidas (login tradicional OU chave de acesso de empresa, ver seção
+  4.6) bloqueiam temporariamente aquele login/empresa por 5 minutos —
+  proteção simples contra ataque de força bruta, com o contador mantido
+  em memória (reinicia se o servidor for reiniciado).
+- **Proteção contra enumeração de usuário por tempo de resposta**: ao
+  validar um login, o sistema sempre compara a senha informada contra um
+  hash (real ou um "hash fantasma", se o login não existir), para que um
+  login inexistente não responda mais rápido que um login existente com
+  senha errada. A comparação da chave de acesso de empresa usa
+  `hmac.compare_digest` (tempo constante), pelo mesmo motivo.
+- **Contas de recrutador são efêmeras**: criadas automaticamente no
+  momento do login por chave (seção 4.6) e apagadas ao deslogar — nada se
+  acumula em "Gerenciar Usuários", e a chave de acesso em si nunca é
+  enviada a nenhuma resposta pública (páginas de login, painéis).
 - Rotas administrativas (`/configuracoes`, `/relatorios`,
   `/admin/usuarios` e respectivas APIs) exigem explicitamente o perfil
   "admin"; usuários com perfil "atendente" recebem HTTP 403 caso tentem
@@ -781,9 +874,11 @@ empresa).
   do servidor, nunca por um valor enviado pelo cliente (formulário ou
   querystring) — um recrutador não consegue ver dados de outra empresa
   mesmo editando manualmente a URL do relatório.
-- Somente um administrador pode reabrir o atendimento de uma empresa cujo
-  dia foi finalizado por um recrutador (seção 4.8) — o próprio recrutador
-  que finalizou não pode reverter sozinho.
+- O bloqueio de emissão de senhas de uma empresa (seção 4.8) pode ser
+  revertido tanto pelo próprio recrutador daquela empresa quanto por um
+  administrador — mas só depois de bloqueada: nenhum dos dois pode
+  bloquear/reativar a emissão de OUTRA empresa (o recrutador é sempre
+  restrito à própria, por `empresa_id` da sessão).
 - Um usuário desativado por um administrador tem a sessão invalidada
   automaticamente na requisição seguinte, mesmo que o cookie de sessão
   ainda esteja presente no navegador.
@@ -855,7 +950,8 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | Rota | Acesso | Descrição |
 |---|---|---|
 | `POST /api/emitir` | Login | Emite uma nova senha (grava + imprime); exige `empresa_id` no corpo |
-| `POST /api/chamar` | Login | Chama a próxima senha da fila (escopo automático por empresa p/ recrutador) |
+| `POST /api/chamar` | Login | Chama a próxima senha da fila, FIFO (escopo automático por empresa p/ recrutador) |
+| `POST /api/chamar-varias` | Login | "Chamar Selecionadas": chama um conjunto específico de senhas de uma vez, no mesmo lote (ver seção 12.17) |
 | `POST /api/repetir` | Login | Repete a última chamada do PRÓPRIO guichê/mesa do usuário logado |
 | `POST /api/finalizar-atendimento` | Login | Finaliza o atendimento e chama a próxima (idem) |
 | `POST /api/reiniciar` | Admin | Reinicia o contador de senhas de TODAS as empresas |
@@ -865,12 +961,14 @@ O sistema foi desenhado para crescer sem necessidade de reescrita:
 | `GET /api/fila` | Login | Lista (paginada) da fila atual, com busca opcional por número/nome — `?busca=texto&pagina=N` (escopo automático por empresa p/ recrutador) |
 | `POST /api/senha/<id>/finalizar` | Login | Finaliza uma senha específica (recrutador só a da própria empresa) |
 | `POST /api/senha/<id>/cancelar` | Login | Cancela uma senha específica (idem) |
+| `POST /api/senha/<id>/reimprimir` | Login | Reimprime o ticket (2ª via, marcada "REIMPRESSO") de uma senha ainda 'Emitida'; perfil Emissor (ver seção 12.26) |
 | `GET/POST /api/config` | Admin | Lê/atualiza as configurações do sistema |
 | `GET /api/impressoras` | Login | Lista as impressoras instaladas no Windows |
 | `GET /api/empresas` | Login | Lista as empresas ATIVAS e com a emissão de senhas ainda liberada (seletor de emissão) |
 | `POST /api/bloquear-emissao` | Recrutador | Bloqueia a emissão de novas senhas da PRÓPRIA empresa (não afeta chamar/repetir/finalizar da fila já existente) |
 | `POST /api/reativar-emissao` | Recrutador | Reativa a emissão de senhas da PRÓPRIA empresa |
-| `GET /api/relatorios/{csv,excel,pdf,resumo}` | Admin/Recrutador | Exporta/consulta relatórios (admin: filtro `empresa_id` opcional; recrutador: sempre restrito à própria empresa) |
+| `GET /api/relatorios/{csv,excel,pdf,resumo}` | Admin/Recrutador | Exporta/consulta relatórios (admin: filtro `empresa_id` opcional; recrutador: sempre restrito à própria empresa); `resumo` também alimenta o Dashboard Analítico (seção 9.1) |
+| `GET /api/relatorios/empresas/pdf` | Admin/Recrutador | Exporta a tabela "Senhas por Empresa" em PDF institucional (logo + dados do sistema — seção 9.2) |
 | `POST /api/admin/usuarios` | Admin | Cria um usuário com perfil escolhido (admin/atendente/emissor — "recrutador" é recusado, ver seção 4.6) |
 | `POST /api/admin/usuarios/<id>/resetar-senha` | Admin | Reseta a senha de um usuário |
 | `POST /api/admin/usuarios/<id>/perfil` | Admin | Altera o perfil de um usuário (limpa a empresa se sair de "recrutador"; não aceita "recrutador" como destino) |
@@ -1666,6 +1764,68 @@ conexões simultâneas (24 recrutadores + 6 emissores + 1 painel de TV)
 via requisições HTTP reais contra a aplicação Flask — 0 erros, 0
 duplicatas, 0 senhas "vazando" entre empresas, ~0,15s de duração total.
 Suíte completa (139 testes) confirmada após a correção.
+
+### 12.26 Reimpressão de senha e "Primeiro Nome" opcional na emissão (v2.22.0)
+
+- **Reimpressão de segunda via (perfil Emissor)** — a Fila de Espera
+  ganhou um botão "🖨️ Reimprimir" em cada linha, visível só para o
+  perfil Emissor. Reimprime o MESMO ticket (não gera uma senha nova),
+  com a palavra **"REIMPRESSO"** impressa em negrito logo abaixo do
+  número, para deixar claro a quem for atender que não se trata de uma
+  chamada nova. Só é permitido enquanto a senha ainda está com status
+  'Emitida' (aguardando na fila) — rejeitado (HTTP 409) se ela já foi
+  chamada, finalizada ou cancelada, mesma validação repetida no servidor
+  mesmo que a lista do navegador esteja momentaneamente desatualizada.
+  Segue o mesmo controle de acesso de finalizar/cancelar: um recrutador
+  só reimprime senhas da própria empresa. Implementado em
+  `printer.py:imprimir_senha` (parâmetro `reimpressao`), rota
+  `POST /api/senha/<id>/reimprimir` e `static/js/index.js`.
+- **Campo opcional "Primeiro Nome" na emissão** — a janela de emissão de
+  senha (perfil Emissor) ganhou um campo opcional para digitar o
+  primeiro nome da pessoa antes de confirmar. Quando preenchido, o nome
+  sai impresso no ticket (`Nome: {texto}`) e também aparece na coluna
+  "Nome" da Fila de Espera — útil para o atendente/recrutador confirmar
+  visualmente com quem está falando antes de chamar, sem precisar
+  perguntar de novo. Sempre opcional (diferente da empresa, nunca é
+  obrigatório); gravado em `senhas.nome_pessoa` e reimpresso junto em
+  uma eventual segunda via (acima). Implementado em `database.py`
+  (`criar_senha`, migração `_migrar_tabela_senhas_adicionar_nome_pessoa`),
+  `app.py:api_emitir` e `templates/index.html`/`static/js/index.js`.
+
+### 12.27 Dashboard Analítico (BI) e exportação institucional em PDF (v2.23.0)
+
+- **Dashboard Analítico na tela de Relatórios** — ver seção 9.1 para a
+  descrição completa. Seis cards de indicador (Emitidas, Chamadas, Taxa
+  de Atendimento, Tempo Médio, Canceladas, Fila Agora) e cinco gráficos
+  (Emissões por Dia, Distribuição por Status, Movimento por Hora do Dia,
+  Senhas por Empresa e Tempo Médio por Empresa), desenhados em SVG puro
+  (`static/js/dashboard-charts.js`) para não depender de nenhuma
+  biblioteca externa/CDN — decisão alinhada ao restante do sistema, que
+  já não carrega nenhum recurso de fora da própria rede local. As cores
+  usam as variáveis CSS do tema, herdando automaticamente o tema
+  claro/escuro (seção 12.21). Também foram adicionados atalhos de
+  período (Hoje/7 dias/30 dias/Este mês/Todo o período) acima dos campos
+  de data. Implementado em `database.py` (`listar_emissoes_por_dia`,
+  `listar_emissoes_por_hora`, `resumo_status_periodo`,
+  `tempo_medio_atendimento_por_empresa` — todas reaproveitando o mesmo
+  filtro de período/empresa das consultas já existentes) e
+  `app.py:api_relatorios_resumo` (resposta estendida com os novos
+  campos, sem quebrar nada que já consumia essa rota).
+- **Exportação em PDF institucional da tabela "Senhas por Empresa"** —
+  ver seção 9.2. Botão próprio ("📄 Exportar PDF") no card da tabela,
+  gerando um PDF com logo do sistema, nome do evento, versão, período,
+  empresa filtrada e quem/quando gerou — pensado para ser compartilhado
+  fora da tela (e-mail, impressão para reunião) sem perder esse
+  contexto. Implementado em `app.py:api_relatorios_empresas_pdf`
+  (reportlab), reaproveitando `database.listar_contagem_por_empresa`.
+- **Higiene de segurança do repositório git**: identificados e corrigidos
+  `secret.key`, `database/senhas.db*` e `sigs.log` versionados no git
+  (sem `.gitignore` até então) — risco real de vazamento de hashes de
+  senha, da chave de acesso das empresas (texto puro) e de dados de
+  candidatos, além da própria chave de assinatura de sessão. Corrigido
+  com um `.gitignore` novo, `git rm --cached` desses arquivos (mantidos
+  em disco, só saem do rastreamento futuro) e rotação do `secret.key`.
+  Ver seção 10 para as recomendações permanentes.
 
 ---
 
