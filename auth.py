@@ -129,6 +129,32 @@ def segundos_login_bloqueado(login: str) -> Optional[int]:
         return int(restante) if restante > 0 else None
 
 
+def _purgar_tentativas_expiradas(agora: float) -> None:
+    """
+    Remove do dicionário todas as entradas cuja janela de tentativas já
+    expirou.
+
+    Sem isto, uma entrada só é removida quando a MESMA chave (login ou
+    "chave-empresa-N") é acessada de novo (``segundos_login_bloqueado``)
+    ou tem um login bem-sucedido (``limpar_tentativas_login``) — uma
+    chave tentada uma única vez e nunca mais reaproveitada ficaria no
+    dicionário para sempre, fazendo-o crescer lentamente e sem limite ao
+    longo do tempo de vida do servidor. Chamada a cada nova tentativa
+    malsucedida (não apenas ao reacessar a mesma chave), varrendo TODAS
+    as chaves — assim o dicionário nunca guarda mais entradas do que
+    logins/chaves distintos tentados dentro da janela atual.
+
+    Pressupõe que o chamador já detém ``_lock_tentativas_login``.
+    """
+    chaves_expiradas = [
+        chave
+        for chave, registro in _tentativas_login.items()
+        if agora - registro["ultima_falha"] > JANELA_TENTATIVAS_SEGUNDOS
+    ]
+    for chave in chaves_expiradas:
+        del _tentativas_login[chave]
+
+
 def registrar_tentativa_falha(login: str) -> None:
     """Contabiliza mais uma tentativa de login malsucedida para este login."""
     chave = (login or "").strip().lower()
@@ -137,6 +163,7 @@ def registrar_tentativa_falha(login: str) -> None:
 
     agora = time.time()
     with _lock_tentativas_login:
+        _purgar_tentativas_expiradas(agora)
         registro = _tentativas_login.get(chave)
         if registro is None or agora - registro["ultima_falha"] > JANELA_TENTATIVAS_SEGUNDOS:
             _tentativas_login[chave] = {"falhas": 1, "ultima_falha": agora}

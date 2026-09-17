@@ -26,6 +26,7 @@ projeto e rodar `python app.py`.
 import logging
 import secrets
 import sqlite3
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -128,8 +129,15 @@ def configurar_logger() -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Handler de arquivo.
-    handler_arquivo = logging.FileHandler(str(LOG_FILE), encoding="utf-8")
+    # Handler de arquivo, COM ROTAÇÃO por tamanho: sem isto, sigs.log
+    # cresceria indefinidamente ao longo de toda a vida útil do sistema
+    # (meses/anos de uso). Ao atingir 5 MB, o arquivo atual é renomeado
+    # para sigs.log.1 (empurrando os anteriores até sigs.log.5) e um
+    # sigs.log novo é iniciado — mantém histórico recente para consulta
+    # sem deixar o disco crescer sem limite.
+    handler_arquivo = RotatingFileHandler(
+        str(LOG_FILE), maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8"
+    )
     handler_arquivo.setFormatter(formato)
     logger.addHandler(handler_arquivo)
 
@@ -183,31 +191,38 @@ class ConfigManager:
     def _inicializar_tabela(self) -> None:
         """Cria a tabela de configurações (se necessário) e popula os
         valores padrão que ainda não existirem."""
-        with self._conectar() as conexao:
-            conexao.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {TABELA_CONFIGURACOES} (
-                    chave TEXT PRIMARY KEY,
-                    valor TEXT NOT NULL
-                )
-                """
-            )
-            for chave, valor in CONFIGURACOES_PADRAO.items():
+        conexao = self._conectar()
+        try:
+            with conexao:
                 conexao.execute(
-                    f"INSERT OR IGNORE INTO {TABELA_CONFIGURACOES} (chave, valor) VALUES (?, ?)",
-                    (chave, valor),
+                    f"""
+                    CREATE TABLE IF NOT EXISTS {TABELA_CONFIGURACOES} (
+                        chave TEXT PRIMARY KEY,
+                        valor TEXT NOT NULL
+                    )
+                    """
                 )
-            conexao.commit()
+                for chave, valor in CONFIGURACOES_PADRAO.items():
+                    conexao.execute(
+                        f"INSERT OR IGNORE INTO {TABELA_CONFIGURACOES} (chave, valor) VALUES (?, ?)",
+                        (chave, valor),
+                    )
+        finally:
+            conexao.close()
 
     # -- Leitura --------------------------------------------------------------
 
     def obter(self, chave: str, padrao: Optional[Any] = None) -> Any:
         """Retorna o valor de uma única chave de configuração, já convertido
         para o tipo apropriado (int quando aplicável)."""
-        with self._conectar() as conexao:
-            linha = conexao.execute(
-                f"SELECT valor FROM {TABELA_CONFIGURACOES} WHERE chave = ?", (chave,)
-            ).fetchone()
+        conexao = self._conectar()
+        try:
+            with conexao:
+                linha = conexao.execute(
+                    f"SELECT valor FROM {TABELA_CONFIGURACOES} WHERE chave = ?", (chave,)
+                ).fetchone()
+        finally:
+            conexao.close()
 
         if linha is None:
             return padrao
@@ -223,8 +238,12 @@ class ConfigManager:
     def obter_todas(self) -> Dict[str, Any]:
         """Retorna um dicionário com todas as configurações do sistema,
         já com os tipos convertidos (inteiros ou texto)."""
-        with self._conectar() as conexao:
-            linhas = conexao.execute(f"SELECT chave, valor FROM {TABELA_CONFIGURACOES}").fetchall()
+        conexao = self._conectar()
+        try:
+            with conexao:
+                linhas = conexao.execute(f"SELECT chave, valor FROM {TABELA_CONFIGURACOES}").fetchall()
+        finally:
+            conexao.close()
 
         resultado: Dict[str, Any] = {}
         for linha in linhas:
@@ -249,19 +268,22 @@ class ConfigManager:
         é convertido para string antes de ser persistido.
         """
         chaves_validas = set(CONFIGURACOES_PADRAO.keys())
-        with self._conectar() as conexao:
-            for chave, valor in dados.items():
-                if chave not in chaves_validas:
-                    logger.warning("Tentativa de gravar configuração desconhecida: %s", chave)
-                    continue
-                conexao.execute(
-                    f"""
-                    INSERT INTO {TABELA_CONFIGURACOES} (chave, valor) VALUES (?, ?)
-                    ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor
-                    """,
-                    (chave, str(valor)),
-                )
-            conexao.commit()
+        conexao = self._conectar()
+        try:
+            with conexao:
+                for chave, valor in dados.items():
+                    if chave not in chaves_validas:
+                        logger.warning("Tentativa de gravar configuração desconhecida: %s", chave)
+                        continue
+                    conexao.execute(
+                        f"""
+                        INSERT INTO {TABELA_CONFIGURACOES} (chave, valor) VALUES (?, ?)
+                        ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor
+                        """,
+                        (chave, str(valor)),
+                    )
+        finally:
+            conexao.close()
         logger.info("Configurações atualizadas: %s", list(dados.keys()))
 
 

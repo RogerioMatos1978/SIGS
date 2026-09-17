@@ -348,6 +348,13 @@ class ImpressoraTermica:
         saudacao = obter_saudacao(agora)
 
         hdc = None
+        # As 4 fontes GDI criadas abaixo (win32ui.CreateFont) são
+        # registradas aqui para serem explicitamente liberadas
+        # (.DeleteObject()) no finally, em vez de depender apenas da
+        # coleta de lixo do Python/pywin32 — handles de GDI no Windows têm
+        # cota rígida por processo (~10.000), e esta impressora fica de pé
+        # o dia inteiro do evento, imprimindo um ticket por vez.
+        fontes_criadas = []
         try:
             hdc = win32ui.CreateDC()
             hdc.CreatePrinterDC(nome_impressora)
@@ -370,6 +377,7 @@ class ImpressoraTermica:
             fonte_padrao_negrito = self._criar_fonte(hdc, TAMANHO_FONTE_PADRAO, negrito=True)
             fonte_senha = self._criar_fonte(hdc, TAMANHO_FONTE_SENHA, negrito=True)
             fonte_saudacao = self._criar_fonte(hdc, TAMANHO_FONTE_SAUDACAO)
+            fontes_criadas.extend([fonte_padrao, fonte_padrao_negrito, fonte_senha, fonte_saudacao])
 
             # Linha decorativa superior.
             hdc.SelectObject(fonte_padrao)
@@ -493,6 +501,14 @@ class ImpressoraTermica:
                 except Exception:
                     # Ignora falhas ao liberar o contexto de dispositivo;
                     # o erro relevante (se houver) já foi tratado acima.
+                    pass
+            # Libera explicitamente cada fonte GDI criada acima (depois de
+            # DeleteDC(), que já desfaz a seleção delas no contexto de
+            # dispositivo) — ver comentário no início do método.
+            for fonte in fontes_criadas:
+                try:
+                    fonte.DeleteObject()
+                except Exception:
                     pass
 
     @staticmethod
