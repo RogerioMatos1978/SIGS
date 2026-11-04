@@ -29,6 +29,7 @@ SIGS/
 ├── secret.key                # Chave de sessão (gerada automaticamente — NUNCA versionar)
 ├── static/
 │   ├── css/style.css
+│   ├── css/design-system.css  # Design System ERP: tokens, componentes, sidebar/header
 │   ├── js/
 │   │   ├── index.js              # Tela principal (emissão/chamada/fila)
 │   │   ├── painel.js              # Painel geral de chamadas
@@ -40,6 +41,7 @@ SIGS/
 │   │   ├── usuarios.js            # Administração de usuários
 │   │   ├── empresas.js            # Administração de empresas do feirão
 │   │   ├── tema.js                # Alternância de tema claro/escuro
+│   │   ├── shell.js               # Sidebar recolhível / drawer no celular
 │   │   └── bip.js                 # Web Audio API (bip sonoro)
 │   └── img/logo.png          # Logotipo (placeholder — substituir)
 ├── templates/
@@ -239,7 +241,7 @@ Na tela de Configurações também é possível ajustar:
 - Quantidade de mesas por empresa, usadas pelos recrutadores (ver seção 4.6).
 - Cor principal do sistema (paleta visual).
 - Frase do Menu: um texto livre (opcional) exibido em uma faixa logo
-  abaixo do menu superior, em TODAS as telas internas do sistema (tela
+  abaixo do cabeçalho, em TODAS as telas internas do sistema (tela
   principal, Configurações, Relatórios, Usuários, Empresas). Útil para
   avisos do dia (ex.: "Documento com foto obrigatório"). Deixe em branco
   para não exibir nenhuma faixa.
@@ -535,7 +537,7 @@ momento. Como nenhuma senha é cancelada ao bloquear, não há nada para
 "restaurar" — a fila segue intacta durante todo o período bloqueado.
 
 **Relatórios do recrutador:** com esta etapa, o recrutador ganhou acesso
-à tela `/relatorios` (link "Relatórios" no menu superior) — mas sempre
+à tela `/relatorios` (item "Relatórios" no menu lateral) — mas sempre
 restrito, no servidor, à SUA PRÓPRIA empresa: o seletor "Empresa" nem é
 exibido para esse perfil, e tentar forçar outra empresa manualmente pela
 URL (`?empresa_id=...`) é ignorado — o servidor sempre resolve a empresa
@@ -1826,6 +1828,41 @@ Suíte completa (139 testes) confirmada após a correção.
   com um `.gitignore` novo, `git rm --cached` desses arquivos (mantidos
   em disco, só saem do rastreamento futuro) e rotação do `secret.key`.
   Ver seção 10 para as recomendações permanentes.
+
+### 12.28 Design System — ERP Web Profissional (v2.24.0)
+
+- **Design System aplicado às telas internas e de autenticação.** O
+  documento "Design System — ERP Web Profissional" (v2.0) virou a
+  camada `static/css/design-system.css`, carregada DEPOIS de
+  `style.css` (que continua existindo) apenas quando a página não é um
+  painel de TV (ver `pagina_com_tema` em `templates/layout.html`). Ela
+  define os tokens (`--color-*`, `--font-*`, `--space-*`, `--radius-*`,
+  `--shadow-*`) nos temas claro e escuro, aponta as variáveis antigas
+  (`--cor-fundo`, `--cor-texto`, `--cor-superficie` ...) para esses
+  tokens e redefine botões (primário/secundário/terciário/perigo, 40px),
+  campos (40px, foco visível de 3px), tabelas, cards, badges, avisos,
+  toasts e modais. Texto base de 14px, fonte Inter com fallback para a
+  fonte do sistema (Segoe UI no Windows — nenhuma fonte é baixada, o
+  sistema segue sem depender de internet).
+- **Estrutura global nova**: sidebar de módulos (Operação, Análise,
+  Administração, Painéis públicos — só mostra o que o perfil pode
+  acessar) + header com breadcrumb, usuário/perfil/guichê, tema e Sair.
+  A sidebar recolhe para 68px (preferência salva em `localStorage`,
+  `sigs_sidebar`) e vira drawer abaixo de 768px (`static/js/shell.js`:
+  Esc e clique no fundo fecham, foco volta ao botão de menu). O antigo
+  menu horizontal no topo foi removido das telas internas.
+- **Paleta**: a do Design System (bege/oliva, `#96947A`). A cor
+  principal de Configurações e a cor de cada empresa continuam como cor
+  de DESTAQUE (indicador do item ativo, números em destaque) e, para o
+  recrutador logado, como cor dos botões primários
+  (`body.identidade-empresa`).
+- **Emoji removidos de botões, títulos e campos** (o Design System
+  pede ícones consistentes e sem emoji em controles); ícones da sidebar
+  e do botão de tema são SVG inline estilo Lucide.
+- **Fora do escopo, de propósito**: os três painéis públicos de TV
+  (`/painel`, `/painel/empresa/<id>`, `/painel/geral`) mantêm identidade
+  própria e só carregam `style.css`.
+- Versão do sistema: 2.24.0.
 
 ---
 

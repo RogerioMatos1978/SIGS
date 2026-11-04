@@ -129,7 +129,7 @@ async function enviarLogoEmpresa(empresaId, arquivo) {
 
 /**
  * Chamada quando o administrador escolhe um arquivo de logo no seletor
- * (input file oculto, aberto pelo botão "📷 Logo" — ver inicializar).
+ * (input file oculto, aberto pelo botão "Logo" — ver inicializar).
  * Envia o arquivo, e em caso de sucesso atualiza a miniatura do logo e o
  * seletor de cor na mesma linha com o resultado (a cor é extraída
  * automaticamente da imagem pelo servidor).
@@ -235,7 +235,7 @@ async function reativarEmissaoEmpresa(empresaId, nomeEmpresa) {
  * Copia a chave de acesso da empresa (a credencial de login do
  * recrutador, ver auth.autenticar_por_chave_empresa) para a área de
  * transferência, facilitando repassá-la por qualquer outro canal além do
- * botão "🔑 WhatsApp (Acesso)".
+ * botão "WhatsApp (Acesso)".
  */
 async function copiarChaveEmpresa(empresaId, botao) {
     const elementoChave = document.getElementById(`chave-empresa-${empresaId}`);
@@ -246,7 +246,7 @@ async function copiarChaveEmpresa(empresaId, botao) {
     try {
         await navigator.clipboard.writeText(elementoChave.textContent.trim());
         const textoOriginal = botao.textContent;
-        botao.textContent = "✅";
+        botao.textContent = "Copiado";
         setTimeout(() => {
             botao.textContent = textoOriginal;
         }, 1500);
@@ -367,7 +367,7 @@ function inicializar() {
         });
     });
 
-    // Botão "📷 Logo" apenas abre o seletor de arquivo oculto correspondente
+    // Botão "Logo" apenas abre o seletor de arquivo oculto correspondente
     // (data-target aponta para o id do <input type="file">); o envio de
     // fato acontece no "change" desse input, tratado por tratarSelecaoLogo.
     document.querySelectorAll(".btn-upload-logo").forEach((botao) => {

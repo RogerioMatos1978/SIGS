@@ -40,7 +40,7 @@
                         <input type="text" id="nova-empresa-nome" required>
                     </label>
                 </div>
-                <button type="submit" class="botao botao-primario">➕ Cadastrar Empresa</button>
+                <button type="submit" class="botao botao-primario">Cadastrar Empresa</button>
                 <div id="nova-empresa-mensagem" class="mensagem-status"></div>
             </form>
         </section>
@@ -53,7 +53,7 @@
         <section class="card card-tabela-empresas">
             <h2>Empresas Cadastradas</h2>
             <input type="text" id="busca-empresas" class="campo-busca-tabela"
-                   placeholder="🔎 Buscar por nome da empresa...">
+                   placeholder="Buscar por nome da empresa...">
             <table class="tabela-fila">
                 <thead>
                     <tr>
@@ -89,7 +89,7 @@
                                  senhas emitidas para elas já nascem "Finalizada", sem
                                  fila (ver database.criar_senha). -->
                             <span class="badge-fixa" title="Opção fixa do sistema — sempre disponível para o Emissor, não pode ser renomeada nem desativada.">
-                                🔒 Fixa
+                                Fixa
                             </span>
                             {% endif %}
                         </td>
@@ -102,7 +102,7 @@
                                    id="logo-input-{{ empresa.id }}" data-empresa-id="{{ empresa.id }}" hidden>
                             <button type="button" class="botao botao-secundario botao-acao-pequeno btn-upload-logo"
                                     data-target="logo-input-{{ empresa.id }}">
-                                📷 Logo
+                                Logo
                             </button>
                             <input type="color" class="input-cor-empresa" data-empresa-id="{{ empresa.id }}"
                                    value="{{ empresa.cor_principal or '#003C71' }}" title="Cor da empresa">
@@ -120,10 +120,10 @@
                              "Reativar" aparece aqui também, como alternativa. -->
                         <td class="celula-atendimento-empresa" id="atendimento-empresa-{{ empresa.id }}">
                             {% if empresa.emissao_bloqueada_em %}
-                            <span class="status-badge-inativo">🚫 Bloqueada ({{ empresa.emissao_bloqueada_em }})</span>
+                            <span class="status-badge-inativo">Bloqueada ({{ empresa.emissao_bloqueada_em }})</span>
                             <button class="botao botao-primario botao-acao-pequeno btn-reativar-emissao-empresa"
                                     data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}">
-                                🔓 Reativar
+                                Reativar
                             </button>
                             {% else %}
                             <span class="status-badge-ativo">Liberada</span>
@@ -150,11 +150,11 @@
                             <code id="chave-empresa-{{ empresa.id }}">{{ empresa.chave_acesso }}</code>
                             <button type="button" class="botao botao-secundario botao-acao-pequeno btn-copiar-chave-empresa"
                                     data-empresa-id="{{ empresa.id }}" title="Copiar chave">
-                                📋
+                                Copiar
                             </button>
                             <button type="button" class="botao botao-alerta botao-acao-pequeno btn-regenerar-chave-empresa"
                                     data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}" title="Gerar uma nova chave (invalida a atual)">
-                                🔄 Nova Chave
+                                Nova Chave
                             </button>
                             {% endif %}
                         </td>
@@ -162,7 +162,7 @@
                         <td class="acoes-usuario">
                             <a class="botao botao-secundario botao-acao-pequeno btn-abrir-painel-empresa"
                                href="{{ url_for('painel_empresa', empresa_id=empresa.id) }}" target="_blank">
-                                🖥️ Abrir Painel
+                                Abrir Painel
                             </a>
                             <!-- Compartilha o link do painel público desta empresa via
                                  WhatsApp (wa.me abre o app/web do WhatsApp com o texto já
@@ -176,7 +176,7 @@
                             <a class="botao botao-whatsapp botao-acao-pequeno"
                                href="https://wa.me/?text={{ ('Painel de Chamadas — ' + empresa.nome + ': ' + url_for('painel_empresa', empresa_id=empresa.id, _external=True)) | urlencode }}"
                                target="_blank" rel="noopener">
-                                📲 WhatsApp (Painel)
+                                WhatsApp (Painel)
                             </a>
                             {% if not empresa.fixa %}
                             <!-- Compartilha, também via WhatsApp, o link de ACESSO da
@@ -188,15 +188,15 @@
                             <a class="botao botao-whatsapp botao-acao-pequeno"
                                href="https://wa.me/?text={{ ('Acesso ao sistema de senhas — ' + empresa.nome + ': entre em ' + url_for('empresa_login_tela', empresa_id=empresa.id, _external=True) + ' e use a chave ' + (empresa.chave_acesso or '')) | urlencode }}"
                                target="_blank" rel="noopener">
-                                🔑 WhatsApp (Acesso)
+                                WhatsApp (Acesso)
                             </a>
                             <button class="botao botao-secundario botao-acao-pequeno btn-renomear-empresa" data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}">
-                                ✏️ Renomear
+                                Renomear
                             </button>
                             {% endif %}
                             <button class="botao botao-secundario botao-acao-pequeno btn-reiniciar-contador-empresa"
                                     data-empresa-id="{{ empresa.id }}" data-empresa-nome="{{ empresa.nome }}">
-                                🔄 Reiniciar Contador
+                                Reiniciar Contador
                             </button>
                             {% if not empresa.fixa %}
                             <!-- Ativar/Desativar também some para as opções fixas: elas
@@ -205,7 +205,7 @@
                                  mesmo que alguém force pela API diretamente). -->
                             <button class="botao {{ 'botao-alerta' if empresa.ativa else 'botao-primario' }} botao-acao-pequeno btn-toggle-status-empresa"
                                     data-empresa-id="{{ empresa.id }}" data-ativa="{{ empresa.ativa | lower }}">
-                                {{ '🚫 Desativar' if empresa.ativa else '✅ Ativar' }}
+                                {{ 'Desativar' if empresa.ativa else 'Ativar' }}
                             </button>
                             {% endif %}
                         </td>

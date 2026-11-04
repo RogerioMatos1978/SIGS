@@ -7,8 +7,63 @@
     (diretiva "extends" apontando para layout.html), garantindo
     cabecalho, rodape, folha de estilos e variaveis de cor consistentes
     em todo o sistema.
+
+    Estrutura (Design System — ERP Web Profissional; folha em
+    static/css, camada de tokens e componentes):
+      - Telas internas COM usuario logado: sidebar (navegacao por
+        modulos) + header (breadcrumb, usuario, tema, sair) + conteudo.
+      - Login / acesso das empresas (sem usuario logado): card
+        centralizado, sem sidebar.
+      - Paineis publicos de TV (painel, painel_empresa, painel_geral):
+        identidade propria, FORA do Design System (nao carregam a
+        camada do Design System nem o script de tema).
 -->
 {% set pagina_com_tema = request.endpoint not in ['painel', 'painel_empresa', 'painel_geral'] %}
+{% set com_shell = pagina_com_tema and usuario_logado %}
+{% set identidade_ativa = (empresa is defined and empresa and empresa.cor_principal) or (identidade_empresa and identidade_empresa.cor) %}
+
+{# Icones no estilo Lucide (traco 2px, 24x24), inline — o sistema roda em
+   rede local e nao depende de CDN. #}
+{% macro icone(nome, tamanho=20) -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="{{ tamanho }}" height="{{ tamanho }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if nome == 'inicio' -%}
+<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+{%- elif nome == 'relatorios' -%}
+<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>
+{%- elif nome == 'configuracoes' -%}
+<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
+{%- elif nome == 'usuarios' -%}
+<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+{%- elif nome == 'empresas' -%}
+<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>
+{%- elif nome == 'painel' -%}
+<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>
+{%- elif nome == 'sair' -%}
+<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+{%- elif nome == 'menu' -%}
+<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>
+{%- elif nome == 'recolher' -%}
+<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>
+{%- elif nome == 'lua' -%}
+<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{# Mensagens "flash" do Flask, exibidas no topo de qualquer pagina apos um
+   redirecionamento. #}
+{% macro bloco_flash() -%}
+    {% with mensagens_flash = get_flashed_messages(with_categories=true) %}
+        {% if mensagens_flash %}
+        <div class="flash-mensagens" role="status">
+            {% for categoria, mensagem in mensagens_flash %}
+            <div class="mensagem-status {{ 'erro' if categoria == 'erro' else 'sucesso' }}">{{ mensagem }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+{%- endmacro %}
+
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -17,12 +72,13 @@
 
     {% if pagina_com_tema %}
     <!-- Aplica o tema salvo (claro/escuro — ver .botao-tema mais abaixo e
-         static/js/tema.js) ANTES do CSS ser processado, para não piscar
-         em tema claro por uma fração de segundo a cada carregamento de
-         página. Script inline e síncrono de propósito — um <script src>
-         externo só rodaria depois de baixado, tarde demais para evitar o
-         flash. Fora das três telas do painel público de TV (painel,
-         painel_empresa, painel_geral): elas têm identidade visual
+         static/js/tema.js) e o estado da sidebar (expandida/recolhida)
+         ANTES do CSS ser processado, para não piscar em tema claro (nem
+         com a sidebar no tamanho errado) por uma fração de segundo a cada
+         carregamento de página. Script inline e síncrono de propósito — um
+         <script src> externo só rodaria depois de baixado, tarde demais
+         para evitar o flash. Fora das três telas do painel público de TV
+         (painel, painel_empresa, painel_geral): elas têm identidade visual
          própria, sempre escura, que não deve reagir a esta preferência
          (ver bloco html[data-tema="escuro"] em style.css). -->
     <script>
@@ -31,15 +87,30 @@
                 if (localStorage.getItem("sigs_tema") === "escuro") {
                     document.documentElement.setAttribute("data-tema", "escuro");
                 }
+                var sidebar = localStorage.getItem("sigs_sidebar");
+                if (!sidebar && window.innerWidth < 1024) {
+                    sidebar = "recolhida";
+                }
+                if (sidebar === "recolhida" || sidebar === "expandida") {
+                    document.documentElement.setAttribute("data-sidebar", sidebar);
+                }
             } catch (erro) {
                 // localStorage pode estar bloqueado (ex.: navegação privada
-                // restrita) — mantém o tema claro padrão nesse caso.
+                // restrita) — mantém tema claro e sidebar expandida.
             }
         })();
     </script>
     {% endif %}
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% if pagina_com_tema %}
+    <!-- Design System — ERP Web Profissional (tokens, componentes, sidebar;
+         ver static/css). Depois de style.css (sobrescreve) e antes do
+         <style> inline abaixo
+         (que define a cor de destaque). ?v= força o navegador a baixar a
+         versão nova a cada atualização do SIGS. -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}?v={{ sigs_versao }}">
+    {% endif %}
 
     <!-- Define a cor principal como variavel CSS. Por padrao, vem da
          configuracao GERAL do sistema (tela Configuracoes). Duas excecoes,
@@ -52,15 +123,17 @@
               assim a tela principal de um recrutador "veste" a cor da
               empresa em que esta logado automaticamente.
 
-         "--cor-principal-clara" (usada pelos botoes .botao-secundario,
-         como "Repetir Chamada"/"Abrir Painel"/"Painel Geral"/"Testar Bip")
-         SO e sobrescrita quando ha uma cor de empresa aplicavel (mesmas
-         duas excecoes acima) — nesse caso, e calculada automaticamente
-         como uma versao mais clara de "--cor-principal" via color-mix(),
-         para que TODOS os botoes da tela (primarios e secundarios) sigam
-         a identidade da empresa, nao so os primarios. Fora desse
-         contexto, a variavel simplesmente NAO e declarada aqui, deixando
-         o valor fixo definido em style.css (#1F5FA8) valer normalmente. -->
+         "--cor-principal-clara" (usada por destaques secundarios) SO e
+         sobrescrita quando ha uma cor de empresa aplicavel (mesmas duas
+         excecoes acima) — nesse caso, e calculada automaticamente como
+         uma versao mais clara de "--cor-principal" via color-mix(). Fora
+         desse contexto, a variavel simplesmente NAO e declarada aqui,
+         deixando o valor fixo definido em style.css (#1F5FA8) valer
+         normalmente.
+
+         No Design System, --cor-principal e a cor de DESTAQUE (indicador
+         do item ativo no menu, numeros em destaque); os botoes primarios
+         so usam a cor da empresa quando body.identidade-empresa. -->
     <style>
         :root {
             --cor-principal: {% if empresa is defined and empresa and empresa.cor_principal %}{{ empresa.cor_principal }}{% elif identidade_empresa and identidade_empresa.cor %}{{ identidade_empresa.cor }}{% else %}{{ config.cor_principal if config else '#003C71' }}{% endif %};
@@ -72,21 +145,138 @@
 
     {% block estilos_extra %}{% endblock %}
 </head>
-<body>
+<body class="{% if com_shell %}app{% endif %}{% if identidade_ativa %} identidade-empresa{% endif %}">
 
-    {% with mensagens_flash = get_flashed_messages(with_categories=true) %}
-        {% if mensagens_flash %}
-        <div class="flash-mensagens">
-            {% for categoria, mensagem in mensagens_flash %}
-            <div class="mensagem-status {{ 'erro' if categoria == 'erro' else 'sucesso' }}">{{ mensagem }}</div>
-            {% endfor %}
+{% if com_shell %}
+{# ======================= Sidebar + header (telas internas) ======================= #}
+<div class="app-shell" id="app-shell">
+
+    <aside class="sidebar" id="sidebar" aria-label="Navegação principal">
+        <a class="sidebar-marca" href="{{ url_for('index') }}" title="SIGS — Início">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="">
+            <span class="nav-rotulo">SIGS</span>
+        </a>
+
+        <nav class="sidebar-nav">
+            <div class="nav-grupo">
+                <p class="nav-grupo-titulo">Operação</p>
+                <a class="nav-item" href="{{ url_for('index') }}" title="Início"{% if request.endpoint == 'index' %} aria-current="page"{% endif %}>
+                    {{ icone('inicio') }}<span class="nav-rotulo">Início</span>
+                </a>
+            </div>
+
+            {% if eh_admin or usuario_logado.perfil == 'recrutador' %}
+            <!-- Recrutador também acessa Relatórios (somente da própria
+                 empresa — ver auth.admin_ou_recrutador_required e
+                 relatorios_tela em app.py), mas não os demais itens do
+                 menu administrativo. -->
+            <div class="nav-grupo">
+                <p class="nav-grupo-titulo">Análise</p>
+                <a class="nav-item" href="{{ url_for('relatorios_tela') }}" title="Relatórios"{% if request.endpoint == 'relatorios_tela' %} aria-current="page"{% endif %}>
+                    {{ icone('relatorios') }}<span class="nav-rotulo">Relatórios</span>
+                </a>
+            </div>
+            {% endif %}
+
+            {% if eh_admin %}
+            <div class="nav-grupo">
+                <p class="nav-grupo-titulo">Administração</p>
+                <a class="nav-item" href="{{ url_for('configuracoes_tela') }}" title="Configurações"{% if request.endpoint == 'configuracoes_tela' %} aria-current="page"{% endif %}>
+                    {{ icone('configuracoes') }}<span class="nav-rotulo">Configurações</span>
+                </a>
+                <a class="nav-item" href="{{ url_for('usuarios_tela') }}" title="Usuários"{% if request.endpoint == 'usuarios_tela' %} aria-current="page"{% endif %}>
+                    {{ icone('usuarios') }}<span class="nav-rotulo">Usuários</span>
+                </a>
+                <a class="nav-item" href="{{ url_for('empresas_tela') }}" title="Empresas"{% if request.endpoint == 'empresas_tela' %} aria-current="page"{% endif %}>
+                    {{ icone('empresas') }}<span class="nav-rotulo">Empresas</span>
+                </a>
+            </div>
+            {% endif %}
+
+            <div class="nav-grupo">
+                <p class="nav-grupo-titulo">Painéis públicos</p>
+                <!-- Telas de TV/monitor: abrem em nova aba de propósito. -->
+                <a class="nav-item" href="{{ url_for('painel') }}" target="_blank" rel="noopener" title="Painel de chamadas (nova aba)">
+                    {{ icone('painel') }}<span class="nav-rotulo">Painel de chamadas</span>
+                </a>
+                <a class="nav-item" href="{{ url_for('painel_geral') }}" target="_blank" rel="noopener" title="Painel-resumo do feirão (nova aba)">
+                    {{ icone('painel') }}<span class="nav-rotulo">Painel-resumo</span>
+                </a>
+            </div>
+        </nav>
+
+        <div class="sidebar-rodape">
+            <button type="button" class="nav-item sidebar-recolher" aria-expanded="true" aria-controls="sidebar" title="Recolher menu">
+                <span class="icone-recolher">{{ icone('recolher') }}</span><span class="nav-rotulo rotulo-recolher">Recolher menu</span>
+            </button>
         </div>
+    </aside>
+    <div class="sidebar-fundo" data-fechar-sidebar></div>
+
+    <div class="app-main">
+        <header class="app-header">
+            <button type="button" class="botao-icone sidebar-abrir" aria-controls="sidebar" aria-expanded="false" aria-label="Abrir menu" title="Abrir menu">
+                {{ icone('menu') }}
+            </button>
+
+            {% set trilha = {
+                'index': ['Operação', 'Início'],
+                'relatorios_tela': ['Análise', 'Relatórios'],
+                'configuracoes_tela': ['Administração', 'Configurações'],
+                'usuarios_tela': ['Administração', 'Usuários'],
+                'empresas_tela': ['Administração', 'Empresas']
+            }.get(request.endpoint) %}
+            <nav class="migalhas" aria-label="Localização">
+                <ol>
+                    <li>SIGS</li>
+                    {% if trilha %}
+                    <li>{{ trilha[0] }}</li>
+                    <li aria-current="page">{{ trilha[1] }}</li>
+                    {% endif %}
+                </ol>
+            </nav>
+
+            <div class="app-header-usuario">
+                <div class="usuario-resumo">
+                    <span class="usuario-nome">{{ usuario_logado.nome_completo }}</span>
+                    <span class="usuario-meta">
+                        {% if eh_admin %}Administrador
+                        {% elif usuario_logado.perfil == 'emissor' %}Emissor de Senhas
+                        {% elif usuario_logado.perfil == 'recrutador' %}Recrutador{% if usuario_logado.empresa_nome %} — {{ usuario_logado.empresa_nome }}{% endif %}
+                        {% else %}Atendente
+                        {% endif %}
+                        {% if usuario_logado.guiche %}
+                            · {% if usuario_logado.perfil == 'recrutador' %}Mesa{% else %}Guichê{% endif %}
+                            {{ '%02d' | format(usuario_logado.guiche) }}
+                        {% endif %}
+                    </span>
+                </div>
+                <button type="button" class="botao-tema" aria-label="Mudar para tema escuro" title="Mudar para tema escuro">{{ icone('lua') }}</button>
+                <form method="POST" action="{{ url_for('logout_tela') }}" class="form-logout">
+                    <button type="submit" class="botao botao-secundario botao-sair" aria-label="Sair">
+                        {{ icone('sair', 18) }}<span class="rotulo-sair">Sair</span>
+                    </button>
+                </form>
+            </div>
+        </header>
+
+        {{ bloco_flash() }}
+
+        {% if config and config.frase_menu %}
+        <!-- Frase livre definida pelo administrador em Configurações ("Frase
+             do Menu"), exibida logo abaixo do header em TODAS as telas
+             internas. -->
+        <div class="barra-mensagem" role="status">{{ config.frase_menu }}</div>
         {% endif %}
-    {% endwith %}
+
+        <div class="app-conteudo">
+{% else %}
+    {{ bloco_flash() }}
 
     {% if usuario_logado %}
-    <!-- Barra superior com dados da sessao logada. So aparece quando ha um
-         usuario autenticado (nao aparece em /login). -->
+    <!-- Barra superior legada: so aparece nos paineis publicos de TV quando
+         ha um usuario autenticado olhando o painel (eles ficam fora do
+         Design System, ver comentario no topo deste arquivo). -->
     <div class="barra-usuario">
         <span class="barra-usuario-info">
             {{ usuario_logado.nome_completo }}
@@ -112,14 +302,7 @@
                 <a href="{{ url_for('usuarios_tela') }}">Usuários</a>
                 <a href="{{ url_for('empresas_tela') }}">Empresas</a>
             {% elif usuario_logado.perfil == 'recrutador' %}
-                <!-- Recrutador também acessa Relatórios (somente da própria
-                     empresa — ver auth.admin_ou_recrutador_required e
-                     relatorios_tela em app.py), mas não os demais itens do
-                     menu administrativo. -->
                 <a href="{{ url_for('relatorios_tela') }}">Relatórios</a>
-            {% endif %}
-            {% if pagina_com_tema %}
-            <button type="button" class="botao-tema" aria-label="Mudar para tema escuro" title="Mudar para tema escuro">🌙</button>
             {% endif %}
             <form method="POST" action="{{ url_for('logout_tela') }}" class="form-logout">
                 <button type="submit" class="botao botao-terciario botao-sair">Sair</button>
@@ -127,39 +310,47 @@
         </span>
     </div>
     {% if config and config.frase_menu %}
-    <!-- Frase livre definida pelo administrador em Configurações ("Frase
-         do Menu"), exibida logo abaixo do menu em TODAS as telas internas
-         (dentro do mesmo bloco condicional do menu, logo acima). -->
     <div class="barra-mensagem">{{ config.frase_menu }}</div>
     {% endif %}
     {% elif pagina_com_tema %}
-    <!-- Sem sessão logada, não existe .barra-usuario para hospedar o
-         botão de tema (ver acima) — nas páginas públicas de
-         autenticação (login, acesso das empresas), ele aparece
-         flutuando no canto superior direito. -->
-    <button type="button" class="botao-tema botao-tema--flutuante" aria-label="Mudar para tema escuro" title="Mudar para tema escuro">🌙</button>
+    <!-- Sem sessão logada não existe header para hospedar o botão de
+         tema — nas páginas públicas de autenticação (login, acesso das
+         empresas), ele aparece flutuando no canto superior direito. -->
+    <button type="button" class="botao-tema botao-tema--flutuante" aria-label="Mudar para tema escuro" title="Mudar para tema escuro">{{ icone('lua') }}</button>
     {% endif %}
+{% endif %}
 
     {% block conteudo %}{% endblock %}
 
-    {% if request.endpoint != 'painel' %}
-    <!-- Rodape fixo, exibido em todas as paginas internas (o painel publico,
-         em tela cheia, nao exibe rodape). Mostra a versao do sistema,
-         util para confirmar rapidamente se uma atualizacao foi aplicada. -->
+{% if com_shell %}
+        </div><!-- /.app-conteudo -->
+
+        <footer class="rodape-sigs">
+            SIGS &copy; {{ config.nome_evento if config else 'SENAI' }} &middot; v{{ sigs_versao }}
+        </footer>
+    </div><!-- /.app-main -->
+</div><!-- /.app-shell -->
+{% elif request.endpoint != 'painel' %}
+    <!-- Rodape fixo, exibido nas demais paginas (o painel publico, em tela
+         cheia, nao exibe rodape). Mostra a versao do sistema, util para
+         confirmar rapidamente se uma atualizacao foi aplicada. -->
     <footer class="rodape-sigs">
         SIGS &copy; {{ config.nome_evento if config else 'SENAI' }} &middot; v{{ sigs_versao }}
     </footer>
-    {% endif %}
+{% endif %}
 
     {% if pagina_com_tema %}
     <!-- Fora do bloco "scripts" de propósito: cada página define seu
          próprio {% raw %}{% block scripts %}{% endraw %} com o JS
          específico dela (index.js, relatorios.js, etc.), o que
          SUBSTITUI (não soma a) qualquer conteúdo que estivesse aqui
-         dentro do bloco — colocando tema.js fora dele, toda página
-         elegível ganha o botão funcionando sem precisar declará-lo
-         individualmente. -->
+         dentro do bloco — colocando os scripts de tema e de sidebar fora
+         dele, toda página elegível ganha o botão de tema e a sidebar
+         funcionando sem precisar declará-los individualmente. -->
     <script src="{{ url_for('static', filename='js/tema.js') }}"></script>
+    {% if com_shell %}
+    <script src="{{ url_for('static', filename='js/shell.js') }}?v={{ sigs_versao }}"></script>
+    {% endif %}
     {% endif %}
 
     {% block scripts %}{% endblock %}

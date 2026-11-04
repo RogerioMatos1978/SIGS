@@ -72,7 +72,7 @@
                         </select>
                     </label>
                 </div>
-                <button type="submit" class="botao botao-primario">➕ Criar Usuário</button>
+                <button type="submit" class="botao botao-primario">Criar Usuário</button>
                 <div id="novo-usuario-mensagem" class="mensagem-status"></div>
             </form>
         </section>
@@ -80,7 +80,7 @@
         <section class="card">
             <h2>Usuários Cadastrados</h2>
             <input type="text" id="busca-usuarios" class="campo-busca-tabela"
-                   placeholder="🔎 Buscar por nome ou login...">
+                   placeholder="Buscar por nome ou login...">
             <table class="tabela-fila">
                 <thead>
                     <tr>
@@ -131,11 +131,11 @@
                         <td>{{ usuario.ultimo_login or 'Nunca' }}</td>
                         <td class="acoes-usuario">
                             <button class="botao botao-secundario botao-acao-pequeno btn-resetar-senha" data-usuario-id="{{ usuario.id }}">
-                                🔑 Resetar Senha
+                                Resetar Senha
                             </button>
                             <button class="botao {{ 'botao-alerta' if usuario.ativo else 'botao-primario' }} botao-acao-pequeno btn-toggle-status"
                                     data-usuario-id="{{ usuario.id }}" data-ativo="{{ usuario.ativo | lower }}">
-                                {{ '🚫 Desativar' if usuario.ativo else '✅ Ativar' }}
+                                {{ 'Desativar' if usuario.ativo else 'Ativar' }}
                             </button>
                         </td>
                     </tr>
@@ -195,14 +195,14 @@
         </section>
 
         <section class="card card-zona-perigo">
-            <h2>⚠️ Zona de Perigo</h2>
+            <h2>Zona de Perigo</h2>
             <p>
                 A ação abaixo apaga PERMANENTEMENTE todo o histórico de senhas
                 emitidas e chamadas, reiniciando também o contador para zero.
                 Use apenas ao iniciar um novo evento do zero.
             </p>
             <button id="btn-reset-senhas-emitidas" class="botao botao-alerta">
-                🗑️ Resetar Todas as Senhas Emitidas
+                Resetar Todas as Senhas Emitidas
             </button>
         </section>
 

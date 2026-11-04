@@ -658,7 +658,7 @@ function renderizarFila(dados) {
         if (window.SIGS_CONFIG && window.SIGS_CONFIG.perfilUsuario === "emissor") {
             const botaoReimprimir = document.createElement("button");
             botaoReimprimir.className = "botao botao-secundario botao-acao-pequeno";
-            botaoReimprimir.textContent = "🖨️ Reimprimir";
+            botaoReimprimir.textContent = "Reimprimir";
             botaoReimprimir.addEventListener("click", () => reimprimirSenha(senha.id, senha.numero));
             celulaAcoes.appendChild(botaoReimprimir);
         }
@@ -791,7 +791,7 @@ function renderizarUltimasPorEmpresa(lista) {
         const linha = document.createElement("tr");
 
         const celulaEmpresa = document.createElement("td");
-        celulaEmpresa.textContent = item.empresa_fixa ? `🔒 ${item.empresa_nome}` : item.empresa_nome;
+        celulaEmpresa.textContent = item.empresa_fixa ? `${item.empresa_nome}` : item.empresa_nome;
 
         const celulaNumero = document.createElement("td");
         celulaNumero.textContent = item.numero ? String(item.numero).padStart(3, "0") : "—";

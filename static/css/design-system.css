@@ -1,0 +1,1098 @@
+/* =============================================================
+   design-system.css
+   =================
+   Camada do "Design System — ERP Web Profissional" (v2.0) sobre o
+   style.css do SIGS. Carregada DEPOIS de style.css e SOMENTE nas telas
+   internas e de autenticação (ver `pagina_com_tema` em
+   templates/layout.html) — os três painéis públicos de TV (/painel,
+   /painel/empresa/<id>, /painel/geral) ficam de fora de propósito e
+   continuam só com style.css.
+
+   Como funciona:
+     1. Define os tokens do Design System (--color-*, --font-*,
+        --space-*, --radius-*, --shadow-*, layout) no tema claro e no
+        escuro.
+     2. Aponta as variáveis legadas do style.css (--cor-fundo,
+        --cor-texto, --cor-superficie ...) para esses tokens, de modo
+        que TODO o CSS antigo passa a usar a nova paleta sem reescrita.
+     3. Redefine os componentes (botões, campos, tabelas, cards,
+        badges, modais, avisos) e a estrutura global (sidebar +
+        header + breadcrumb).
+
+   Cor de marca: paleta do Design System (bege/oliva). A cor principal
+   configurada em Configurações e a cor de cada empresa (--cor-principal)
+   continuam valendo como cor de DESTAQUE (indicador do item ativo no
+   menu, números em destaque, links) e, para o recrutador logado, como
+   cor dos botões primários (ver `body.identidade-empresa`).
+   ============================================================= */
+
+/* -------------------- 1. Tokens (tema claro) -------------------- */
+:root {
+    /* Marca e superfícies */
+    --color-text: #131311;
+    --color-background: #F7F7F5;
+    --color-primary: #96947A;
+    --color-secondary: #C4C2B0;
+    --color-accent: #B1AE91;
+    --color-surface: #FFFFFF;
+    --color-surface-muted: #F0F0EC;
+    --color-border: #D8D8D0;
+    --color-text-muted: #62625B;
+    --color-text-inverse: #FFFFFF;
+    --color-primary-hover: #7E7C66;
+    --color-primary-pressed: #686751;
+    --color-focus: #2457C5;
+
+    /* Estados */
+    --color-success: #237A4B;
+    --color-success-bg: #EAF5EE;
+    --color-warning: #946200;
+    --color-warning-bg: #FFF4D6;
+    --color-danger: #B42318;
+    --color-danger-bg: #FDECEA;
+    --color-info: #2457A7;
+    --color-info-bg: #EAF1FC;
+    --color-disabled: #A5A59D;
+    /* Preenchimento SÓLIDO com texto branco por cima (botão de perigo) —
+       separado de --color-danger porque, no tema escuro, a cor usada
+       como TEXTO é mais clara e não teria contraste com texto branco. */
+    --color-danger-solid: #B42318;
+    --color-danger-solid-hover: #8E1C12;
+
+    /* Tipografia */
+    --font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    --font-xs: 12px;
+    --font-sm: 13px;
+    --font-base: 14px;
+    --font-md: 16px;
+    --font-lg: 20px;
+    --font-xl: 24px;
+    --font-2xl: 30px;
+
+    /* Espaçamento (múltiplos de 4px) */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+
+    /* Bordas e elevação */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-full: 999px;
+    --shadow-sm: 0 1px 2px rgb(19 19 17 / 8%);
+    --shadow-md: 0 4px 12px rgb(19 19 17 / 10%);
+    --shadow-lg: 0 12px 32px rgb(19 19 17 / 14%);
+
+    /* Layout */
+    --sidebar-width: 256px;
+    --sidebar-collapsed-width: 68px;
+    --header-height: 60px;
+    --content-max-width: 1600px;
+
+    color-scheme: light;
+}
+
+/* -------------------- Tokens (tema escuro) -------------------- */
+/* Tokens próprios do tema escuro (o Design System pede tokens
+   específicos, não inversão automática). Mesma estrutura do claro. */
+html[data-tema="escuro"] {
+    --color-text: #F0F0EC;
+    --color-background: #131311;
+    --color-primary: #B1AE91;
+    --color-secondary: #62625B;
+    --color-accent: #96947A;
+    --color-surface: #1C1C1A;
+    --color-surface-muted: #262624;
+    --color-border: #3A3A36;
+    --color-text-muted: #A5A59D;
+    --color-primary-hover: #C4C2B0;
+    --color-primary-pressed: #D8D8D0;
+    --color-focus: #7CA3F2;
+
+    --color-success: #5CC48C;
+    --color-success-bg: rgb(92 196 140 / 16%);
+    --color-warning: #E5B04A;
+    --color-warning-bg: rgb(229 176 74 / 16%);
+    --color-danger: #F4807A;
+    --color-danger-bg: rgb(244 128 122 / 16%);
+    --color-info: #7CA3F2;
+    --color-info-bg: rgb(124 163 242 / 16%);
+    --color-disabled: #62625B;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 45%);
+    --shadow-lg: 0 12px 32px rgb(0 0 0 / 55%);
+
+    color-scheme: dark;
+}
+
+/* -------------------- 2. Variáveis legadas -> tokens -------------------- */
+/* "html:root" (especificidade 0,1,1) empata com html[data-tema="escuro"]
+   do style.css e, vindo depois, vence nos DOIS temas com um único bloco
+   (os tokens acima já mudam conforme o tema). --cor-principal /
+   --cor-principal-clara NÃO são remapeadas: continuam vindo da cor
+   configurada (ou da cor da empresa) e servem de cor de destaque. */
+html:root {
+    --cor-fundo: var(--color-background);
+    --cor-fundo-gradiente-fim: var(--color-background);
+    --cor-texto: var(--color-text);
+    --cor-texto-secundario: var(--color-text-muted);
+    --cor-texto-label: var(--color-text);
+    --cor-superficie: var(--color-surface);
+    --cor-cinza-borda: var(--color-border);
+    --cor-sucesso: var(--color-success);
+    --cor-erro: var(--color-danger);
+    --cor-sucesso-fundo: var(--color-success-bg);
+    --cor-erro-fundo: var(--color-danger-bg);
+    --cor-erro-borda-suave: color-mix(in srgb, var(--color-danger) 35%, transparent);
+    --cor-principal-fundo: var(--color-surface-muted);
+    --cor-foco-anel: color-mix(in srgb, var(--color-focus) 30%, transparent);
+    --sombra-padrao: var(--shadow-sm);
+    --raio-borda: var(--radius-md);
+    --transicao-padrao: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+    --cor-botao-principal: var(--color-primary);
+    --cor-botao-secundario: var(--color-surface);
+}
+
+/* Recrutador logado (ou painel de uma empresa): botões primários
+   vestem a cor da empresa, como já era antes do Design System. */
+body.identidade-empresa {
+    --cor-botao-principal: var(--cor-principal);
+}
+
+body.identidade-empresa .botao-primario {
+    color: var(--color-text-inverse);
+}
+
+body.identidade-empresa .botao-primario:hover,
+body.identidade-empresa .botao-primario:active {
+    background: var(--cor-botao-principal);
+    filter: brightness(0.9);
+}
+
+/* -------------------- 3. Base e tipografia -------------------- */
+body {
+    font-family: var(--font-family);
+    font-size: var(--font-base);
+    line-height: 1.5;
+    font-weight: 400;
+    color: var(--color-text);
+    background: var(--color-background);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+    font-family: var(--font-family);
+    line-height: 1.3;
+}
+
+h1 { font-size: var(--font-xl); font-weight: 600; }
+h2 { font-size: var(--font-lg); font-weight: 600; }
+h3 { font-size: var(--font-md); font-weight: 600; }
+
+a { color: var(--color-info); }
+
+table, .senha-destaque, .resumo-valor, .celula-proxima-senha {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Foco visível em qualquer controle (WCAG 2.2 AA) */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Texto só para leitores de tela */
+.somente-leitor-tela {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* -------------------- 4. Botões -------------------- */
+.botao {
+    min-height: 40px;
+    padding: 0 var(--space-4);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font: 600 var(--font-base) / 1.2 var(--font-family);
+    color: var(--color-text);
+    background: var(--color-surface);
+    box-shadow: none;
+    gap: var(--space-2);
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.botao:hover {
+    transform: none;
+    filter: none;
+}
+
+.botao:active {
+    transform: none;
+}
+
+.botao:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.botao svg {
+    flex: none;
+}
+
+.botao-grande {
+    min-height: 48px;
+    padding: 0 var(--space-5);
+    font-size: var(--font-md);
+}
+
+/* Primário: ação principal da tela */
+.botao-primario {
+    color: var(--color-text);
+    background: var(--cor-botao-principal);
+    box-shadow: var(--shadow-sm);
+}
+
+.botao-primario:hover {
+    background: var(--color-primary-hover);
+}
+
+.botao-primario:active {
+    background: var(--color-primary-pressed);
+    color: var(--color-text-inverse);
+}
+
+/* Secundário: ação alternativa, fundo neutro com borda */
+.botao-secundario {
+    color: var(--color-text);
+    background: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+.botao-secundario:hover {
+    background: var(--color-surface-muted);
+    border-color: var(--color-text-muted);
+}
+
+.botao-secundario:active {
+    background: var(--color-border);
+}
+
+/* Terciário / ghost: baixo destaque */
+.botao-terciario {
+    color: var(--color-text);
+    background: transparent;
+    border-color: transparent;
+}
+
+.botao-terciario:hover {
+    background: var(--color-surface-muted);
+}
+
+.botao-terciario:active {
+    background: var(--color-border);
+}
+
+/* Atalhos em grade (tela principal): sem contorno um botão terciário
+   parece texto solto — nesse contexto ele ganha o mesmo visual do
+   secundário, para continuar claramente clicável. */
+.grade-botoes .botao-terciario {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+.grade-botoes .botao-terciario:hover {
+    background: var(--color-surface-muted);
+    border-color: var(--color-text-muted);
+}
+
+/* Perigo: exclusão, cancelamento, bloqueio */
+.botao-alerta {
+    color: var(--color-text-inverse);
+    background: var(--color-danger-solid);
+}
+
+.botao-alerta:hover {
+    background: var(--color-danger-solid-hover);
+}
+
+.botao-acao-pequeno {
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    font-size: var(--font-sm);
+    border-radius: var(--radius-sm);
+}
+
+/* Botões com cor própria (empresa / WhatsApp) mantêm leitura adequada */
+#empresas-corpo tr .btn-upload-logo,
+#empresas-corpo tr .btn-renomear-empresa,
+#empresas-corpo tr .btn-abrir-painel-empresa {
+    color: var(--color-text-inverse);
+    border-color: transparent;
+}
+
+.botao-whatsapp {
+    color: var(--color-text);
+}
+
+/* Botão só com ícone (tema, abrir menu) */
+.botao-tema,
+.botao-icone {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text);
+    font-size: var(--font-md);
+    cursor: pointer;
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease;
+}
+
+.botao-tema:hover,
+.botao-icone:hover {
+    background: var(--color-surface-muted);
+    border-color: var(--color-text-muted);
+    transform: none;
+}
+
+.botao-tema--flutuante {
+    position: fixed;
+    top: var(--space-4);
+    right: var(--space-4);
+    z-index: 900;
+    width: 40px;
+    height: 40px;
+    font-size: var(--font-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: var(--shadow-md);
+}
+
+/* -------------------- 5. Campos e formulários -------------------- */
+input,
+select,
+textarea {
+    min-height: 40px;
+    padding: 10px 12px;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font: 400 var(--font-base) / 1.4 var(--font-family);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    min-height: 0;
+    accent-color: var(--color-primary-pressed);
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+    border-color: var(--color-text-muted);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--color-focus);
+    box-shadow: none;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 1px;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+    color: var(--color-text-muted);
+    background: var(--color-surface-muted);
+    cursor: not-allowed;
+}
+
+input[aria-invalid="true"] {
+    border-color: var(--color-danger);
+}
+
+.campos-identificacao label,
+.card-formulario label,
+.modal-caixa label {
+    font-size: var(--font-base);
+    font-weight: 500;
+    color: var(--color-text);
+    gap: var(--space-1);
+}
+
+.card-formulario {
+    gap: var(--space-4);
+}
+
+.campo-busca-tabela {
+    max-width: 360px;
+}
+
+.select-perfil,
+.select-empresa-recrutador {
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: var(--font-sm);
+}
+
+.input-cor-empresa {
+    min-height: 36px;
+    padding: 2px;
+}
+
+/* -------------------- 6. Cards, títulos e superfícies -------------------- */
+.card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-5) var(--space-6);
+}
+
+.card h2 {
+    margin: 0 0 var(--space-4);
+    padding-bottom: var(--space-3);
+    font-size: var(--font-lg);
+    font-weight: 600;
+    color: var(--color-text);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.card-zona-perigo {
+    border: 1px solid var(--color-danger);
+}
+
+.card-zona-perigo h2 {
+    color: var(--color-danger);
+    border-bottom-color: var(--cor-erro-borda-suave);
+}
+
+.cabecalho {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: var(--space-6);
+    gap: var(--space-4);
+}
+
+.cabecalho .logo {
+    height: 44px;
+}
+
+.titulo-evento h1 {
+    margin: 0;
+    font-size: var(--font-xl);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.titulo-evento p {
+    margin: var(--space-1) 0 0;
+    font-size: var(--font-base);
+    color: var(--color-text-muted);
+}
+
+.conteudo-principal {
+    gap: var(--space-6);
+}
+
+.conteudo-principal--tela-principal .coluna-menu,
+.conteudo-principal--tela-principal .coluna-fila {
+    gap: var(--space-6);
+}
+
+.identificacao-label {
+    font-size: var(--font-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+.identificacao-valor {
+    font-size: var(--font-lg);
+    font-weight: 600;
+}
+
+.senha-destaque {
+    font-weight: 700;
+}
+
+.senha-info {
+    font-size: var(--font-md);
+}
+
+.resumo-item {
+    background: var(--color-surface-muted);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.resumo-valor {
+    font-size: var(--font-2xl);
+    font-weight: 600;
+}
+
+.resumo-label {
+    font-size: var(--font-sm);
+    font-weight: 500;
+}
+
+/* -------------------- 7. Tabelas -------------------- */
+.tabela-fila {
+    font-size: var(--font-base);
+}
+
+.tabela-fila th,
+.tabela-fila td {
+    padding: 10px var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+}
+
+.tabela-fila th {
+    background: var(--color-surface-muted);
+    color: var(--color-text-muted);
+    font-size: var(--font-sm);
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.tabela-fila tbody tr:hover {
+    background: var(--color-surface-muted);
+}
+
+.card-tabela-empresas .tabela-fila th,
+.card-tabela-empresas .tabela-fila td {
+    padding: var(--space-2);
+}
+
+/* -------------------- 8. Badges e status -------------------- */
+.status-badge-ativo,
+.status-badge-inativo,
+.badge-fixa {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px 10px;
+    border-radius: var(--radius-full);
+    font-size: var(--font-xs);
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.status-badge-ativo {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.status-badge-inativo {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+}
+
+.badge-fixa {
+    background: var(--color-surface-muted);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+
+/* -------------------- 9. Avisos, toasts e modais -------------------- */
+.mensagem-status {
+    font-weight: 500;
+}
+
+.mensagem-status.sucesso { color: var(--color-success); }
+.mensagem-status.erro { color: var(--color-danger); }
+
+.flash-mensagens .mensagem-status {
+    border: 1px solid var(--color-border);
+    border-left-width: 4px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-3) var(--space-4);
+}
+
+.flash-mensagens .mensagem-status.sucesso {
+    background: var(--color-success-bg);
+    border-color: var(--color-success);
+}
+
+.flash-mensagens .mensagem-status.erro {
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger);
+}
+
+.notificacao {
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-info);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    padding: var(--space-3) var(--space-4);
+    color: var(--color-text);
+}
+
+.notificacao.sucesso { border-left-color: var(--color-success); }
+.notificacao.erro { border-left-color: var(--color-danger); }
+.notificacao.info { border-left-color: var(--color-info); }
+
+.modal-overlay {
+    background: rgb(19 19 17 / 55%);
+}
+
+.modal-caixa {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-6);
+    max-width: 480px;
+}
+
+.modal-caixa h2 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-lg);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.campo-obrigatorio {
+    color: var(--color-danger);
+}
+
+/* Faixa "Frase do Menu" definida pelo administrador: banner informativo */
+.barra-mensagem {
+    background: var(--color-info-bg);
+    color: var(--color-info);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--font-base);
+    font-weight: 500;
+    padding: var(--space-2) var(--space-6);
+    text-align: left;
+}
+
+/* -------------------- 10. Autenticação (login / acesso das empresas) -------------------- */
+.card-auth h1,
+.titulo-empresas-lateral {
+    color: var(--color-text);
+}
+
+.card-auth h1 {
+    font-size: var(--font-xl);
+    font-weight: 600;
+}
+
+.titulo-empresas-lateral {
+    font-size: var(--font-lg);
+    font-weight: 600;
+}
+
+.card-empresa-publico {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.card-empresa-publico:hover {
+    border-color: var(--color-text-muted);
+    box-shadow: var(--shadow-md);
+}
+
+/* -------------------- 11. Rodapé -------------------- */
+/* Telas sem a estrutura de sidebar (login, acesso das empresas): rodapé
+   fixo, discreto e neutro. */
+.rodape-sigs {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border-top: 1px solid var(--color-border);
+    box-shadow: none;
+    font-size: var(--font-xs);
+    font-weight: 500;
+    letter-spacing: 0;
+    padding: var(--space-2) var(--space-3);
+}
+
+/* -------------------- 12. Estrutura global: sidebar + header -------------------- */
+.app-shell {
+    display: flex;
+    min-height: 100vh;
+    background: var(--color-background);
+}
+
+.sidebar {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    flex: 0 0 var(--sidebar-width);
+    width: var(--sidebar-width);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    overflow-x: hidden;
+    overflow-y: auto;
+    z-index: 800;
+    transition:
+        width 180ms ease,
+        flex-basis 180ms ease;
+}
+
+.sidebar-marca {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: var(--header-height);
+    padding: 0 var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-size: var(--font-md);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.sidebar-marca img {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.sidebar-nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-4) var(--space-3);
+}
+
+.nav-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.nav-grupo-titulo {
+    margin: 0 0 var(--space-1);
+    padding: 0 var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 40px;
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text);
+    font: 500 var(--font-base) / 1.2 var(--font-family);
+    text-align: left;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.nav-item:hover {
+    background: var(--color-surface-muted);
+}
+
+.nav-item svg {
+    flex: none;
+}
+
+.nav-item[aria-current="page"] {
+    background: var(--color-surface-muted);
+    font-weight: 600;
+}
+
+.nav-item[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: var(--space-2);
+    bottom: var(--space-2);
+    width: 3px;
+    border-radius: var(--radius-full);
+    background: var(--cor-principal);
+}
+
+.sidebar-rodape {
+    padding: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.icone-recolher {
+    transition: transform 180ms ease;
+}
+
+.app-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 700;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    min-height: var(--header-height);
+    padding: 0 var(--space-6);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.sidebar-abrir {
+    display: none;
+}
+
+.migalhas ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-muted);
+    font-size: var(--font-sm);
+}
+
+.migalhas li + li::before {
+    content: "/";
+    margin-right: var(--space-2);
+}
+
+.migalhas [aria-current="page"] {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.app-header-usuario {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-left: auto;
+}
+
+.usuario-resumo {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.3;
+}
+
+.usuario-nome {
+    font-weight: 600;
+}
+
+.usuario-meta {
+    color: var(--color-text-muted);
+    font-size: var(--font-xs);
+}
+
+.form-logout {
+    margin: 0;
+}
+
+.botao-sair {
+    min-height: 40px;
+    padding: 0 var(--space-4);
+    font-size: var(--font-base);
+}
+
+.app-conteudo {
+    flex: 1;
+}
+
+.app .pagina {
+    max-width: var(--content-max-width);
+    margin: 0;
+    padding: var(--space-6);
+    padding-bottom: var(--space-8);
+}
+
+.app .pagina-empresas {
+    max-width: none;
+}
+
+.app .flash-mensagens {
+    max-width: var(--content-max-width);
+    margin: var(--space-4) 0 0;
+    padding: 0 var(--space-6);
+}
+
+.app .rodape-sigs {
+    position: static;
+    padding: var(--space-4) var(--space-6);
+    text-align: left;
+}
+
+.sidebar-fundo {
+    display: none;
+}
+
+/* Sidebar recolhida (desktop/tablet): só ícones, rótulos continuam
+   acessíveis a leitores de tela. */
+@media (min-width: 768px) {
+    html[data-sidebar="recolhida"] .sidebar {
+        flex-basis: var(--sidebar-collapsed-width);
+        width: var(--sidebar-collapsed-width);
+    }
+
+    html[data-sidebar="recolhida"] .nav-rotulo,
+    html[data-sidebar="recolhida"] .nav-grupo-titulo {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+
+    html[data-sidebar="recolhida"] .nav-item {
+        justify-content: center;
+        padding: 0;
+    }
+
+    html[data-sidebar="recolhida"] .sidebar-marca {
+        justify-content: center;
+        padding: 0;
+    }
+
+    html[data-sidebar="recolhida"] .icone-recolher {
+        transform: rotate(180deg);
+    }
+}
+
+/* Mobile: sidebar vira drawer */
+@media (max-width: 767px) {
+    .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        flex: none;
+        width: var(--sidebar-width);
+        height: auto;
+        visibility: hidden;
+        transform: translateX(-100%);
+        box-shadow: var(--shadow-lg);
+        transition:
+            transform 180ms ease,
+            visibility 0s linear 180ms;
+    }
+
+    .app-shell.sidebar-aberta .sidebar {
+        visibility: visible;
+        transform: none;
+        transition-delay: 0s;
+    }
+
+    .app-shell.sidebar-aberta .sidebar-fundo {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 750;
+        background: rgb(19 19 17 / 50%);
+    }
+
+    .sidebar-abrir {
+        display: inline-flex;
+    }
+
+    .sidebar-rodape {
+        display: none;
+    }
+
+    .usuario-resumo {
+        display: none;
+    }
+
+    .app-header {
+        padding: 0 var(--space-4);
+    }
+
+    .app .pagina {
+        padding: var(--space-4);
+        padding-bottom: var(--space-6);
+    }
+
+    .app .flash-mensagens {
+        padding: 0 var(--space-4);
+    }
+}
+
+@media (max-width: 480px) {
+    .botao-sair .rotulo-sair {
+        display: none;
+    }
+}
+
+/* Impressão: sem navegação */
+@media print {
+    .sidebar,
+    .app-header,
+    .rodape-sigs,
+    .botao-tema {
+        display: none !important;
+    }
+}

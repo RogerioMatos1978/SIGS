@@ -65,7 +65,7 @@
                 Exibindo somente os dados da sua empresa{% if empresa_recrutador %} ({{ empresa_recrutador.nome }}){% endif %}.
             </p>
             {% endif %}
-            <button id="btn-atualizar-resumo" class="botao botao-primario">🔎 Atualizar Resumo e Dashboard</button>
+            <button id="btn-atualizar-resumo" class="botao botao-primario">Atualizar Resumo e Dashboard</button>
         </section>
 
         <section class="card card-resumo">
@@ -108,7 +108,7 @@
              controlam esta seção (ver
              static/js/relatorios.js:atualizarResumo). -->
         <section class="card card-dashboard-analitico">
-            <h2>📊 Dashboard Analítico</h2>
+            <h2>Dashboard Analítico</h2>
             <div class="grade-dashboard">
                 <div class="grafico-card grafico-card--largo">
                     <h3>Emissões por Dia</h3>
@@ -150,7 +150,7 @@
                      app.py:api_relatorios_empresas_pdf), diferente dos
                      botões de "Exportar" mais abaixo (que exportam a lista
                      BRUTA de senhas/chamadas, sem esse cabeçalho). -->
-                <button id="btn-download-pdf-empresas" class="botao botao-secundario botao-acao-pequeno">📄 Exportar PDF</button>
+                <button id="btn-download-pdf-empresas" class="botao botao-secundario botao-acao-pequeno">Exportar PDF</button>
             </div>
             <table class="tabela-fila">
                 <thead>
@@ -169,9 +169,9 @@
         <section class="card card-downloads">
             <h2>Exportar</h2>
             <div class="grade-botoes grade-botoes-relatorio">
-                <button id="btn-download-csv" class="botao botao-secundario">⬇️ Baixar CSV</button>
-                <button id="btn-download-excel" class="botao botao-secundario">⬇️ Baixar Excel</button>
-                <button id="btn-download-pdf" class="botao botao-secundario">⬇️ Baixar PDF</button>
+                <button id="btn-download-csv" class="botao botao-secundario">Baixar CSV</button>
+                <button id="btn-download-excel" class="botao botao-secundario">Baixar Excel</button>
+                <button id="btn-download-pdf" class="botao botao-secundario">Baixar PDF</button>
             </div>
             <a href="{{ url_for('index') }}" class="botao botao-terciario">← Voltar</a>
         </section>
